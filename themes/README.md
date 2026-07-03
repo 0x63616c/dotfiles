@@ -59,7 +59,7 @@ Global config:
 ```json
 {
   "theme": "lucent-orng-plusplus",
-  "plugin": ["/Users/calum/code/github.com/0x63616c/themes"]
+  "plugin": ["/Users/calum/code/github.com/0x63616c/dotfiles/themes"]
 }
 ```
 
