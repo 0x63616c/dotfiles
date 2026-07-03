@@ -1,0 +1,9 @@
+{
+  "name": "themes",
+  "version": "0.0.0",
+  "private": true,
+  "oc-themes": [
+    "opencode/blackout.json",
+    "opencode/lucent-orng-plusplus.json"
+  ]
+}

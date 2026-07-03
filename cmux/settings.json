@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/manaflow-ai/cmux/main/web/data/cmux-settings.schema.json",
+  "schemaVersion": 1,
+
+  "shortcuts": {
+    "bindings": {
+      "nextSidebarTab": "cmd+]",
+      "prevSidebarTab": "cmd+[",
+      "selectSurfaceByNumber": "ctrl+opt+1"
+    }
+  }
+}

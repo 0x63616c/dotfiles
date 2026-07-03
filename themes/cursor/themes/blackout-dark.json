@@ -1,0 +1,354 @@
+{
+  "name": "Blackout",
+  "type": "dark",
+  "semanticHighlighting": true,
+  "colors": {
+    "foreground": "#ededed",
+    "descriptionForeground": "#8a8a8a",
+    "errorForeground": "#fb5a4b",
+    "editor.background": "#000000",
+    "editor.foreground": "#ededed",
+    "sideBar.background": "#000000",
+    "sideBar.foreground": "#8a8a8a",
+    "sideBar.border": "#1a1a1a",
+    "sideBarSectionHeader.background": "#000000",
+    "sideBarSectionHeader.foreground": "#8a8a8a",
+    "sideBarSectionHeader.border": "#1a1a1a",
+    "sideBarTitle.foreground": "#8a8a8a",
+    "activityBar.background": "#000000",
+    "activityBar.foreground": "#ededed",
+    "activityBar.inactiveForeground": "#5a5a5a",
+    "activityBar.border": "#1a1a1a",
+    "statusBar.background": "#000000",
+    "statusBar.foreground": "#8a8a8a",
+    "statusBar.border": "#1a1a1a",
+    "panel.background": "#000000",
+    "panel.border": "#1a1a1a",
+    "terminal.background": "#000000",
+    "terminal.foreground": "#ededed",
+    "titleBar.activeBackground": "#000000",
+    "titleBar.activeForeground": "#ededed",
+    "titleBar.border": "#1a1a1a",
+    "editorGroupHeader.tabsBackground": "#000000",
+    "editorGroup.border": "#1a1a1a",
+    "focusBorder": "#0a84ff",
+    "editorCursor.foreground": "#0a84ff",
+    "tab.activeBorder": "#0a84ff",
+    "tab.activeBorderTop": "#0a84ff",
+    "activityBar.activeBorder": "#0a84ff",
+    "activityBarBadge.background": "#0a84ff",
+    "activityBarBadge.foreground": "#000000",
+    "badge.background": "#0a84ff",
+    "badge.foreground": "#000000",
+    "textLink.foreground": "#0a84ff",
+    "textLink.activeForeground": "#3b9bff",
+    "progressBar.background": "#0a84ff",
+    "statusBarItem.remoteBackground": "#0a84ff",
+    "statusBarItem.remoteForeground": "#000000",
+    "selection.background": "#0a84ff44",
+    "widget.shadow": "#00000000",
+    "scrollbar.shadow": "#00000000",
+    "editor.lineHighlightBackground": "#0a0a0a",
+    "editor.lineHighlightBorder": "#00000000",
+    "editor.selectionBackground": "#232323",
+    "editor.selectionHighlightBackground": "#23232366",
+    "editor.selectionHighlightBorder": "#00000000",
+    "editor.inactiveSelectionBackground": "#23232380",
+    "editor.wordHighlightBackground": "#23232366",
+    "editor.wordHighlightBorder": "#00000000",
+    "editor.wordHighlightStrongBackground": "#23232366",
+    "editor.wordHighlightStrongBorder": "#00000000",
+    "editor.findMatchBackground": "#0a84ff55",
+    "editor.findMatchHighlightBackground": "#0a84ff33",
+    "editorLineNumber.foreground": "#3a3a3a",
+    "editorLineNumber.activeForeground": "#8a8a8a",
+    "editorIndentGuide.background1": "#1a1a1a",
+    "editorIndentGuide.activeBackground1": "#2a2a2a",
+    "editorWhitespace.foreground": "#1a1a1a",
+    "editorBracketMatch.background": "#00000000",
+    "editorBracketMatch.border": "#2a2a2a",
+    "editorRuler.foreground": "#1a1a1a",
+    "editorGutter.background": "#000000",
+    "tab.activeBackground": "#000000",
+    "tab.inactiveBackground": "#000000",
+    "tab.activeForeground": "#ededed",
+    "tab.inactiveForeground": "#6a6a6a",
+    "tab.border": "#1a1a1a",
+    "tab.hoverBackground": "#0a0a0a",
+    "tab.unfocusedActiveBorder": "#1a1a1a",
+    "list.activeSelectionBackground": "#0a0a0a",
+    "list.activeSelectionForeground": "#ededed",
+    "list.inactiveSelectionBackground": "#0a0a0a",
+    "list.inactiveSelectionForeground": "#ededed",
+    "list.hoverBackground": "#0a0a0a",
+    "list.focusOutline": "#0a84ff",
+    "button.background": "#ededed",
+    "button.foreground": "#000000",
+    "button.hoverBackground": "#d4d4d4",
+    "button.secondaryBackground": "#0a0a0a",
+    "button.secondaryForeground": "#ededed",
+    "input.background": "#000000",
+    "input.foreground": "#ededed",
+    "input.border": "#1a1a1a",
+    "input.placeholderForeground": "#5a5a5a",
+    "inputOption.activeBorder": "#0a84ff",
+    "dropdown.background": "#000000",
+    "dropdown.border": "#1a1a1a",
+    "dropdown.foreground": "#ededed",
+    "quickInput.background": "#000000",
+    "quickInput.foreground": "#ededed",
+    "pickerGroup.border": "#1a1a1a",
+    "pickerGroup.foreground": "#0a84ff",
+    "quickInputList.focusBackground": "#0a0a0a",
+    "editorWidget.background": "#000000",
+    "editorWidget.border": "#1a1a1a",
+    "editorHoverWidget.background": "#000000",
+    "editorHoverWidget.border": "#1a1a1a",
+    "editorSuggestWidget.background": "#000000",
+    "editorSuggestWidget.border": "#1a1a1a",
+    "editorSuggestWidget.selectedBackground": "#0a0a0a",
+    "notifications.background": "#000000",
+    "notifications.border": "#1a1a1a",
+    "scrollbarSlider.background": "#ededed1a",
+    "scrollbarSlider.hoverBackground": "#ededed2a",
+    "scrollbarSlider.activeBackground": "#ededed3a",
+    "gitDecoration.addedResourceForeground": "#34d399",
+    "gitDecoration.modifiedResourceForeground": "#ffb454",
+    "gitDecoration.deletedResourceForeground": "#fb5a4b",
+    "gitDecoration.untrackedResourceForeground": "#34d399",
+    "gitDecoration.ignoredResourceForeground": "#5a5a5a",
+    "gitDecoration.conflictingResourceForeground": "#9a86ff",
+    "editorGutter.addedBackground": "#34d399",
+    "editorGutter.modifiedBackground": "#ffb454",
+    "editorGutter.deletedBackground": "#fb5a4b",
+    "diffEditor.insertedTextBackground": "#34d39920",
+    "diffEditor.removedTextBackground": "#fb5a4b20",
+    "diffEditor.insertedLineBackground": "#34d39914",
+    "diffEditor.removedLineBackground": "#fb5a4b14",
+    "editorError.foreground": "#fb5a4b",
+    "editorWarning.foreground": "#ffb454",
+    "editorInfo.foreground": "#0a84ff",
+    "minimapGutter.addedBackground": "#34d399",
+    "minimapGutter.modifiedBackground": "#ffb454",
+    "minimapGutter.deletedBackground": "#fb5a4b",
+    "terminalCursor.foreground": "#0a84ff",
+    "terminal.ansiBlack": "#000000",
+    "terminal.ansiBrightBlack": "#3a3a3a",
+    "terminal.ansiRed": "#fb5a4b",
+    "terminal.ansiBrightRed": "#ff7a6e",
+    "terminal.ansiGreen": "#34d399",
+    "terminal.ansiBrightGreen": "#34d399",
+    "terminal.ansiYellow": "#ffb454",
+    "terminal.ansiBrightYellow": "#ffc679",
+    "terminal.ansiBlue": "#0a84ff",
+    "terminal.ansiBrightBlue": "#3b9bff",
+    "terminal.ansiMagenta": "#9a86ff",
+    "terminal.ansiBrightMagenta": "#b07cff",
+    "terminal.ansiCyan": "#57cdef",
+    "terminal.ansiBrightCyan": "#7fdcf5",
+    "terminal.ansiWhite": "#cfcfcf",
+    "terminal.ansiBrightWhite": "#ededed",
+    "editorBracketHighlight.foreground1": "#6f9bff",
+    "editorBracketHighlight.foreground2": "#e0b06a",
+    "editorBracketHighlight.foreground3": "#5cc593",
+    "editorBracketHighlight.foreground4": "#6f9bff",
+    "editorBracketHighlight.foreground5": "#e0b06a",
+    "editorBracketHighlight.foreground6": "#5cc593",
+    "editorBracketHighlight.unexpectedBracket.foreground": "#fb5a4b"
+  },
+  "tokenColors": [
+    {
+      "scope": [
+        "comment",
+        "comment.line.documentation",
+        "comment.block.documentation",
+        "punctuation.definition.comment"
+      ],
+      "settings": {
+        "foreground": "#6a6a6a",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": [
+        "keyword",
+        "storage",
+        "storage.type",
+        "storage.modifier",
+        "keyword.control",
+        "keyword.operator.new",
+        "keyword.operator.expression"
+      ],
+      "settings": {
+        "foreground": "#9a86ff"
+      }
+    },
+    {
+      "scope": [
+        "string",
+        "string.quoted",
+        "string.template",
+        "punctuation.definition.string"
+      ],
+      "settings": {
+        "foreground": "#34d399"
+      }
+    },
+    {
+      "scope": [
+        "string.regexp",
+        "constant.character.escape"
+      ],
+      "settings": {
+        "foreground": "#34d399"
+      }
+    },
+    {
+      "scope": [
+        "constant.numeric",
+        "constant.language",
+        "constant.language.boolean",
+        "constant.language.null",
+        "constant.language.undefined"
+      ],
+      "settings": {
+        "foreground": "#f47ea0"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.function",
+        "support.function",
+        "meta.function-call.generic",
+        "variable.function"
+      ],
+      "settings": {
+        "foreground": "#ffb454"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.type",
+        "entity.name.class",
+        "support.type",
+        "support.class",
+        "entity.other.inherited-class",
+        "entity.name.namespace"
+      ],
+      "settings": {
+        "foreground": "#57cdef"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.tag",
+        "support.type.primitive",
+        "support.type.builtin"
+      ],
+      "settings": {
+        "foreground": "#57cdef"
+      }
+    },
+    {
+      "scope": [
+        "entity.other.attribute-name"
+      ],
+      "settings": {
+        "foreground": "#ffb454"
+      }
+    },
+    {
+      "scope": [
+        "variable",
+        "variable.other",
+        "variable.other.readwrite",
+        "meta.definition.variable"
+      ],
+      "settings": {
+        "foreground": "#ededed"
+      }
+    },
+    {
+      "scope": [
+        "variable.parameter"
+      ],
+      "settings": {
+        "foreground": "#ededed"
+      }
+    },
+    {
+      "scope": [
+        "variable.other.property",
+        "variable.other.object.property",
+        "meta.object-literal.key",
+        "support.variable.property"
+      ],
+      "settings": {
+        "foreground": "#ededed"
+      }
+    },
+    {
+      "scope": [
+        "punctuation",
+        "meta.brace",
+        "keyword.operator",
+        "punctuation.separator",
+        "punctuation.terminator"
+      ],
+      "settings": {
+        "foreground": "#9a9a9a"
+      }
+    },
+    {
+      "scope": [
+        "meta.decorator",
+        "punctuation.decorator",
+        "entity.name.function.decorator"
+      ],
+      "settings": {
+        "foreground": "#ffb454"
+      }
+    },
+    {
+      "scope": [
+        "invalid",
+        "invalid.illegal",
+        "invalid.deprecated"
+      ],
+      "settings": {
+        "foreground": "#fb5a4b"
+      }
+    }
+  ],
+  "semanticTokenColors": {
+    "keyword": "#9a86ff",
+    "string": "#34d399",
+    "number": "#f47ea0",
+    "boolean": "#f47ea0",
+    "regexp": "#34d399",
+    "function": "#ffb454",
+    "method": "#ffb454",
+    "function.declaration": "#ffb454",
+    "type": "#57cdef",
+    "class": "#57cdef",
+    "interface": "#57cdef",
+    "enum": "#57cdef",
+    "enumMember": "#f47ea0",
+    "typeParameter": "#57cdef",
+    "namespace": "#57cdef",
+    "variable": "#ededed",
+    "variable.readonly": "#ededed",
+    "parameter": "#ededed",
+    "property": "#ededed",
+    "decorator": "#ffb454",
+    "operator": "#9a9a9a",
+    "comment": {
+      "foreground": "#6a6a6a",
+      "fontStyle": "italic"
+    },
+    "comment.documentation": {
+      "foreground": "#6a6a6a",
+      "fontStyle": "italic"
+    }
+  }
+}

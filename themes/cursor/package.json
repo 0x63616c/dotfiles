@@ -1,0 +1,19 @@
+{
+  "name": "blackout-theme",
+  "displayName": "Blackout",
+  "description": "True-black, shadow-free theme with a Punchy syntax palette.",
+  "version": "0.0.1",
+  "publisher": "0x63616c",
+  "private": true,
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Themes"],
+  "contributes": {
+    "themes": [
+      { "label": "Blackout", "uiTheme": "vs-dark", "path": "./themes/blackout-dark.json" }
+    ]
+  },
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "test": "bun test"
+  }
+}

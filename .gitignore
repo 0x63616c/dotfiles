@@ -1,0 +1,3 @@
+# transient hook-migration backups (left by the symlink → file typechange dance)
+git/hooks/*.old
+git/hooks/*.clobbered

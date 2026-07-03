@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Minimal stub .app so ci-notify notifications post under their OWN macOS identity
+     ("CI"), giving them a separate Notification Center stack from terminal-notifier's
+     commit notifications. Never launched — it exists only as a registered bundle that
+     terminal-notifier's -sender can adopt. See ../README.md. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.calum.ci-notify</string>
+  <key>CFBundleName</key>
+  <string>CI</string>
+  <key>CFBundleDisplayName</key>
+  <string>CI</string>
+  <key>CFBundleExecutable</key>
+  <string>ci</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>LSBackgroundOnly</key>
+  <true/>
+</dict>
+</plist>

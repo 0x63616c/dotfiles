@@ -1,0 +1,48 @@
+name: Release macOS (notarized DMG)
+
+# Triggered by pushing a version tag, e.g. `git tag v0.1.0 && git push --tags`.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # to create the GitHub Release
+
+jobs:
+  notarize:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Decode Developer ID certificate
+        env:
+          SIGNING_P12: ${{ secrets.SIGNING_P12 }}
+        run: |
+          echo "$SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          echo "CERT_P12_PATH=$RUNNER_TEMP/dist.p12" >> "$GITHUB_ENV"
+
+      # [VERIFY] Build the .app first. copy-cat: `swift build -c release` then
+      # package; set MAC_APP_PATH to the built bundle.
+      - name: Build app
+        run: |
+          swift build -c release
+          echo "MAC_APP_PATH=$(pwd)/.build/release/App.app" >> "$GITHUB_ENV"
+
+      - name: Sign, notarize, staple, package
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.SIGNING_P12_PASSWORD }}
+        run: bundle exec fastlane mac release_macos
+
+      - name: Attach DMG to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
