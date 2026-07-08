@@ -50,6 +50,7 @@ always backed up to GitHub without you remembering to push.
 | `skills/publish-setup/` | Skill for bootstrapping iOS app publishing (Fastlane match, ASC key, secrets sync). |
 | `skills/saving-a-memory/` | Skill for where/how to save memories (global `~/.claude/CLAUDE.md` by default; never project-local from a worktree). |
 | `skills/writing-goals/` | Skill for composing `/goal` conditions that are tight, transcript-verifiable, and dodge-proof. |
+| `skills/using-presenterm/` | Skill for authoring [presenterm](https://github.com/mfontanini/presenterm) terminal slideshows, including the house style (blackout theme, front-matter title slide, implicit slide ends). |
 | `statusline-command.sh` | Tokyo Night statusline for Claude Code: left clock `[5:30pm]`, model + effort `(medium)`, cwd (OSC-8 link to the GitHub remote), git branch + dirty flag, `origin/main` short SHA with `(-N, age)` when local `main` is ahead/unpushed (N commits + age of origin/main's tip), and context-window %. Wire via `statusLine.command` in `settings.json`. |
 | `themes/blackout.json` | Blackout theme for Claude Code (`{name, base, overrides}`). Symlink target for `~/.claude/themes/blackout.json`; select it as the theme in `settings.json`. |
 
@@ -63,6 +64,12 @@ True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cu
 | `themes/opencode/` | OpenCode TUI themes: `blackout.json` + `lucent-orng-plusplus.json` (opaque variant of the built-in `lucent-orng`). Loaded via the global OpenCode plugin config (`"plugin": ["…/dotfiles/themes"]`). |
 | `themes/antinote/` | Blackout theme for [Antinote](https://antinote.io). Antinote is sandboxed, so `sync.sh` **copies** (not links) `blackout.json` into its container. |
 
+### `presenterm/`
+
+| Path | What it does |
+|---|---|
+| `presenterm/themes/blackout.yaml` | Blackout theme for [presenterm](https://github.com/mfontanini/presenterm). Symlink target for `~/Library/Application Support/presenterm/themes/blackout.yaml` (presenterm's macOS config dir when `XDG_CONFIG_HOME` is unset; on Linux it's `~/.config/presenterm/themes/`). presenterm auto-loads any `.yaml` there as a theme named after the file, so decks reference it with `theme: {name: blackout}`. |
+
 See `themes/README.md` for full per-app install + tweak instructions.
 
 ## Install
@@ -75,6 +82,7 @@ cd dotfiles
 ln -s "$PWD/claude/skills/publish-setup"                   ~/.claude/skills/publish-setup
 ln -s "$PWD/claude/skills/saving-a-memory"                 ~/.claude/skills/saving-a-memory
 ln -s "$PWD/claude/skills/writing-goals"                   ~/.claude/skills/writing-goals
+ln -s "$PWD/claude/skills/using-presenterm"                ~/.claude/skills/using-presenterm
 
 # Statusline (then set statusLine.command to this path in ~/.claude/settings.json)
 ln -s "$PWD/claude/statusline-command.sh"                  ~/.claude/statusline-command.sh
@@ -93,6 +101,10 @@ ln -s "$PWD/opencode/opencode.json"                        ~/.config/opencode/op
 
 # Themes — Cursor/VS Code Blackout (links into both editors)
 ./themes/cursor/scripts/install.sh
+
+# presenterm Blackout theme (macOS: presenterm uses App Support unless XDG_CONFIG_HOME is set)
+mkdir -p "$HOME/Library/Application Support/presenterm/themes"
+ln -s "$PWD/presenterm/themes/blackout.yaml"               "$HOME/Library/Application Support/presenterm/themes/blackout.yaml"
 
 # Auto-push continuous backup (installs + loads the LaunchAgent for this repo)
 ./auto-push/install.sh
