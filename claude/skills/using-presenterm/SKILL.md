@@ -162,6 +162,12 @@ theme:
 
 Also `--theme <name>` on CLI. Custom themes: drop `.yaml` files in presenterm's themes dir — `$XDG_CONFIG_HOME/presenterm/themes` if set, else platform config dir (macOS: `~/Library/Application Support/presenterm/themes/`, Linux: `~/.config/presenterm/themes/`). File name = theme name.
 
+Custom theme schema is strict per installed version (e.g. 0.16.1 rejects `column_layout`; its key is `layout_grid`). A schema-invalid theme is skipped with `theme '...' is corrupted: unknown field ...` and then reported as "does not exist". Validate headlessly (works without a TTY):
+
+```bash
+presenterm deck.md 2>&1 | grep corrupted   # no output = theme schema OK
+```
+
 ## Front Matter Options
 
 ```yaml
