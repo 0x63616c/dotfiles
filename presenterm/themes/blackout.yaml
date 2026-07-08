@@ -1,0 +1,135 @@
+---
+# Blackout theme for presenterm — true-black background, blue accent.
+# Palette matches themes/opencode/blackout.json (bg #000000, fg #ededed, accent #0a84ff).
+# Installed by symlinking this file to ~/.config/presenterm/themes/blackout.yaml;
+# presenterm auto-loads any .yaml in that directory as a theme named after the file.
+
+default:
+  margin:
+    percent: 8
+  colors:
+    foreground: palette:fg
+    background: palette:bg
+
+column_layout:
+  margin:
+    fixed: 4
+
+slide_title:
+  alignment: center
+  padding_bottom: 1
+  padding_top: 1
+  colors:
+    foreground: palette:accent_bright
+  bold: true
+  font_size: 2
+
+code:
+  alignment: center
+  minimum_size: 50
+  minimum_margin:
+    percent: 8
+  theme_name: base16-eighties.dark
+  padding:
+    horizontal: 2
+    vertical: 1
+
+execution_output:
+  colors:
+    foreground: palette:fg
+    background: palette:current_line
+  status:
+    running:
+      foreground: palette:accent_bright
+    success:
+      foreground: palette:success
+    failure:
+      foreground: palette:error
+    not_started:
+      foreground: palette:warning
+  padding:
+    horizontal: 2
+    vertical: 1
+
+inline_code:
+  colors:
+    foreground: palette:accent_bright
+    background: palette:current_line
+
+intro_slide:
+  title:
+    alignment: center
+    colors:
+      foreground: palette:accent_bright
+    font_size: 2
+  subtitle:
+    alignment: center
+    colors:
+      foreground: palette:fg_muted
+  author:
+    alignment: center
+    colors:
+      foreground: palette:fg
+    positioning: page_bottom
+  footer: false
+
+headings:
+  h1:
+    prefix: "██"
+    colors:
+      foreground: palette:accent_bright
+  h2:
+    prefix: "▓▓▓"
+    colors:
+      foreground: palette:keyword
+  h3:
+    prefix: "▒▒▒▒"
+    colors:
+      foreground: palette:warning
+  h4:
+    prefix: "░░░░░"
+    colors:
+      foreground: palette:type
+  h5:
+    prefix: "░░░░░░"
+    colors:
+      foreground: palette:type
+  h6:
+    prefix: "░░░░░░░"
+    colors:
+      foreground: palette:type
+
+block_quote:
+  prefix: "▍ "
+  colors:
+    foreground: palette:fg
+    background: palette:current_line
+    prefix: palette:accent
+
+footer:
+  style: template
+  right: "{current_slide} / {total_slides}"
+  colors:
+    foreground: palette:fg_faint
+
+modals:
+  selection_colors:
+    foreground: palette:accent_bright
+
+palette:
+  colors:
+    bg:            "000000"
+    current_line:  "181818"
+    selection:     "232323"
+    fg:            "ededed"
+    fg_muted:      "8a8a8a"
+    fg_faint:      "5a5a5a"
+    accent:        "0a84ff"
+    accent_bright: "3b9bff"
+    error:         "fb5a4b"
+    warning:       "ffb454"
+    success:       "34d399"
+    keyword:       "9a86ff"
+    type:          "57cdef"
+    number:        "f47ea0"
+    comment:       "6a6a6a"
