@@ -47,6 +47,7 @@ always backed up to GitHub without you remembering to push.
 
 | Path | What it does |
 |---|---|
+| `skills/codebase-audit/` | Skill for whole-repo health audits (naming drift, DRY, stale docs, dead code, scale readiness) with a fixed scoreboard report format; repo-scoped counterpart to per-diff code review. |
 | `skills/publish-setup/` | Skill for bootstrapping iOS app publishing (Fastlane match, ASC key, secrets sync). |
 | `skills/saving-a-memory/` | Skill for where/how to save memories (global `~/.claude/CLAUDE.md` by default; never project-local from a worktree). |
 | `skills/writing-goals/` | Skill for composing `/goal` conditions that are tight, transcript-verifiable, and dodge-proof. |
@@ -79,6 +80,7 @@ git clone https://github.com/0x63616c/dotfiles.git
 cd dotfiles
 
 # Claude skills
+ln -s "$PWD/claude/skills/codebase-audit"                  ~/.claude/skills/codebase-audit
 ln -s "$PWD/claude/skills/publish-setup"                   ~/.claude/skills/publish-setup
 ln -s "$PWD/claude/skills/saving-a-memory"                 ~/.claude/skills/saving-a-memory
 ln -s "$PWD/claude/skills/writing-goals"                   ~/.claude/skills/writing-goals
