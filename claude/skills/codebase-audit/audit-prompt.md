@@ -44,6 +44,11 @@ Explore the entire codebase and return a prioritized list of concrete, actionabl
 
 ## Output format
 
-Group findings by category. Within each: `severity (high/med/low) — file:line — finding — suggested fix — estimated effort (S = <30 min, M = hours, L = day+)`. End with a top-10 shortlist: highest-leverage changes across all categories.
+Group findings by category. Each finding must include:
+- `severity (high/med/low)`, `file:line`, `estimated effort (S = <30 min, M = hours, L = day+)`
+- **Evidence:** the command you ran and a one-line summary of its output (the grep proving zero references, the diff proving duplication). A claim without reproducible evidence is a guess — label it as such or drop it.
+- **Current vs proposed:** what exists now, and the change. For S-effort mechanical fixes (deletes, renames, one-liners) include a concrete ```diff``` block. For M/L findings describe the change — do not implement it.
+
+End with a top-10 shortlist: highest-leverage changes across all categories.
 
 Read-only: do NOT modify any files. Your final message must contain the full findings report.
