@@ -44,7 +44,7 @@ if [ -n "$used" ]; then
   else
     ctx_color="$CYAN"
   fi
-  ctx_segment=" ${FG}|${RESET} ${ctx_color}${used_int}%%${RESET}"
+  ctx_segment=" ${FG}·${RESET} ${ctx_color}${used_int}%%${RESET}"
 fi
 
 # Check git dirty status
@@ -52,37 +52,6 @@ dirty=""
 if [ -n "$cwd" ]; then
   porcelain=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" status --porcelain 2>/dev/null)
   [ -n "$porcelain" ] && dirty="*"
-fi
-
-# main vs origin/main: show origin/main's short SHA, and how many commits local
-# main is AHEAD of it (unpushed) as (-N). ALWAYS main->origin/main regardless of
-# the current branch/checkout — we only care about the main divergence. Non-
-# blocking, no network (origin/main is the cached remote-tracking ref, updated
-# on push/fetch).
-main_sha=""
-main_ahead=""
-main_age=""
-if [ -n "$cwd" ]; then
-  main_sha=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-parse --short origin/main 2>/dev/null)
-  if [ -n "$main_sha" ]; then
-    n=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" rev-list --count origin/main..main 2>/dev/null)
-    if [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null; then
-      main_ahead="$n"
-      # Age of origin/main's tip commit: time elapsed from its commit time to now.
-      ct=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" log -1 --format=%ct origin/main 2>/dev/null)
-      if [ -n "$ct" ]; then
-        diff=$(( $(date +%s) - ct ))
-        [ "$diff" -lt 0 ] && diff=0
-        if [ "$diff" -lt 3600 ]; then
-          main_age="$(( diff / 60 ))m"
-        elif [ "$diff" -lt 86400 ]; then
-          main_age="$(( diff / 3600 ))h"
-        else
-          main_age="$(( diff / 86400 ))d"
-        fi
-      fi
-    fi
-  fi
 fi
 
 # Make the cwd name an OSC 8 hyperlink to the GitHub remote. Ghostty (and most
@@ -110,24 +79,9 @@ fi
 # Build branch segment
 branch_segment=""
 if [ -n "$branch" ]; then
-  branch_segment=" ${CYAN}(${RESET}${GREEN}${branch}${RESET}"
+  branch_segment="${CYAN}(${RESET}${GREEN}${branch}${RESET}"
   [ -n "$dirty" ] && branch_segment="${branch_segment}${YELLOW}*${RESET}"
   branch_segment="${branch_segment}${CYAN})${RESET}"
 fi
 
-# Build origin/main SHA segment, with (-N) when local main is ahead (unpushed)
-sha_segment=""
-if [ -n "$main_sha" ]; then
-  sha_segment=" ${FG}|${RESET} ${ORANGE}${main_sha}${RESET}"
-  if [ -n "$main_ahead" ]; then
-    sha_segment="${sha_segment}${FG}(${RESET}${YELLOW}-${main_ahead}${RESET}"
-    [ -n "$main_age" ] && sha_segment="${sha_segment}${FG}, ${RESET}${YELLOW}${main_age}${RESET}"
-    sha_segment="${sha_segment}${FG})${RESET}"
-  fi
-fi
-
-# Clock segment for the far left, e.g. [4:57pm]
-clock=$(date +"%-I:%M%p" | tr '[:upper:]' '[:lower:]')
-clock_segment="${FG}[${RESET}${BRIGHT}${clock}${RESET}${FG}]${RESET} "
-
-printf "${clock_segment}${PURPLE}${short_model}${RESET}${effort_segment} ${FG}|${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${sha_segment}${ctx_segment}\n"
+printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${ctx_segment}\n"
