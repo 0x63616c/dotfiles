@@ -55,9 +55,17 @@ always backed up to GitHub without you remembering to push.
 | `statusline-command.sh` | Tokyo Night statusline for Claude Code: left clock `[5:30pm]`, model + effort `(medium)`, cwd (OSC-8 link to the GitHub remote), git branch + dirty flag, `origin/main` short SHA with `(-N, age)` when local `main` is ahead/unpushed (N commits + age of origin/main's tip), and context-window %. Wire via `statusLine.command` in `settings.json`. |
 | `themes/blackout.json` | Blackout theme for Claude Code (`{name, base, overrides}`). Symlink target for `~/.claude/themes/blackout.json`; select it as the theme in `settings.json`. |
 
+### `codex/`
+
+[Codex](https://developers.openai.com/codex) terminal UI setup.
+
+| Path | What it does |
+|---|---|
+| `themes/blackout.tmTheme` | Blackout syntax-highlighting theme for Codex CLI/TUI. Symlink target for `~/.codex/themes/blackout.tmTheme`; set `[tui].theme = "blackout"` in `~/.codex/config.toml`. |
+
 ### `themes/`
 
-True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cursor / VS Code, OpenCode, and Antinote. Previously the standalone `0x63616c/themes` repo, now vendored here.
+True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cursor / VS Code, OpenCode, Codex, Claude, Neovim, presenterm, and Antinote. Previously the standalone `0x63616c/themes` repo, now vendored here.
 
 | Path | What it does |
 |---|---|
@@ -92,6 +100,10 @@ ln -s "$PWD/claude/statusline-command.sh"                  ~/.claude/statusline-
 # Claude theme (then select "blackout" as the theme in ~/.claude/settings.json)
 mkdir -p ~/.claude/themes
 ln -s "$PWD/claude/themes/blackout.json"                   ~/.claude/themes/blackout.json
+
+# Codex theme (then set [tui].theme = "blackout" in ~/.codex/config.toml)
+mkdir -p ~/.codex/themes
+ln -s "$PWD/codex/themes/blackout.tmTheme"                  ~/.codex/themes/blackout.tmTheme
 
 # Neovim (LazyVim) config
 ln -s "$PWD/nvim"                                          ~/.config/nvim

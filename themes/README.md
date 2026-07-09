@@ -1,12 +1,13 @@
 # themes
 
-Custom themes for Cursor, VS Code, and OpenCode.
+Custom themes for Cursor, VS Code, OpenCode, Codex, Claude, Neovim, presenterm, and Antinote.
 
 ## Structure
 
 ```
 cursor/         → Cursor & VS Code themes (package.json, install script, build pipeline)
 opencode/       → OpenCode desktop and TUI theme files
+../codex/       → Codex CLI/TUI theme files
 antinote/       → Antinote (notes app) theme files
 ```
 
@@ -39,6 +40,22 @@ Every color comes from one file: `palette/palette.json`. Edit it, rebuild, reloa
 ```bash
 cd cursor
 bun run build
+```
+
+## Codex — Blackout (TUI)
+
+A true-black syntax-highlighting theme for Codex CLI/TUI. Codex loads custom `.tmTheme` files from `~/.codex/themes`.
+
+```bash
+mkdir -p ~/.codex/themes
+ln -s /Users/calum/code/github.com/0x63616c/dotfiles/codex/themes/blackout.tmTheme ~/.codex/themes/blackout.tmTheme
+```
+
+Then set the global default in `~/.codex/config.toml`:
+
+```toml
+[tui]
+theme = "blackout"
 ```
 
 ## OpenCode — Blackout (TUI)
