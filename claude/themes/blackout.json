@@ -3,9 +3,45 @@
   "base": "dark",
   "overrides": {
     "userMessageBackground": "rgb(0, 0, 0)",
-    "userMessageBackgroundHover": "rgb(12, 12, 12)",
+    "userMessageBackgroundHover": "rgb(10, 10, 10)",
     "composerSidebarBackground": "rgb(0, 0, 0)",
     "bashMessageBackgroundColor": "rgb(0, 0, 0)",
-    "memoryBackgroundColor": "rgb(0, 0, 0)"
+    "memoryBackgroundColor": "rgb(0, 0, 0)",
+    "selectionBg": "rgb(35, 35, 35)",
+
+    "text": "rgb(237, 237, 237)",
+    "inverseText": "rgb(0, 0, 0)",
+    "inactive": "rgb(138, 138, 138)",
+    "subtle": "rgb(90, 90, 90)",
+    "promptBorder": "rgb(42, 42, 42)",
+    "promptBorderShimmer": "rgb(58, 58, 58)",
+
+    "permission": "rgb(10, 132, 255)",
+    "permissionShimmer": "rgb(59, 155, 255)",
+    "suggestion": "rgb(10, 132, 255)",
+    "ide": "rgb(10, 132, 255)",
+    "briefLabelYou": "rgb(10, 132, 255)",
+
+    "claude": "rgb(255, 180, 84)",
+    "claudeShimmer": "rgb(255, 198, 121)",
+    "briefLabelClaude": "rgb(255, 180, 84)",
+    "warning": "rgb(255, 180, 84)",
+    "warningShimmer": "rgb(255, 198, 121)",
+
+    "autoAccept": "rgb(154, 134, 255)",
+    "autoAcceptShimmer": "rgb(176, 124, 255)",
+    "skill": "rgb(154, 134, 255)",
+    "merged": "rgb(154, 134, 255)",
+    "effortUltra": "rgb(176, 124, 255)",
+    "remember": "rgb(154, 134, 255)",
+
+    "planMode": "rgb(87, 205, 239)",
+    "bashBorder": "rgb(244, 126, 160)",
+
+    "success": "rgb(52, 211, 153)",
+    "error": "rgb(251, 90, 75)",
+
+    "rate_limit_fill": "rgb(10, 132, 255)",
+    "rate_limit_empty": "rgb(26, 26, 26)"
   }
 }
