@@ -22,10 +22,10 @@
 #if __has_include("secrets.h")
 #    include "secrets.h"
 #else
-#    error "secrets.h missing: cp secrets.h.example secrets.h and set SECRET_PW1/PW2"
+#    error "secrets.h missing: cp secrets.h.example secrets.h and set SECRET_PW1..PW4"
 #endif
-#if !defined(SECRET_PW1) || !defined(SECRET_PW2)
-#    error "secrets.h must define both SECRET_PW1 and SECRET_PW2"
+#if !defined(SECRET_PW1) || !defined(SECRET_PW2) || !defined(SECRET_PW3) || !defined(SECRET_PW4)
+#    error "secrets.h must define SECRET_PW1, SECRET_PW2, SECRET_PW3 and SECRET_PW4"
 #endif
 
 enum layers {
@@ -110,12 +110,18 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         return false;
     }
     switch (keycode) {
-        case KC_HELLO: // F16: Hyper+F16 = arm the blue->purple bootloader flash (plain press does nothing)
+        case KC_ESC: // Hyper + Esc -> arm the blue->purple bootloader flash (plain Esc otherwise)
             if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
                 bootblu_timer = timer_read32();
                 if (bootblu_timer == 0) { // avoid the idle sentinel on the rare exact-zero read
                     bootblu_timer = 1;
                 }
+                return false;
+            }
+            return true;
+        case KC_HELLO: // corner (F16): Hyper -> password 4 (plain press does nothing)
+            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+                send_hyper_string(SECRET_PW4);
             }
             return false;
         case KC_BOOTBLU: // still available to map elsewhere via VIA if wanted
@@ -135,6 +141,12 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case KC_F14: // Hyper + F14 -> password 2 (plain F14 otherwise)
             if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
                 send_hyper_string(SECRET_PW2);
+                return false;
+            }
+            return true;
+        case KC_F15: // Hyper + F15 -> password 3 (plain F15 otherwise)
+            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+                send_hyper_string(SECRET_PW3);
                 return false;
             }
             return true;

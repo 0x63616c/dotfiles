@@ -6,7 +6,7 @@ Self-contained. Everything for my custom keyboard firmware lives here.
 
 ```sh
 cd qmk
-just flash      # build + flash. Press Hyper+F16 (blue->purple) when it waits for the bootloader.
+just flash      # build + flash. Press Hyper+Esc (blue->purple) when it waits for the bootloader.
 ```
 
 First run auto-bootstraps: clones the QMK fork, links the keymap, builds the venv,
@@ -26,7 +26,7 @@ and creates `secrets.h` from the template. `just doctor` shows what's set up.
 
 Passwords are compiled into the firmware, not stored as VIA macros:
 
-- `hello/keymap.c` types `SECRET_PW1` / `SECRET_PW2` on Hyper+1 / Hyper+2.
+- `hello/keymap.c` types `SECRET_PW1`..`PW4` on Hyper+F13 / F14 / F15 / F16 (top-right keys).
 - Real values live in `hello/secrets.h` (gitignored). Missing/incomplete = hard build error.
 - VIA/WebHID cannot read them (not in EEPROM). A physical flash dump still can —
   keyboard secrets are not a substitute for a password manager.
