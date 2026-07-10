@@ -185,7 +185,7 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     if ((get_mods() & HYPER_MODS) == HYPER_MODS) {
         // Rainbow that scrolls left -> right, looping, for as long as Hyper is held.
         uint8_t val   = rgb_matrix_get_val();          // respect current brightness
-        uint8_t phase = (uint8_t)(timer_read32() / 8); // grows over time -> band moves right
+        uint8_t phase = (uint8_t)(timer_read32() / 2); // grows fast over time -> band races right (max-ish speed)
         for (uint8_t i = led_min; i < led_max; i++) {
             uint8_t hue = g_led_config.point[i].x - phase; // hue set by x, shifted by time
             RGB rgb = hsv_to_rgb((HSV){hue, 255, val});
