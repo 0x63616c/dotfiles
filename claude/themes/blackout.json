@@ -20,7 +20,7 @@
     "permissionShimmer": "rgb(59, 155, 255)",
     "suggestion": "rgb(10, 132, 255)",
     "ide": "rgb(10, 132, 255)",
-    "briefLabelYou": "rgb(10, 132, 255)",
+    "briefLabelYou": "rgb(59, 155, 255)",
 
     "claude": "rgb(255, 180, 84)",
     "claudeShimmer": "rgb(255, 198, 121)",
