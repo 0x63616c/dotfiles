@@ -1,0 +1,29 @@
+# Keychron Q6 Max — custom firmware build/flash
+# Usage: `just` to list, `just flash` to build + flash.
+
+kb    := "keychron/q6_max/ansi_encoder"
+km    := "hello"
+# venv (fork's pinned python + qmk CLI) on PATH; ARM GCC + dfu-util from nix
+_env  := "PATH=\"" + justfile_directory() + "/.venv/bin:$PATH\" nix shell nixpkgs#gcc-arm-embedded nixpkgs#dfu-util --command"
+
+# List recipes
+default:
+    @just --list
+
+# Compile firmware (no flash)
+build:
+    {{_env}} make {{kb}}:{{km}}
+
+# Compile, then flash. Command waits — press Fn+F16 (blue->purple) to enter bootloader.
+flash:
+    @echo ">>> When it says 'Bootloader not found', press Fn+F16 on the keyboard."
+    {{_env}} make {{kb}}:{{km}}:flash
+
+# Remove build artifacts
+clean:
+    {{_env}} make clean
+
+# One-time: (re)create the python venv with the fork's deps + qmk CLI
+setup:
+    python3 -m venv {{justfile_directory()}}/.venv
+    {{justfile_directory()}}/.venv/bin/pip install --ignore-installed -r requirements.txt qmk argcomplete

@@ -1,3 +1,7 @@
 # transient hook-migration backups (left by the symlink → file typechange dance)
 git/hooks/*.old
 git/hooks/*.clobbered
+
+# QMK keyboard passwords — never commit/push (auto-push is on!)
+secrets.h
+qmk/**/secrets.h
