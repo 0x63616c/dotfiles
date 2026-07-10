@@ -2,6 +2,10 @@
   "name": "blackout",
   "base": "dark",
   "overrides": {
-    "userMessageBackgroundHover": "rgb(20, 20, 20)"
+    "userMessageBackground": "rgb(0, 0, 0)",
+    "userMessageBackgroundHover": "rgb(12, 12, 12)",
+    "composerSidebarBackground": "rgb(0, 0, 0)",
+    "bashMessageBackgroundColor": "rgb(0, 0, 0)",
+    "memoryBackgroundColor": "rgb(0, 0, 0)"
   }
 }
