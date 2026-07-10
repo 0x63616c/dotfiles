@@ -6,7 +6,7 @@ Self-contained. Everything for my custom keyboard firmware lives here.
 
 ```sh
 cd qmk
-just flash      # build + flash. Press Fn+F16 (blue->purple) when it waits for the bootloader.
+just flash      # build + flash. Press Hyper+F16 (blue->purple) when it waits for the bootloader.
 ```
 
 First run auto-bootstraps: clones the QMK fork, links the keymap, builds the venv,

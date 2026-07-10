@@ -1,7 +1,7 @@
 # Keychron Q6 Max — self-contained keyboard project.
 # Everything lives under this dir. `just flash` bootstraps whatever is missing.
 #
-#   just flash    build + flash (press Fn+F16 when it waits for the bootloader)
+#   just flash    build + flash (press Hyper+F16 when it waits for the bootloader)
 #   just build    compile only
 #   just clean    remove build artifacts
 #   just doctor   show what's set up / missing
@@ -51,9 +51,9 @@ bootstrap:
 build: bootstrap
     {{_env}} make -C "{{fork}}" {{kb}}:{{km}}
 
-# Compile, then flash. Waits — press Fn+F16 (blue->purple) to enter bootloader.
+# Compile, then flash. Waits — press Hyper+F16 (blue->purple) to enter bootloader.
 flash: bootstrap
-    @echo ">>> When it says 'Bootloader not found', press Fn+F16 on the keyboard."
+    @echo ">>> When it says 'Bootloader not found', press Hyper+F16 on the keyboard."
     {{_env}} make -C "{{fork}}" {{kb}}:{{km}}:flash
 
 # Remove build artifacts

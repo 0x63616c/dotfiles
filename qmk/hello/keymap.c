@@ -16,6 +16,7 @@
 
 #include QMK_KEYBOARD_H
 #include "keychron_common.h"
+#include <stdlib.h> // rand/srand for Hyper party mode
 
 // Real passwords live in secrets.h (untracked, gitignored). Missing/incomplete
 // is a hard error — never silently flash a placeholder in place of a password.
@@ -60,6 +61,12 @@ static void send_hyper_string(const char *str) {
 // add right and it still fires. Combos would require pressing both within COMBO_TERM.
 static bool lsft_held = false;
 static bool rsft_held = false;
+
+// Hyper "party mode": while the Hyper mods are held, every key latches a random
+// hue. Picked once on the rising edge (so it's a stable random spread, not a
+// seizure-strobe), painted each frame, cleared on release -> normal effect resumes.
+static uint8_t hyper_hue[RGB_MATRIX_LED_COUNT];
+static bool    hyper_was_held = false;
 
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -174,6 +181,23 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         }
         return false; // boot flash overrides everything else
     }
+    bool hyper_held = (get_mods() & HYPER_MODS) == HYPER_MODS;
+    if (hyper_held) {
+        if (!hyper_was_held) { // rising edge: roll a fresh random hue per key
+            srand(timer_read32());
+            for (uint16_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
+                hyper_hue[i] = (uint8_t)rand();
+            }
+            hyper_was_held = true;
+        }
+        uint8_t val = rgb_matrix_get_val(); // respect current brightness
+        for (uint8_t i = led_min; i < led_max; i++) {
+            RGB rgb = hsv_to_rgb((HSV){hyper_hue[i], 255, val});
+            rgb_matrix_set_color(i, rgb.r, rgb.g, rgb.b);
+        }
+        return false; // party overrides caps/normal while Hyper is held
+    }
+    hyper_was_held = false; // released -> re-arm for next press
     if (host_keyboard_led_state().caps_lock) {
         // Whole main typing block white: number row down to bottom row, ` .. Backspace,
         // Left-Ctrl .. Right-Ctrl. y>=10 drops the top function/media row (y=0);
