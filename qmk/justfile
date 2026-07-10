@@ -1,29 +1,70 @@
-# Keychron Q6 Max — custom firmware build/flash
-# Usage: `just` to list, `just flash` to build + flash.
+# Keychron Q6 Max — self-contained keyboard project.
+# Everything lives under this dir. `just flash` bootstraps whatever is missing.
+#
+#   just flash    build + flash (press Fn+F16 when it waits for the bootloader)
+#   just build    compile only
+#   just clean    remove build artifacts
+#   just doctor   show what's set up / missing
+#
+# The 1.2G QMK fork (qmk_firmware/) and secrets.h are gitignored — never pushed.
 
-kb    := "keychron/q6_max/ansi_encoder"
-km    := "hello"
-# venv (fork's pinned python + qmk CLI) on PATH; ARM GCC + dfu-util from nix
-_env  := "PATH=\"" + justfile_directory() + "/.venv/bin:$PATH\" nix shell nixpkgs#gcc-arm-embedded nixpkgs#dfu-util --command"
+fork_url    := "https://github.com/Keychron/qmk_firmware"
+fork_branch := "wireless_playground"
+here        := justfile_directory()
+fork        := here / "qmk_firmware"
+kb          := "keychron/q6_max/ansi_encoder"
+km          := "hello"
+keymap_link := fork / "keyboards" / kb / "keymaps" / km
+venv        := fork / ".venv"
+_env        := "PATH=\"" + venv + "/bin:$PATH\" nix shell nixpkgs#gcc-arm-embedded nixpkgs#dfu-util --command"
 
 # List recipes
 default:
     @just --list
 
-# Compile firmware (no flash)
-build:
-    {{_env}} make {{kb}}:{{km}}
+# Make everything ready: clone fork, link keymap, build venv, ensure secrets.h. Safe to re-run.
+bootstrap:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # 1. QMK fork (big, submodules) — clone only if absent
+    if [ ! -d "{{fork}}/.git" ]; then
+        echo ">>> cloning QMK fork (~1.2G + submodules), one time…"
+        git clone --branch {{fork_branch}} --recurse-submodules "{{fork_url}}" "{{fork}}"
+    fi
+    # 2. link your keymap into the fork (replace empty dir / stale link)
+    rm -rf "{{keymap_link}}"
+    ln -s "{{here}}/{{km}}" "{{keymap_link}}"
+    # 3. python venv with the qmk CLI
+    if [ ! -x "{{venv}}/bin/qmk" ]; then
+        echo ">>> creating venv + installing qmk CLI, one time…"
+        python3 -m venv "{{venv}}"
+        "{{venv}}/bin/pip" install --ignore-installed -r "{{fork}}/requirements.txt" qmk argcomplete
+    fi
+    # 4. secrets.h must exist (build hard-errors while values are still placeholders)
+    if [ ! -f "{{here}}/{{km}}/secrets.h" ]; then
+        cp "{{here}}/{{km}}/secrets.h.example" "{{here}}/{{km}}/secrets.h"
+        echo "!!! created secrets.h from template — EDIT IT with real passwords, then re-run:"
+        echo "!!!   \$EDITOR {{here}}/{{km}}/secrets.h"
+    fi
 
-# Compile, then flash. Command waits — press Fn+F16 (blue->purple) to enter bootloader.
-flash:
+# Compile firmware (no flash)
+build: bootstrap
+    {{_env}} make -C "{{fork}}" {{kb}}:{{km}}
+
+# Compile, then flash. Waits — press Fn+F16 (blue->purple) to enter bootloader.
+flash: bootstrap
     @echo ">>> When it says 'Bootloader not found', press Fn+F16 on the keyboard."
-    {{_env}} make {{kb}}:{{km}}:flash
+    {{_env}} make -C "{{fork}}" {{kb}}:{{km}}:flash
 
 # Remove build artifacts
 clean:
-    {{_env}} make clean
+    {{_env}} make -C "{{fork}}" clean
 
-# One-time: (re)create the python venv with the fork's deps + qmk CLI
-setup:
-    python3 -m venv {{justfile_directory()}}/.venv
-    {{justfile_directory()}}/.venv/bin/pip install --ignore-installed -r requirements.txt qmk argcomplete
+# Show what's set up vs missing
+doctor:
+    #!/usr/bin/env bash
+    ok(){ printf '  [ok]   %s\n' "$1"; }; no(){ printf '  [MISS] %s\n' "$1"; }
+    [ -d "{{fork}}/.git" ] && ok "fork      {{fork}}" || no "fork (run: just bootstrap)"
+    [ -L "{{keymap_link}}" ] && ok "keymap    {{keymap_link}} -> $(readlink '{{keymap_link}}')" || no "keymap symlink"
+    [ -x "{{venv}}/bin/qmk" ] && ok "venv      {{venv}}" || no "venv"
+    [ -f "{{here}}/{{km}}/secrets.h" ] && ok "secrets.h present (gitignored)" || no "secrets.h"

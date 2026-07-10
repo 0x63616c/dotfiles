@@ -5,3 +5,6 @@ git/hooks/*.clobbered
 # QMK keyboard passwords — never commit/push (auto-push is on!)
 secrets.h
 qmk/**/secrets.h
+
+# QMK fork: 1.2G vendor tree, keeps its own git, re-clonable — never track here
+qmk/qmk_firmware/
