@@ -1,5 +1,7 @@
 {
   "name": "blackout",
   "base": "dark",
-  "overrides": {}
+  "overrides": {
+    "userMessageBackgroundHover": "rgb(20, 20, 20)"
+  }
 }
