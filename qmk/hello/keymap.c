@@ -117,15 +117,11 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         return false;
     }
     switch (keycode) {
-        case KC_HELLO: // F16: plain = type hello; Hyper+F16 = arm the blue->purple bootloader flash
-            if (record->event.pressed) {
-                if ((get_mods() & HYPER_MODS) == HYPER_MODS) {
-                    bootblu_timer = timer_read32();
-                    if (bootblu_timer == 0) { // avoid the idle sentinel on the rare exact-zero read
-                        bootblu_timer = 1;
-                    }
-                } else {
-                    SEND_STRING("hello from custom firmware");
+        case KC_HELLO: // F16: Hyper+F16 = arm the blue->purple bootloader flash (plain press does nothing)
+            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+                bootblu_timer = timer_read32();
+                if (bootblu_timer == 0) { // avoid the idle sentinel on the rare exact-zero read
+                    bootblu_timer = 1;
                 }
             }
             return false;
