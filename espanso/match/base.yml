@@ -1,0 +1,32 @@
+# Personal typo fixes — my own fast-typing finger-slips.
+# Symlink target for:
+#   ~/Library/Application Support/espanso/match/base.yml
+#
+# The typofixer-en hub package handles the ~4000 common English transpositions
+# (teh, adn, recieve, ...). This file is for the slips that are personal to ME
+# and not in that list. Add a line whenever you catch yourself repeating one.
+#
+# `word: true` makes the trigger fire only on a whole word (respects boundaries),
+# so "tooi" fixes but "tooit" (if it were a word) would not, and it won't chew
+# the middle of a longer word. `propagate_case` off — these are all lowercase.
+
+matches:
+  - trigger: "waht"
+    replace: "what"
+    word: true
+
+  - trigger: "tooi"
+    replace: "too"
+    word: true
+
+  - trigger: "abnove"
+    replace: "above"
+    word: true
+
+  - trigger: "fixe"
+    replace: "fix"
+    word: true
+
+  - trigger: "typefixewr"
+    replace: "typofixer"
+    word: true

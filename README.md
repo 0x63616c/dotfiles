@@ -81,6 +81,22 @@ True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cu
 
 See `themes/README.md` for full per-app install + tweak instructions.
 
+### `espanso/`
+
+[espanso](https://espanso.org) system-wide text expander, used here as a live typo-fixer:
+it watches keystrokes in every app and, when it sees a mistyped word, backspaces over it and
+types the correction. The `typofixer-en` hub package covers ~4000 common English transpositions
+(`teh`, `adn`, `recieve`, …); `match/base.yml` adds my own fast-typing finger-slips. The
+downloaded package is machine-local (reinstall with `espanso install typofixer-en`), same as
+nvim plugins — only the authored config is tracked here.
+
+| Path | What it does |
+|---|---|
+| `espanso/config/default.yml` | Symlink target for `~/Library/Application Support/espanso/config/default.yml`. Clipboard backend (most reliable word-replacement on macOS); disables the ALT+SPACE search shortcut. |
+| `espanso/match/base.yml` | Symlink target for `~/Library/Application Support/espanso/match/base.yml`. Personal typo corrections (`waht`→`what`, `tooi`→`too`, …), each `word: true` so it only fires on whole words. Add a line whenever you catch a new repeat slip. |
+
+> macOS gates espanso behind an **Accessibility** grant: open Espanso once from `/Applications`, then System Settings → Privacy & Security → Accessibility → enable Espanso, then `espanso start`. Without it the service times out on start.
+
 ## Install
 
 ```bash
@@ -119,6 +135,13 @@ ln -s "$PWD/opencode/opencode.json"                        ~/.config/opencode/op
 # presenterm Blackout theme (macOS: presenterm uses App Support unless XDG_CONFIG_HOME is set)
 mkdir -p "$HOME/Library/Application Support/presenterm/themes"
 ln -s "$PWD/presenterm/themes/blackout.yaml"               "$HOME/Library/Application Support/presenterm/themes/blackout.yaml"
+
+# espanso typo-fixer (install espanso.app first, e.g. from https://espanso.org)
+espanso install typofixer-en   # hub package: ~4000 common English transpositions
+mkdir -p "$HOME/Library/Application Support/espanso/config" "$HOME/Library/Application Support/espanso/match"
+ln -s "$PWD/espanso/config/default.yml"                   "$HOME/Library/Application Support/espanso/config/default.yml"
+ln -s "$PWD/espanso/match/base.yml"                       "$HOME/Library/Application Support/espanso/match/base.yml"
+espanso service register && espanso start   # grant Accessibility first (see espanso note above)
 
 # Auto-push continuous backup (installs + loads the LaunchAgent for this repo)
 ./auto-push/install.sh
