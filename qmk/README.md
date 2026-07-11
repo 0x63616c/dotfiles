@@ -16,9 +16,9 @@ and creates `secrets.h` from the template. `just doctor` shows what's set up.
 
 | Path | Tracked? | What |
 |---|---|---|
-| `hello/` | yes | The keymap (`keymap.c`, `rules.mk`, `config.h`) |
-| `hello/secrets.h.example` | yes | Template for the passwords |
-| `hello/secrets.h` | **gitignored** | Real passwords — never committed/pushed |
+| `0x63616c/` | yes | The keymap (`keymap.c`, `rules.mk`, `config.h`) |
+| `0x63616c/secrets.h.example` | yes | Template for the passwords |
+| `0x63616c/secrets.h` | **gitignored** | Real passwords — never committed/pushed |
 | `justfile` | yes | Build/flash + bootstrap recipes |
 | `qmk_firmware/` | **gitignored** | The 1.2G Keychron fork (own git, re-clonable) |
 
@@ -26,8 +26,8 @@ and creates `secrets.h` from the template. `just doctor` shows what's set up.
 
 Passwords are compiled into the firmware, not stored as VIA macros:
 
-- `hello/keymap.c` types `SECRET_PW1`..`PW4` on Hyper+F13 / F14 / F15 / F16 (top-right keys).
-- Real values live in `hello/secrets.h` (gitignored). Missing/incomplete = hard build error.
+- `0x63616c/keymap.c` types `SECRET_PW1`..`PW4` on Hyper+F13 / F14 / F15 / F16 (top-right keys).
+- Real values live in `0x63616c/secrets.h` (gitignored). Missing/incomplete = hard build error.
 - VIA/WebHID cannot read them (not in EEPROM). A physical flash dump still can —
   keyboard secrets are not a substitute for a password manager.
 
@@ -37,7 +37,7 @@ Passwords are compiled into the firmware, not stored as VIA macros:
 # after cloning dotfiles
 cd qmk
 just bootstrap   # clones fork + submodules (~1.2G), builds venv, creates secrets.h
-$EDITOR hello/secrets.h   # set real passwords
+$EDITOR 0x63616c/secrets.h   # set real passwords
 just flash
 ```
 

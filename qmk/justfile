@@ -13,7 +13,7 @@ fork_branch := "wireless_playground"
 here        := justfile_directory()
 fork        := here / "qmk_firmware"
 kb          := "keychron/q6_max/ansi_encoder"
-km          := "hello"
+km          := "0x63616c"
 keymap_link := fork / "keyboards" / kb / "keymaps" / km
 venv        := fork / ".venv"
 _env        := "PATH=\"" + venv + "/bin:$PATH\" nix shell nixpkgs#gcc-arm-embedded nixpkgs#dfu-util --command"
