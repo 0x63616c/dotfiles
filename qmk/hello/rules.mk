@@ -1,2 +1,2 @@
 VIA_ENABLE = yes
-DEBOUNCE_TYPE = sym_eager_pk   # report the press on the FIRST edge, then lock that key out for DEBOUNCE ms to swallow chatter -> kills the spacebar double-fire WITHOUT dropping fast taps. (sym_defer_pk waited for DEBOUNCE ms of stable state and silently dropped any press held <DEBOUNCE ms.)
+DEBOUNCE_TYPE = asym_eager_defer_pk   # EAGER on press (report first edge -> never drops a fast tap), DEFER on release (wait DEBOUNCE ms of stable-up -> absorbs release-edge chatter). Fixes a switch that chatters on BOTH edges: sym_defer_pk dropped presses, sym_eager_pk let release chatter through as phantom repeats (extra spaces). This handles both. Real fix for a marginal switch is still to hot-swap it.
