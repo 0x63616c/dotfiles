@@ -122,13 +122,22 @@ while IFS=$'\t' read -r ref dir; do
   WS_NAMES+=("$name")
 done < <(printf '%s' "$WS_JSON" | jq -r '.workspaces[] | [.ref, (.current_directory // "")] | @tsv')
 
-# Unique ordered list of keys (repos in first-seen order, __other__ forced last).
+# Unique repo keys, sorted alphabetically by display name; __other__ forced last.
 declare -a KEYS
-for k in "${WS_KEYS[@]}"; do
+# collect "name<TAB>key" for unique repo keys (skip __other__)
+declare -a PAIRS
+for i in "${!WS_KEYS[@]}"; do
+  k="${WS_KEYS[$i]}"
   [[ "$k" == "__other__" ]] && continue
   seen=0; for e in "${KEYS[@]:-}"; do [[ "$e" == "$k" ]] && seen=1 && break; done
-  [[ $seen -eq 0 ]] && KEYS+=("$k")
+  [[ $seen -eq 1 ]] && continue
+  KEYS+=("$k")
+  PAIRS+=("${WS_NAMES[$i]}"$'\t'"$k")
 done
+# re-derive KEYS in name order
+KEYS=()
+while IFS=$'\t' read -r _ k; do [[ -n "$k" ]] && KEYS+=("$k"); done \
+  < <(printf '%s\n' "${PAIRS[@]:-}" | LC_ALL=C sort -f)
 # append __other__ if any ungrouped workspaces exist
 for k in "${WS_KEYS[@]}"; do [[ "$k" == "__other__" ]] && { KEYS+=("__other__"); break; }; done
 
@@ -230,7 +239,7 @@ for key in "${KEYS[@]}"; do
   ORDERED_GROUP_REFS+=("$gref")
 done
 
-# --- order groups: repos in first-seen order, other… last -------------------
+# --- order groups: repos alphabetical by name, other… last -------------------
 prev=""
 for gref in "${ORDERED_GROUP_REFS[@]}"; do
   if [[ -z "$prev" ]]; then
