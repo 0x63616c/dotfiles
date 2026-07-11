@@ -192,8 +192,14 @@ name_for_key() {
   done
 }
 
-# --- reconcile each group ----------------------------------------------------
+# Read one field of a group out of GROUPS_JSON (kept fresh as we mutate).
+gget() { printf '%s' "$GROUPS_JSON" | jq -r --arg g "$1" --arg f "$2" '.groups[]|select(.ref==$g)|.[$f] // ""'; }
+
+# --- reconcile each group: create/add members, then rename/colour/icon, only
+# --- issuing a cmux call when the current value actually differs (no churn on
+# --- re-runs). Colours/order are applied in one atomic pass afterwards.
 declare -a ORDERED_GROUP_REFS
+declare -A GREF_COLOR
 for key in "${KEYS[@]}"; do
   gname=$(name_for_key "$key")
   members=$(ws_for_key "$key"); members=${members% }
@@ -223,45 +229,50 @@ for key in "${KEYS[@]}"; do
       GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
     fi
   else
-    run workspace-group rename "$gref" --name "$gname"
-    # add any missing members
+    [[ "$(gget "$gref" name)" == "$gname" ]] || run workspace-group rename "$gref" --name "$gname"
     existing=$(group_members "$gref" 2>/dev/null || true)
     for m in "${mrefs[@]}"; do
-      if ! grep -qx "$m" <<< "$existing"; then
-        run workspace-group add --group "$gref" --workspace "$m"
-      fi
+      grep -qx "$m" <<< "$existing" || run workspace-group add --group "$gref" --workspace "$m"
     done
   fi
 
   [[ -n "$gref" ]] || { echo "organize-workspaces: could not resolve group for '$gname'" >&2; continue; }
-  run workspace-group set-color "$gref" --hex "$gcolor"
-  run workspace-group set-icon  "$gref" --symbol "$gicon"
+  [[ "$(gget "$gref" custom_color)" == "$gcolor" ]] || run workspace-group set-color "$gref" --hex "$gcolor"
+  [[ "$(gget "$gref" icon_symbol)"  == "$gicon"  ]] || run workspace-group set-icon  "$gref" --symbol "$gicon"
 
-  # Tint every member workspace (anchor + children) to the group colour so the
-  # whole block reads as one colour in the sidebar.
-  if [[ $DRY_RUN -eq 1 ]]; then
-    for m in "${mrefs[@]}"; do run workspace-action set-color --workspace "$m" --color "$gcolor" "${WINDOW_ARGS[@]}"; done
-  else
-    while read -r m; do
-      [[ -n "$m" ]] && run workspace-action set-color --workspace "$m" --color "$gcolor" "${WINDOW_ARGS[@]}"
-    done < <(cmux workspace-group list --json "${WINDOW_ARGS[@]}" | jq -r --arg g "$gref" '.groups[]|select(.ref==$g)|.member_workspace_refs[]')
-  fi
-
+  GREF_COLOR["$gref"]="$gcolor"
   ORDERED_GROUP_REFS+=("$gref")
 done
 
-# --- order groups -----------------------------------------------------------
-# Pinned groups float to the top — cmux owns that, so leave them alone. For the
-# rest, `move --to-index 0` inserts at the front of the UNPINNED region. Pushing
-# groups there in REVERSE of the desired order leaves them front-to-back in
-# order (each new push lands ahead of the previous one).
+# --- apply colours + order in one atomic pass -------------------------------
+# Re-read live state once, then: tint each member workspace to its group colour
+# (skipping any already-correct), and compute the full desired workspace order
+# so a single `reorder-workspaces` places everything at once (no per-group
+# shuffle). Pinned groups float to the top — cmux owns that — so they are left
+# out of the order list but their members are still tinted.
 GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
-pinned() { [[ "$(printf '%s' "$GROUPS_JSON" | jq -r --arg g "$1" '.groups[]|select(.ref==$g)|.is_pinned')" == "true" ]]; }
-for ((j=${#ORDERED_GROUP_REFS[@]}-1; j>=0; j--)); do
-  gref="${ORDERED_GROUP_REFS[$j]}"
-  [[ "$gref" == workspace_group:NEW* ]] && { run workspace-group move "$gref" --to-index 0; continue; }
-  pinned "$gref" && continue   # pinned: cmux keeps it on top, don't fight it
-  run workspace-group move "$gref" --to-index 0
+WS_COLORS=$(cmux workspace list --json "${WINDOW_ARGS[@]}" | jq -r '.workspaces[] | [.ref, (.custom_color // "")] | @tsv')
+ws_color() { awk -F'\t' -v r="$1" '$1==r{print $2}' <<< "$WS_COLORS"; }
+
+declare -a ORDER
+for gref in "${ORDERED_GROUP_REFS[@]}"; do
+  gcolor="${GREF_COLOR[$gref]}"
+  if [[ "$gref" == workspace_group:NEW* ]]; then
+    members=("${mrefs[@]}"); is_pinned="false"      # dry-run best-effort
+  else
+    mapfile -t members < <(printf '%s' "$GROUPS_JSON" | jq -r --arg g "$gref" '.groups[]|select(.ref==$g)|.member_workspace_refs[]')
+    is_pinned=$(gget "$gref" is_pinned)
+  fi
+  for m in "${members[@]}"; do
+    [[ -n "$m" ]] || continue
+    [[ "$(ws_color "$m")" == "$gcolor" ]] || run workspace-action set-color --workspace "$m" --color "$gcolor" "${WINDOW_ARGS[@]}"
+    [[ "$is_pinned" == "true" ]] || ORDER+=("$m")   # pinned members keep their top slot
+  done
 done
+
+if [[ ${#ORDER[@]} -gt 0 ]]; then
+  order_csv=$(IFS=,; echo "${ORDER[*]}")
+  run reorder-workspaces --order "$order_csv" "${WINDOW_ARGS[@]}"
+fi
 
 echo "organize-workspaces: done."
