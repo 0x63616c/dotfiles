@@ -294,4 +294,34 @@ if [[ ${#ORDER[@]} -gt 0 ]]; then
   run reorder-workspaces --order "$order_csv" "${WINDOW_ARGS[@]}"
 fi
 
+# --- print the resulting sidebar tree ---------------------------------------
+# A colour swatch (truecolor if the terminal supports it) + icon per group,
+# with member workspace titles indented beneath. Skipped in --dry-run.
+print_tree() {
+  local gjson wjson
+  gjson=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
+  wjson=$(cmux workspace list --json "${WINDOW_ARGS[@]}")
+  local anchors title_of
+  anchors=$(printf '%s' "$gjson" | jq -r '.groups[] | [.anchor_workspace_ref, .ref, .name, (.custom_color//""), (.icon_symbol//""), (.is_pinned|tostring)] | @tsv')
+  swatch() {  # #RRGGBB -> coloured ● (falls back to plain ● if not a hex)
+    local hex="${1#\#}"
+    [[ "$hex" =~ ^[0-9A-Fa-f]{6}$ ]] || { printf '●'; return; }
+    printf '\033[38;2;%d;%d;%dm●\033[0m' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
+  }
+  echo
+  # walk workspaces in sidebar order; emit a header when a row is a group anchor
+  printf '%s' "$wjson" | jq -r '.workspaces[] | [.ref, .title] | @tsv' | \
+  while IFS=$'\t' read -r ref title; do
+    local meta; meta=$(awk -F'\t' -v r="$ref" '$1==r{print; exit}' <<< "$anchors")
+    if [[ -n "$meta" ]]; then
+      IFS=$'\t' read -r _ _ gname gcolor gicon gpin <<< "$meta"
+      local pin=""; [[ "$gpin" == "true" ]] && pin="  \033[2m(pinned)\033[0m"
+      printf '%b %s  \033[2m%s\033[0m%b\n' "$(swatch "$gcolor")" "$gname" "${gicon:-—}" "$pin"
+    else
+      printf '   \033[2m•\033[0m %s\n' "$title"
+    fi
+  done
+}
+[[ $DRY_RUN -eq 0 ]] && print_tree
+
 echo "organize-workspaces: done."
