@@ -87,12 +87,14 @@ OTHER_NAME="other…"
 OTHER_COLOR="#566573"
 OTHER_ICON="tray.full"
 
+CHANGES=0
 run() {
   if [[ $DRY_RUN -eq 1 ]]; then
     printf 'DRY  cmux'; printf ' %q' "$@"; printf '\n'
   else
     printf 'RUN  cmux'; printf ' %q' "$@"; printf '\n'
     cmux "$@"
+    CHANGES=$((CHANGES+1))
   fi
 }
 
@@ -246,7 +248,7 @@ for key in "${KEYS[@]}"; do
       # cwd is not the repo).
       printf 'RUN  cmux workspace-group create --name %q --from %q\n' "$gname" "$from"
       created=$(cmux workspace-group create --name "$gname" --from "$from" "${WINDOW_ARGS[@]}")
-      echo "$created"
+      echo "$created"; CHANGES=$((CHANGES+1))
       gref=$(printf '%s' "$created" | grep -oE 'workspace_group:[0-9]+' | head -1)
       GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
     fi
@@ -301,9 +303,17 @@ for gref in "${ORDERED_GROUP_REFS[@]}"; do
   done
 done
 
+# Reorder only if the current order of these refs differs from the desired one.
+# WS_META is in sidebar order, so filtering it to the ORDER set yields the
+# current sequence to compare against.
 if [[ ${#ORDER[@]} -gt 0 ]]; then
-  order_csv=$(IFS=,; echo "${ORDER[*]}")
-  run reorder-workspaces --order "$order_csv" "${WINDOW_ARGS[@]}"
+  declare -A in_order; for r in "${ORDER[@]}"; do in_order["$r"]=1; done
+  declare -a cur_order
+  while IFS=$'\t' read -r r _; do [[ -n "${in_order[$r]:-}" ]] && cur_order+=("$r"); done <<< "$WS_META"
+  if [[ "${cur_order[*]}" != "${ORDER[*]}" ]]; then
+    order_csv=$(IFS=,; echo "${ORDER[*]}")
+    run reorder-workspaces --order "$order_csv" "${WINDOW_ARGS[@]}"
+  fi
 fi
 
 # --- print the resulting sidebar tree ---------------------------------------
@@ -335,6 +345,12 @@ print_tree() {
     fi
   done
 }
-[[ $DRY_RUN -eq 0 ]] && print_tree
-
-echo "organize-workspaces: done."
+# If nothing changed, do nothing loud — no tree, just a one-liner.
+if [[ $DRY_RUN -eq 0 ]]; then
+  if [[ $CHANGES -eq 0 ]]; then
+    echo "organize-workspaces: already organized (no changes)."
+  else
+    print_tree
+    echo "organize-workspaces: done."
+  fi
+fi
