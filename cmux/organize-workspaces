@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# organize-workspace — group cmux workspaces by their git repo.
+# organize-workspaces — group cmux workspaces by their git repo.
 #
 # For every workspace in the current cmux window this script:
 #   * resolves its working directory up to the enclosing git repo root
@@ -14,9 +14,9 @@
 # rebuilt, and membership is reconciled so re-running is idempotent.
 #
 # Usage:
-#   organize-workspace              # apply
-#   organize-workspace --dry-run    # print the cmux commands, change nothing
-#   organize-workspace --window window:2   # target a specific window
+#   organize-workspaces              # apply
+#   organize-workspaces --dry-run    # print the cmux commands, change nothing
+#   organize-workspaces --window window:2   # target a specific window
 #
 # Requires: cmux (on PATH), jq, git.
 
@@ -31,12 +31,12 @@ while [[ $# -gt 0 ]]; do
     -n|--dry-run) DRY_RUN=1; shift ;;
     --window)     WINDOW_ARGS=(--window "$2"); shift 2 ;;
     -h|--help)    grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "organize-workspace: unknown arg: $1" >&2; exit 2 ;;
+    *) echo "organize-workspaces: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 
 for bin in cmux jq git; do
-  command -v "$bin" >/dev/null 2>&1 || { echo "organize-workspace: missing dependency: $bin" >&2; exit 1; }
+  command -v "$bin" >/dev/null 2>&1 || { echo "organize-workspaces: missing dependency: $bin" >&2; exit 1; }
 done
 
 # Curated colour + icon per known repo. Anything not listed falls back to a
@@ -224,7 +224,7 @@ for key in "${KEYS[@]}"; do
     done
   fi
 
-  [[ -n "$gref" ]] || { echo "organize-workspace: could not resolve group for '$gname'" >&2; continue; }
+  [[ -n "$gref" ]] || { echo "organize-workspaces: could not resolve group for '$gname'" >&2; continue; }
   run workspace-group set-color "$gref" --hex "$gcolor"
   run workspace-group set-icon  "$gref" --symbol "$gicon"
   ORDERED_GROUP_REFS+=("$gref")
@@ -241,4 +241,4 @@ for gref in "${ORDERED_GROUP_REFS[@]}"; do
   prev="$gref"
 done
 
-echo "organize-workspace: done."
+echo "organize-workspaces: done."
