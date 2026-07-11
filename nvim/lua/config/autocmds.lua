@@ -19,3 +19,12 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.spell = false
   end,
 })
+
+-- Silence all markdown diagnostics (marksman "ambiguous link", markdownlint nags, etc).
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("blackout_no_md_diag", { clear = true }),
+  pattern = "markdown",
+  callback = function(args)
+    vim.diagnostic.enable(false, { bufnr = args.buf })
+  end,
+})
