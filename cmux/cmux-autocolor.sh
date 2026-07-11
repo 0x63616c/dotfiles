@@ -16,6 +16,17 @@ set -uo pipefail
 CMUX="${CMUX_BIN:-/Applications/cmux.app/Contents/Resources/bin/cmux}"
 command -v "$CMUX" >/dev/null 2>&1 || CMUX="cmux"
 PY="$(command -v python3 || echo python3)"
+
+# The socket runs in password mode (automation.socketControlMode), so an
+# externally-launched daemon must authenticate. Read the secret straight from
+# the local cmux.json — it never leaves this machine, never hits the plist.
+CMUX_JSON="${CMUX_JSON:-$HOME/.config/cmux/cmux.json}"
+if [ -z "${CMUX_SOCKET_PASSWORD:-}" ] && [ -f "$CMUX_JSON" ]; then
+  CMUX_SOCKET_PASSWORD="$("$PY" -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("automation",{}).get("socketPassword","") or "")
+except Exception: pass' "$CMUX_JSON" 2>/dev/null)"
+  export CMUX_SOCKET_PASSWORD
+fi
 CURSOR="${CMUX_AUTOCOLOR_CURSOR:-$HOME/.cache/cmux-autocolor.seq}"
 LOGF="${CMUX_AUTOCOLOR_LOG:-$HOME/.cache/cmux-autocolor.log}"
 mkdir -p "$(dirname "$CURSOR")"
@@ -75,13 +86,7 @@ apply() {
 }
 
 # Wait for the cmux socket so we don't hot-loop while the app is down.
-log "starting; CMUX=$CMUX PY=$PY HOME=${HOME:-UNSET}"
-_tries=0
-until _err=$("$CMUX" ping 2>&1); do
-  _tries=$((_tries+1))
-  [ "$_tries" -le 3 ] && log "ping failed (try $_tries) exit=$? err=[$_err]"
-  sleep 5
-done
+until "$CMUX" ping >/dev/null 2>&1; do sleep 5; done
 log "socket up; sweeping existing workspaces"
 
 # Startup sweep: color every currently-uncolored workspace.
