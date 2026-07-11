@@ -1,13 +1,9 @@
--- Hide Godot .uid sidecar files in the explorer and file pickers.
+-- Hide Godot .uid sidecar files in the explorer and all pickers (files, grep, ...).
 return {
   "folke/snacks.nvim",
   opts = {
     picker = {
-      sources = {
-        explorer = {
-          exclude = { "*.uid" },
-        },
-      },
+      exclude = { "*.uid" },
     },
   },
 }
