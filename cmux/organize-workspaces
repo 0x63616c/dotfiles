@@ -97,13 +97,21 @@ run() {
 }
 
 # --- gather workspaces -------------------------------------------------------
-WS_JSON=$(cmux workspace list --json "${WINDOW_ARGS[@]}")
 GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
 
-# The other… group owns a throwaway anchor workspace that itself lives outside
-# any git repo — so it must not count as a "real" ungrouped workspace, else the
-# group would perpetuate itself forever.
-OTHER_GROUP_REF=$(printf '%s' "$GROUPS_JSON" | jq -r --arg n "$OTHER_NAME" '.groups[]|select(.name==$n)|.ref' | head -1)
+# Remove empty groups: a group whose only member is its (throwaway) anchor has
+# no real workspaces under it. `delete` closes that bare anchor and drops the
+# group. Healthy groups always have the anchor + ≥1 real member (count ≥ 2).
+mapfile -t EMPTY_GROUPS < <(printf '%s' "$GROUPS_JSON" | jq -r '.groups[]|select(.member_count<=1)|.ref')
+for g in "${EMPTY_GROUPS[@]:-}"; do [[ -n "$g" ]] && run workspace-group delete "$g"; done
+if [[ ${#EMPTY_GROUPS[@]} -gt 0 && $DRY_RUN -eq 0 ]]; then
+  GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
+fi
+
+WS_JSON=$(cmux workspace list --json "${WINDOW_ARGS[@]}")
+
+# other…'s anchor is itself non-git; don't let it count as a "real" ungrouped
+# workspace, else the group would keep re-creating itself for its own anchor.
 OTHER_ANCHOR=$(printf '%s' "$GROUPS_JSON" | jq -r --arg n "$OTHER_NAME" '.groups[]|select(.name==$n)|.anchor_workspace_ref' | head -1)
 
 # repo_of <dir> -> prints repo root, or empty if not in a git repo
@@ -152,14 +160,9 @@ for i in "${!WS_KEYS[@]}"; do
   [[ "${WS_REFS[$i]}" == "$OTHER_ANCHOR" ]] && continue
   real_strays=$((real_strays+1))
 done
-if [[ $real_strays -gt 0 ]]; then
-  KEYS+=("__other__")           # genuine strays -> keep/create the other… group
-elif [[ -n "$OTHER_GROUP_REF" ]]; then
-  # No real strays, but a stale other… group lingers (only its throwaway anchor
-  # left). Delete it — closes that anchor and removes the empty group.
-  run workspace-group delete "$OTHER_GROUP_REF"
-  [[ $DRY_RUN -eq 0 ]] && GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
-fi
+# Genuine strays -> keep/create the other… group. (An other… group left with
+# only its own anchor is already gone via the empty-group sweep above.)
+[[ $real_strays -gt 0 ]] && KEYS+=("__other__")
 
 # --- existing groups: map anchor's repo root -> group ref --------------------
 
@@ -270,8 +273,11 @@ done
 # shuffle). Pinned groups float to the top — cmux owns that — so they are left
 # out of the order list but their members are still tinted.
 GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
-WS_COLORS=$(cmux workspace list --json "${WINDOW_ARGS[@]}" | jq -r '.workspaces[] | [.ref, (.custom_color // "")] | @tsv')
-ws_color() { awk -F'\t' -v r="$1" '$1==r{print $2}' <<< "$WS_COLORS"; }
+WS_META=$(cmux workspace list --json "${WINDOW_ARGS[@]}" | jq -r '.workspaces[] | [.ref, (.custom_color//""), (.description//""), (.current_directory//"")] | @tsv')
+ws_field() { awk -F'\t' -v r="$1" -v c="$2" '$1==r{print $c}' <<< "$WS_META"; }
+
+# git branch of a workspace's dir (empty if not a git repo)
+branch_of() { git -C "$1" branch --show-current 2>/dev/null || true; }
 
 declare -a ORDER
 for gref in "${ORDERED_GROUP_REFS[@]}"; do
@@ -284,7 +290,13 @@ for gref in "${ORDERED_GROUP_REFS[@]}"; do
   fi
   for m in "${members[@]}"; do
     [[ -n "$m" ]] || continue
-    [[ "$(ws_color "$m")" == "$gcolor" ]] || run workspace-action set-color --workspace "$m" --color "$gcolor" "${WINDOW_ARGS[@]}"
+    # colour: tint member to its group colour
+    [[ "$(ws_field "$m" 2)" == "$gcolor" ]] || run workspace-action set-color --workspace "$m" --color "$gcolor" "${WINDOW_ARGS[@]}"
+    # description: show the git branch (extra info in the sidebar)
+    br=$(branch_of "$(ws_field "$m" 4)")
+    if [[ -n "$br" && "$(ws_field "$m" 3)" != "$br" ]]; then
+      run workspace-action set-description --workspace "$m" --description "$br" "${WINDOW_ARGS[@]}"
+    fi
     [[ "$is_pinned" == "true" ]] || ORDER+=("$m")   # pinned members keep their top slot
   done
 done
@@ -310,15 +322,16 @@ print_tree() {
   }
   echo
   # walk workspaces in sidebar order; emit a header when a row is a group anchor
-  printf '%s' "$wjson" | jq -r '.workspaces[] | [.ref, .title] | @tsv' | \
-  while IFS=$'\t' read -r ref title; do
+  printf '%s' "$wjson" | jq -r '.workspaces[] | [.ref, .title, (.description//"")] | @tsv' | \
+  while IFS=$'\t' read -r ref title desc; do
     local meta; meta=$(awk -F'\t' -v r="$ref" '$1==r{print; exit}' <<< "$anchors")
     if [[ -n "$meta" ]]; then
       IFS=$'\t' read -r _ _ gname gcolor gicon gpin <<< "$meta"
       local pin=""; [[ "$gpin" == "true" ]] && pin="  \033[2m(pinned)\033[0m"
       printf '%b %s  \033[2m%s\033[0m%b\n' "$(swatch "$gcolor")" "$gname" "${gicon:-—}" "$pin"
     else
-      printf '   \033[2m•\033[0m %s\n' "$title"
+      local br=""; [[ -n "$desc" ]] && br="  \033[2m[$desc]\033[0m"
+      printf '   \033[2m•\033[0m %s%b\n' "$title" "$br"
     fi
   done
 }
