@@ -98,6 +98,13 @@ run() {
 
 # --- gather workspaces -------------------------------------------------------
 WS_JSON=$(cmux workspace list --json "${WINDOW_ARGS[@]}")
+GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
+
+# The other… group owns a throwaway anchor workspace that itself lives outside
+# any git repo — so it must not count as a "real" ungrouped workspace, else the
+# group would perpetuate itself forever.
+OTHER_GROUP_REF=$(printf '%s' "$GROUPS_JSON" | jq -r --arg n "$OTHER_NAME" '.groups[]|select(.name==$n)|.ref' | head -1)
+OTHER_ANCHOR=$(printf '%s' "$GROUPS_JSON" | jq -r --arg n "$OTHER_NAME" '.groups[]|select(.name==$n)|.anchor_workspace_ref' | head -1)
 
 # repo_of <dir> -> prints repo root, or empty if not in a git repo
 repo_of() {
@@ -138,11 +145,23 @@ done
 KEYS=()
 while IFS=$'\t' read -r _ k; do [[ -n "$k" ]] && KEYS+=("$k"); done \
   < <(printf '%s\n' "${PAIRS[@]:-}" | LC_ALL=C sort -f)
-# append __other__ if any ungrouped workspaces exist
-for k in "${WS_KEYS[@]}"; do [[ "$k" == "__other__" ]] && { KEYS+=("__other__"); break; }; done
+# Count REAL ungrouped workspaces — non-git, excluding other…'s own anchor.
+real_strays=0
+for i in "${!WS_KEYS[@]}"; do
+  [[ "${WS_KEYS[$i]}" == "__other__" ]] || continue
+  [[ "${WS_REFS[$i]}" == "$OTHER_ANCHOR" ]] && continue
+  real_strays=$((real_strays+1))
+done
+if [[ $real_strays -gt 0 ]]; then
+  KEYS+=("__other__")           # genuine strays -> keep/create the other… group
+elif [[ -n "$OTHER_GROUP_REF" ]]; then
+  # No real strays, but a stale other… group lingers (only its throwaway anchor
+  # left). Delete it — closes that anchor and removes the empty group.
+  run workspace-group delete "$OTHER_GROUP_REF"
+  [[ $DRY_RUN -eq 0 ]] && GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
+fi
 
 # --- existing groups: map anchor's repo root -> group ref --------------------
-GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
 
 # name -> current_directory for anchor lookup
 anchor_dir() {
