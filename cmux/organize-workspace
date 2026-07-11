@@ -200,12 +200,18 @@ for key in "${KEYS[@]}"; do
 
   if [[ -z "$gref" ]]; then
     from=$(IFS=,; echo "${mrefs[*]}")
-    run workspace-group create --name "$gname" --from "$from" "${WINDOW_ARGS[@]}"
-    if [[ $DRY_RUN -eq 0 ]]; then
-      GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
-      gref=$(group_for_key "$key" || true)
-    else
+    if [[ $DRY_RUN -eq 1 ]]; then
+      run workspace-group create --name "$gname" --from "$from" "${WINDOW_ARGS[@]}"
       gref="workspace_group:NEW($gname)"
+    else
+      # `create` mints a dedicated anchor workspace and prints "OK <group ref>";
+      # capture that ref directly (re-listing can't match it — the new anchor's
+      # cwd is not the repo).
+      printf 'RUN  cmux workspace-group create --name %q --from %q\n' "$gname" "$from"
+      created=$(cmux workspace-group create --name "$gname" --from "$from" "${WINDOW_ARGS[@]}")
+      echo "$created"
+      gref=$(printf '%s' "$created" | grep -oE 'workspace_group:[0-9]+' | head -1)
+      GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
     fi
   else
     run workspace-group rename "$gref" --name "$gname"
