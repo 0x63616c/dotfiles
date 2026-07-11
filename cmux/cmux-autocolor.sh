@@ -17,12 +17,15 @@ CMUX="${CMUX_BIN:-/Applications/cmux.app/Contents/Resources/bin/cmux}"
 command -v "$CMUX" >/dev/null 2>&1 || CMUX="cmux"
 PY="$(command -v python3 || echo python3)"
 CURSOR="${CMUX_AUTOCOLOR_CURSOR:-$HOME/.cache/cmux-autocolor.seq}"
+LOGF="${CMUX_AUTOCOLOR_LOG:-$HOME/.cache/cmux-autocolor.log}"
 mkdir -p "$(dirname "$CURSOR")"
 
 # 16 named colors cmux understands (workspace-action --color).
 COLORS=(Red Crimson Orange Amber Olive Green Teal Aqua Blue Navy Indigo Purple Magenta Rose Brown Charcoal)
 
-log() { printf '%s cmux-autocolor: %s\n' "$(date '+%H:%M:%S')" "$*"; }
+# Append directly to the log file each call — the daemon blocks forever, so
+# relying on stdout (block-buffered to a file) would never flush.
+log() { printf '%s cmux-autocolor: %s\n' "$(date '+%H:%M:%S')" "$*" >>"$LOGF"; }
 
 # path -> stable identity to hash (git toplevel, else the path itself)
 anchor_for() {
@@ -72,7 +75,13 @@ apply() {
 }
 
 # Wait for the cmux socket so we don't hot-loop while the app is down.
-until "$CMUX" ping >/dev/null 2>&1; do sleep 5; done
+log "starting; CMUX=$CMUX PY=$PY HOME=${HOME:-UNSET}"
+_tries=0
+until _err=$("$CMUX" ping 2>&1); do
+  _tries=$((_tries+1))
+  [ "$_tries" -le 3 ] && log "ping failed (try $_tries) exit=$? err=[$_err]"
+  sleep 5
+done
 log "socket up; sweeping existing workspaces"
 
 # Startup sweep: color every currently-uncolored workspace.

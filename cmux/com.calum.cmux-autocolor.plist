@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.calum.cmux-autocolor</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/calum/code/github.com/0x63616c/dotfiles/cmux/cmux-autocolor.sh</string>
+  </array>
+
+  <!-- launchd's default PATH omits Homebrew, so python3/git aren't found -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>CMUX_AUTOCOLOR_LOG</key>
+    <string>/tmp/cmux-autocolor.app.log</string>
+  </dict>
+
+  <!-- start at login -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- restart if it exits (cmux quit, crash, socket drop) -->
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- min seconds between restarts; stops a hot-loop while cmux is down -->
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/cmux-autocolor.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/cmux-autocolor.err</string>
+</dict>
+</plist>
