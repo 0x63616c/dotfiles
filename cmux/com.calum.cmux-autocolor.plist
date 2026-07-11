@@ -19,6 +19,8 @@
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>CMUX_AUTOCOLOR_LOG</key>
     <string>/tmp/cmux-autocolor.app.log</string>
+    <key>CMUX_SOCKET_PATH</key>
+    <string>/Users/calum/.local/state/cmux/cmux-501.sock</string>
   </dict>
 
   <!-- start at login -->

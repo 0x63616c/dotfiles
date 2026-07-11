@@ -86,7 +86,12 @@ apply() {
 }
 
 # Wait for the cmux socket so we don't hot-loop while the app is down.
-until "$CMUX" ping >/dev/null 2>&1; do sleep 5; done
+log "DBG pwlen=${#CMUX_SOCKET_PASSWORD} sockenv=${CMUX_SOCKET_PATH:-UNSET}"
+_n=0
+until _e=$("$CMUX" ping 2>&1); do
+  _n=$((_n+1)); [ "$_n" -le 2 ] && log "DBG ping err=[$_e]"
+  sleep 5
+done
 log "socket up; sweeping existing workspaces"
 
 # Startup sweep: color every currently-uncolored workspace.
