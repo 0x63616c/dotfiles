@@ -32,6 +32,7 @@ board, the firmware, and the web app.
 | `docs/01-bom.md` | Bill of materials + real 2025–26 pricing, per-one and per-64, re-checked |
 | `docs/02-dimensions.md` | Every part dimension, tolerance, and Bambu print setting |
 | `docs/03-electronics.md` | Wiring, the shift-register driver chain, power budget |
+| `docs/04-research-notes.md` | Cited, verified research the build rests on + honest caveats (what's estimated vs. confirmed) |
 | `firmware/splitflap-esp32/` | ESP32 firmware — `bringup` (1 module) and `board` (full) profiles |
 | `webapp/index.html` | Single-file control app (also served off the ESP32) |
 | `hardware/openscad/params.scad` | All dimensions as parameters — the single source of geometry |

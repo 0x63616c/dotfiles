@@ -1,9 +1,14 @@
 # Bill of Materials & Pricing
 
 Prices are typical **2025–2026** street prices in USD from AliExpress / Amazon /
-eBay / DigiKey / JLCPCB. They move around — treat them as ±20 %. Sources are
-linked at the bottom; the figures were gathered and cross-checked during
-research for this guide. A re-checked arithmetic summary is at the very end.
+eBay / DigiKey / JLCPCB. **Treat them as indicative estimates, ±20 %**, and
+re-check live before ordering. Honest provenance: the research pass behind this
+guide only *firmly* verified one component price (the AS5600, which this build
+doesn't even use). The rest are realistic figures from current listings and
+community builds (which land ~$5–8/module), **not** independently price-verified
+line by line — see [`04-research-notes.md`](04-research-notes.md) for exactly
+what was and wasn't confirmed. The *arithmetic* below is re-checked; the *inputs*
+are estimates. A re-checked total summary is at the very end.
 
 > **Design choice that dominates cost:** flaps are **3D-printed dual-color**
 > (black body, white glyph on your Bambu AMS), *not* blank PVC + cut vinyl.

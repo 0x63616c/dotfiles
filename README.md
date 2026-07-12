@@ -95,6 +95,7 @@ project you build from. Start at `splitflap/docs/00-build-guide.md`.
 | `splitflap/docs/01-bom.md` | Bill of materials + real 2025–26 pricing; cost per one (~$4/module at scale) and for all (~$425 for 4×16), re-checked arithmetic. |
 | `splitflap/docs/02-dimensions.md` | Every part dimension, tolerance, and Bambu print setting. |
 | `splitflap/docs/03-electronics.md` | Wiring, the 74HC595/165 shift-register driver chain, and the power budget. |
+| `splitflap/docs/04-research-notes.md` | Cited, adversarially-verified research the build rests on (24 confirmed / 1 refuted), with honest caveats on what pricing/specs are estimated vs. verified. |
 | `splitflap/firmware/splitflap-esp32/` | ESP32/PlatformIO firmware: non-blocking stepper scheduler, hall homing, WiFi, HTTP `/api/text`, status WebSocket. `bringup` (1 module) + `board` (full 4×16) build profiles. |
 | `splitflap/webapp/index.html` | Single-file control app with a live split-flap preview; served off the ESP32 or opened locally. |
 | `splitflap/hardware/openscad/` | Parametric geometry: `params.scad` (all dims), `enclosure.scad` (black snap-together bezel), `module.scad` (resizable mechanism), `fit_test.scad` (tolerance calibration print). |
