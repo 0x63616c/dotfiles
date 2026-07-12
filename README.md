@@ -82,6 +82,25 @@ True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cu
 
 See `themes/README.md` for full per-app install + tweak instructions.
 
+### `splitflap/`
+
+A complete, self-contained build plan for a **modular 4×16 (64-module) split-flap
+display** — 3D-printable on a Bambu (dual-color), ESP32-driven, with a web control
+app, culminating in "HELLO WORLD". Not a dotfile: nothing to symlink, it's a
+project you build from. Start at `splitflap/docs/00-build-guide.md`.
+
+| Path | What it does |
+|---|---|
+| `splitflap/docs/00-build-guide.md` | Master guide — every phase from empty printer to "HELLO WORLD" (two paths, honest about what to print vs. build). |
+| `splitflap/docs/01-bom.md` | Bill of materials + real 2025–26 pricing; cost per one (~$4/module at scale) and for all (~$425 for 4×16), re-checked arithmetic. |
+| `splitflap/docs/02-dimensions.md` | Every part dimension, tolerance, and Bambu print setting. |
+| `splitflap/docs/03-electronics.md` | Wiring, the 74HC595/165 shift-register driver chain, and the power budget. |
+| `splitflap/firmware/splitflap-esp32/` | ESP32/PlatformIO firmware: non-blocking stepper scheduler, hall homing, WiFi, HTTP `/api/text`, status WebSocket. `bringup` (1 module) + `board` (full 4×16) build profiles. |
+| `splitflap/webapp/index.html` | Single-file control app with a live split-flap preview; served off the ESP32 or opened locally. |
+| `splitflap/hardware/openscad/` | Parametric geometry: `params.scad` (all dims), `enclosure.scad` (black snap-together bezel), `module.scad` (resizable mechanism), `fit_test.scad` (tolerance calibration print). |
+| `splitflap/hardware/pcb/README.md` | Shift-register driver board (6 modules/board, ×11) — schematic, netlist, JLCPCB order notes. |
+| `splitflap/hardware/flaps/charset.json` | Canonical 48-glyph flap order (A–Z, 0–9, punctuation, `$ £ € ¥`); firmware + web app both derive from it. |
+
 ## Install
 
 ```bash

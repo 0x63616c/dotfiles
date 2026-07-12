@@ -1,0 +1,28 @@
+{
+  "_comment": "SINGLE SOURCE OF TRUTH for the flap character set. Firmware, web app, and the flap-label print sheet ALL derive from this ordering. Index = flap position on the drum, starting from home (index 0 = blank). Changing the order means re-labelling physical flaps, so treat this file as canonical.",
+  "version": 1,
+  "flapCount": 48,
+  "home": " ",
+  "order": [
+    " ",
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    ".", ",", "!", "?", "-", "/", "&",
+    "$", "£", "€", "¥"
+  ],
+  "counts": {
+    "blank": 1,
+    "letters": 26,
+    "digits": 10,
+    "punctuation": 7,
+    "currency": 4,
+    "total": 48
+  },
+  "notes": {
+    "index0": "Home / blank flap. The hall sensor triggers here; every move is computed relative to this index.",
+    "currency": "$ USD (index 44), £ GBP (45), € EUR (46), ¥ JPY/CNY (47).",
+    "drum": "48 physical flaps => 48 slots. This is the default; the OpenSCAD drum is parametric on flapCount if you want a smaller/larger set.",
+    "casing": "Input text is upper-cased before mapping. Unmapped characters fall back to blank (index 0)."
+  }
+}
