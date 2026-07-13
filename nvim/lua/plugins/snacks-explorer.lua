@@ -12,6 +12,7 @@ return {
         "**/.venv/*",
         "**/__pycache__/*",
         "**/.cache/*",
+        "**/vendor/*",
       },
       sources = {
         explorer = { hidden = true, ignored = true },
