@@ -4,7 +4,15 @@ return {
   "folke/snacks.nvim",
   opts = {
     picker = {
-      exclude = { "*.uid", "**/.git/*", "**/node_modules/*" },
+      exclude = {
+        "*.uid",
+        "**/.git/*",
+        "**/node_modules/*",
+        "**/.DS_Store",
+        "**/.venv/*",
+        "**/__pycache__/*",
+        "**/.cache/*",
+      },
       sources = {
         explorer = { hidden = true, ignored = true },
         files = { hidden = true, ignored = true },
