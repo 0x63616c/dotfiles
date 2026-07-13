@@ -196,6 +196,11 @@ group_members() {  # group ref -> member ws refs, one per line
   printf '%s' "$GROUPS_JSON" | jq -r --arg g "$1" '.groups[] | select(.ref==$g) | .member_workspace_refs[]'
 }
 
+# group ref that ws $1 anchors, or "" if it isn't an anchor
+group_anchored_by() {
+  printf '%s' "$GROUPS_JSON" | jq -r --arg m "$1" '.groups[] | select(.anchor_workspace_ref==$m) | .ref' | head -1
+}
+
 # workspace refs belonging to key, space-joined
 ws_for_key() {
   local key="$1" i out=""
@@ -254,7 +259,16 @@ for key in "${KEYS[@]}"; do
     [[ "$(gget "$gref" name)" == "$gname" ]] || run workspace-group rename "$gref" --name "$gname"
     existing=$(group_members "$gref" 2>/dev/null || true)
     for m in "${mrefs[@]}"; do
-      grep -qx "$m" <<< "$existing" || run workspace-group add --group "$gref" --workspace "$m"
+      grep -qx "$m" <<< "$existing" && continue
+      # a workspace that anchors its own group can't be added to another
+      # group directly; ungroup its old group first (its other members fall
+      # back into the pool and get reconciled into their own repo groups).
+      ag=$(group_anchored_by "$m")
+      if [[ -n "$ag" && "$ag" != "$gref" ]]; then
+        run workspace-group ungroup "$ag"
+        GROUPS_JSON=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
+      fi
+      run workspace-group add --group "$gref" --workspace "$m"
     done
   fi
 
