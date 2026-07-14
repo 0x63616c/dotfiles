@@ -15,11 +15,14 @@
 #
 # Usage:
 #   organize-workspaces [--help|-h]        show this help (default with no args)
-#   organize-workspaces install            idempotently wire auto-run into ~/.zshrc
+#   organize-workspaces install [--force]  symlink onto PATH + wire auto-run into ~/.zshrc
+#     --force             relink even if the name on PATH points somewhere else
 #   organize-workspaces run [options]      apply grouping now
 #     -n, --dry-run       print the cmux commands, change nothing
 #     --window <ref>      target a specific window
 #   organize-workspaces test <name>        print the colour + icon chosen for <name>
+#
+# Install target dir defaults to ~/.local/bin (override: ORGANIZE_BIN_DIR).
 #
 # Requires (for `run`/`install`): cmux (on PATH), jq, git.
 
@@ -29,6 +32,8 @@ export CMUX_QUIET=1
 
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
 INSTALL_MARKER="# organize-workspaces: auto-run on shell start"
+PATH_MARKER="# organize-workspaces: ensure install dir is on PATH"
+BIN_DIR="${ORGANIZE_BIN_DIR:-$HOME/.local/bin}"
 
 # --- palette ------------------------------------------------------------
 # Curated colour + icon per known repo. Anything not listed falls back to a
@@ -120,9 +125,95 @@ cmd_test() {
 }
 
 # --- install ------------------------------------------------------------
+# Fully resolve a path (follow symlink chains, absolutise). Portable: macOS's
+# BSD readlink has no -f, and realpath isn't guaranteed to be present.
+resolve_path() {
+  local p="$1" t
+  while [[ -L "$p" ]]; do
+    t=$(readlink "$p")
+    [[ "$t" == /* ]] || t="$(dirname "$p")/$t"
+    p="$t"
+  done
+  ( cd "$(dirname "$p")" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$(basename "$p")" )
+}
+
 cmd_install() {
+  local force=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -f|--force) force=1; shift ;;
+      -h|--help)  print_help; exit 0 ;;
+      *) echo "organize-workspaces install: unknown arg: $1" >&2; exit 2 ;;
+    esac
+  done
+
+  local self link
+  self=$(resolve_path "${BASH_SOURCE[0]}")
+  link="$BIN_DIR/organize-workspaces"
+
+  # --- 1. symlink this script into BIN_DIR ---------------------------------
+  mkdir -p "$BIN_DIR"
+  if [[ -L "$link" ]]; then
+    local cur; cur=$(resolve_path "$link")
+    if [[ "$cur" == "$self" ]]; then
+      echo "organize-workspaces: symlink already correct: $link -> $self"
+    elif [[ $force -eq 1 ]]; then
+      ln -sfn "$self" "$link"
+      echo "organize-workspaces: relinked $link: $cur -> $self"
+    else
+      echo "organize-workspaces: $link already points elsewhere:" >&2
+      echo "  current: $cur" >&2
+      echo "  this:    $self" >&2
+      echo "  re-run with --force to repoint it." >&2
+      exit 1
+    fi
+  elif [[ -e "$link" ]]; then
+    # a real file (not a symlink) is squatting the name — never clobber silently
+    if [[ $force -eq 1 ]]; then
+      ln -sfn "$self" "$link"
+      echo "organize-workspaces: replaced regular file at $link with symlink -> $self"
+    else
+      echo "organize-workspaces: $link exists and is not a symlink; refusing to overwrite." >&2
+      echo "  re-run with --force to replace it." >&2
+      exit 1
+    fi
+  else
+    ln -s "$self" "$link"
+    echo "organize-workspaces: symlinked $link -> $self"
+  fi
+
+  # --- 2. make sure BIN_DIR is on PATH -------------------------------------
+  if [[ ":$PATH:" == *":$BIN_DIR:"* ]]; then
+    echo "organize-workspaces: $BIN_DIR already on PATH"
+  elif [[ -f "$ZSHRC" ]] && grep -qF "$PATH_MARKER" "$ZSHRC"; then
+    echo "organize-workspaces: PATH line already in $ZSHRC (open a new shell to pick it up)"
+  else
+    {
+      echo ""
+      echo "$PATH_MARKER"
+      echo "export PATH=\"$BIN_DIR:\$PATH\""
+    } >> "$ZSHRC"
+    echo "organize-workspaces: added $BIN_DIR to PATH in $ZSHRC"
+  fi
+
+  # --- 3. warn if some OTHER organize-workspaces shadows us on PATH --------
+  # BIN_DIR may sit late in PATH behind a stale copy or another clone — you'd
+  # keep editing this file while a different one actually runs.
+  local found
+  found=$(command -v organize-workspaces 2>/dev/null || true)
+  if [[ -n "$found" ]]; then
+    local fres; fres=$(resolve_path "$found")
+    if [[ "$fres" != "$self" ]]; then
+      echo "organize-workspaces: WARNING — another organize-workspaces shadows this one on PATH:" >&2
+      echo "  PATH resolves to: $found -> $fres" >&2
+      echo "  this script is:   $self" >&2
+      echo "  fix PATH order, or remove the other copy." >&2
+    fi
+  fi
+
+  # --- 4. auto-run snippet --------------------------------------------------
   if [[ -f "$ZSHRC" ]] && grep -qF "$INSTALL_MARKER" "$ZSHRC"; then
-    echo "organize-workspaces: already installed in $ZSHRC"
+    echo "organize-workspaces: auto-run already installed in $ZSHRC"
     return 0
   fi
   {

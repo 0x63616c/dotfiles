@@ -12,7 +12,7 @@ cmux's volatile session restore state stays local.
 | Path | What it does |
 |---|---|
 | `cmux/settings.json` | Symlink target for `~/.config/cmux/settings.json`. Stores stable cmux settings such as keyboard shortcuts. Do not track `~/.config/cmux/cmux.json`, it contains volatile `terminal.resumeCommands` session IDs. |
-| `cmux/organize-workspaces` | CLI (symlinked onto PATH) that groups the current cmux window's workspaces by their enclosing git repo — one collapsible group per repo, named after the lowercase repo basename, each with a stable unique colour + SF Symbol icon, and every member workspace tinted to its group's colour + its description set to the git branch it's on. Repos are ordered alphabetically; nested sub-folders resolve to their repo; workspaces not in any git repo land in an `other…` group forced last — which only appears when there's a genuine non-git workspace. Empty groups (only their throwaway anchor left, no real workspaces) are deleted. Pinned groups are left floating on top (cmux owns that). Reuses existing groups and skips any rename/colour/icon/description/tint that's already correct, then applies the whole sidebar order in a single atomic `reorder-workspaces` — so re-runs don't shuffle — and prints a coloured tree of the result. `--dry-run` prints the plan; `--window <ref>` targets another window. Add the snippet from the Install block to `~/.zshrc` (last, backgrounded) to auto-run it on every shell that opens inside a cmux workspace. |
+| `cmux/organize-workspaces` | CLI (symlinked onto PATH) that groups the current cmux window's workspaces by their enclosing git repo — one collapsible group per repo, named after the lowercase repo basename, each with a stable unique colour + SF Symbol icon, and every member workspace tinted to its group's colour + its description set to the git branch it's on. Repos are ordered alphabetically; nested sub-folders resolve to their repo; workspaces not in any git repo land in an `other…` group forced last — which only appears when there's a genuine non-git workspace. Empty groups (only their throwaway anchor left, no real workspaces) are deleted. Pinned groups are left floating on top (cmux owns that). Reuses existing groups and skips any rename/colour/icon/description/tint that's already correct, then applies the whole sidebar order in a single atomic `reorder-workspaces` — so re-runs don't shuffle — and prints a coloured tree of the result. `--dry-run` prints the plan; `--window <ref>` targets another window. `organize-workspaces install` wires the whole thing up itself — symlinks the script into `~/.local/bin` (override with `ORGANIZE_BIN_DIR`), ensures that dir is on `PATH`, and appends the auto-run snippet to `~/.zshrc` so it runs on every shell opened inside a cmux workspace. It's idempotent, refuses to overwrite a different file/symlink already holding the name (`--force` repoints it), and warns if another copy shadows it on `PATH`. |
 | `opencode/opencode.json` | Symlink target for `~/.config/opencode/opencode.json`. Enables cmux's OpenCode restore and feed plugins with absolute file URLs to the cmux-managed plugin files. The plugin files themselves are installed/updated by `cmux hooks setup`, not tracked here. |
 
 ### `nvim/`
@@ -135,15 +135,12 @@ mkdir -p ~/.config/cmux ~/.config/opencode
 ln -s "$PWD/cmux/settings.json"                            ~/.config/cmux/settings.json
 ln -s "$PWD/opencode/opencode.json"                        ~/.config/opencode/opencode.json
 
-# cmux workspace organizer CLI (onto PATH)
-mkdir -p ~/.local/bin
-ln -s "$PWD/cmux/organize-workspaces"                       ~/.local/bin/organize-workspaces
-
-# Optional: auto-run it on every shell opened inside a cmux workspace.
-# Append this LAST in ~/.zshrc (background + non-blocking):
-#   if [[ -o interactive && -n $CMUX_WORKSPACE_ID ]] && command -v organize-workspaces >/dev/null 2>&1; then
-#     (organize-workspaces >/dev/null 2>&1 &) 2>/dev/null
-#   fi
+# cmux workspace organizer CLI — self-installing:
+# symlinks itself into ~/.local/bin (override with ORGANIZE_BIN_DIR), makes sure
+# that dir is on PATH, and appends the auto-run snippet to ~/.zshrc. Idempotent.
+# Refuses to clobber a different organize-workspaces already holding the name
+# (pass --force to repoint it), and warns if another copy shadows it on PATH.
+./cmux/organize-workspaces install
 
 # Themes — Cursor/VS Code Blackout (links into both editors)
 ./themes/cursor/scripts/install.sh
