@@ -14,31 +14,23 @@
 # rebuilt, and membership is reconciled so re-running is idempotent.
 #
 # Usage:
-#   organize-workspaces              # apply
-#   organize-workspaces --dry-run    # print the cmux commands, change nothing
-#   organize-workspaces --window window:2   # target a specific window
+#   organize-workspaces [--help|-h]        show this help (default with no args)
+#   organize-workspaces install            idempotently wire auto-run into ~/.zshrc
+#   organize-workspaces run [options]      apply grouping now
+#     -n, --dry-run       print the cmux commands, change nothing
+#     --window <ref>      target a specific window
+#   organize-workspaces test <name>        print the colour + icon chosen for <name>
 #
-# Requires: cmux (on PATH), jq, git.
+# Requires (for `run`/`install`): cmux (on PATH), jq, git.
 
 set -euo pipefail
 
 export CMUX_QUIET=1
 
-DRY_RUN=0
-WINDOW_ARGS=()
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -n|--dry-run) DRY_RUN=1; shift ;;
-    --window)     WINDOW_ARGS=(--window "$2"); shift 2 ;;
-    -h|--help)    grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "organize-workspaces: unknown arg: $1" >&2; exit 2 ;;
-  esac
-done
+ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
+INSTALL_MARKER="# organize-workspaces: auto-run on shell start"
 
-for bin in cmux jq git; do
-  command -v "$bin" >/dev/null 2>&1 || { echo "organize-workspaces: missing dependency: $bin" >&2; exit 1; }
-done
-
+# --- palette ------------------------------------------------------------
 # Curated colour + icon per known repo. Anything not listed falls back to a
 # deterministic slot in the palette below (stable across runs for a given name).
 curated_color() {
@@ -60,8 +52,18 @@ curated_icon() {
   esac
 }
 
-FALLBACK_COLORS=("#E74C3C" "#16A085" "#D35400" "#2980B9" "#C0392B" "#F39C12" "#9B59B6" "#1ABC9C" "#E67E22" "#34495E")
-FALLBACK_ICONS=(folder cube.box hammer terminal chevron.left.forwardslash.chevron.right shippingbox book.closed leaf bolt.fill cpu)
+FALLBACK_COLORS=(
+  "#E74C3C" "#16A085" "#D35400" "#2980B9" "#C0392B" "#F39C12" "#9B59B6" "#1ABC9C"
+  "#E67E22" "#34495E" "#3498DB" "#2ECC71" "#E84393" "#00CEC9" "#6C5CE7" "#FDCB6E"
+  "#FD79A8" "#00B894" "#0984E3" "#D63031" "#A29BFE" "#55EFC4" "#FAB1A0" "#74B9FF"
+  "#FF7675" "#81ECEC" "#B2BEC3" "#EE5A24" "#10AC84" "#5F27CD" "#FF9F43" "#01A3A4"
+)
+FALLBACK_ICONS=(
+  folder cube.box hammer terminal chevron.left.forwardslash.chevron.right shippingbox book.closed leaf
+  bolt.fill cpu flame puzzlepiece wrench.and.screwdriver network server.rack antenna.radiowaves.left.and.right
+  lock.shield doc.text tray.full archivebox paperplane wand.and.stars gearshape.2 point.3.connected.trianglepath.dotted
+  chart.bar waveform keyboard cursorarrow.rays globe.americas map flask atom
+)
 
 # Stable index from a name -> [0, n)
 name_slot() {
@@ -86,6 +88,69 @@ icon_for() {
 OTHER_NAME="other…"
 OTHER_COLOR="#566573"
 OTHER_ICON="tray.full"
+
+# swatch: #RRGGBB -> coloured ● (falls back to plain ● if not a hex)
+swatch() {
+  local hex="${1#\#}"
+  [[ "$hex" =~ ^[0-9A-Fa-f]{6}$ ]] || { printf '●'; return; }
+  printf '\033[38;2;%d;%d;%dm●\033[0m' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
+}
+
+# --- help -----------------------------------------------------------------
+print_help() {
+  awk '
+    NR==1 && /^#!/ { next }
+    /^#/ { sub(/^# ?/, ""); print; next }
+    { exit }
+  ' "$0"
+}
+
+# --- test -------------------------------------------------------------------
+cmd_test() {
+  local name="${1:-}"
+  if [[ -z "$name" ]]; then
+    echo "organize-workspaces test: missing <name>" >&2
+    exit 2
+  fi
+  local lname; lname=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
+  local color icon
+  color=$(color_for "$lname")
+  icon=$(icon_for "$lname")
+  printf '%s  %-8s %-45s %s\n' "$(swatch "$color")" "$color" "$icon" "$lname"
+}
+
+# --- install ------------------------------------------------------------
+cmd_install() {
+  if [[ -f "$ZSHRC" ]] && grep -qF "$INSTALL_MARKER" "$ZSHRC"; then
+    echo "organize-workspaces: already installed in $ZSHRC"
+    return 0
+  fi
+  {
+    echo ""
+    echo "$INSTALL_MARKER — background, non-blocking, only inside a cmux workspace."
+    echo 'if [[ -o interactive && -n $CMUX_WORKSPACE_ID ]] && command -v organize-workspaces >/dev/null 2>&1; then'
+    echo '  (organize-workspaces run >/dev/null 2>&1 &) 2>/dev/null'
+    echo 'fi'
+  } >> "$ZSHRC"
+  echo "organize-workspaces: installed auto-run into $ZSHRC"
+}
+
+# --- run ----------------------------------------------------------------
+cmd_run() {
+DRY_RUN=0
+WINDOW_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n|--dry-run) DRY_RUN=1; shift ;;
+    --window)     WINDOW_ARGS=(--window "$2"); shift 2 ;;
+    -h|--help)    print_help; exit 0 ;;
+    *) echo "organize-workspaces run: unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+
+for bin in cmux jq git; do
+  command -v "$bin" >/dev/null 2>&1 || { echo "organize-workspaces: missing dependency: $bin" >&2; exit 1; }
+done
 
 run() {
   if [[ $DRY_RUN -eq 1 ]]; then
@@ -327,13 +392,8 @@ print_tree() {
   local gjson wjson
   gjson=$(cmux workspace-group list --json "${WINDOW_ARGS[@]}")
   wjson=$(cmux workspace list --json "${WINDOW_ARGS[@]}")
-  local anchors title_of
+  local anchors
   anchors=$(printf '%s' "$gjson" | jq -r '.groups[] | [.anchor_workspace_ref, .ref, .name, (.custom_color//""), (.icon_symbol//""), (.is_pinned|tostring)] | @tsv')
-  swatch() {  # #RRGGBB -> coloured ● (falls back to plain ● if not a hex)
-    local hex="${1#\#}"
-    [[ "$hex" =~ ^[0-9A-Fa-f]{6}$ ]] || { printf '●'; return; }
-    printf '\033[38;2;%d;%d;%dm●\033[0m' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
-  }
   echo
   # walk workspaces in sidebar order; emit a header when a row is a group anchor
   printf '%s' "$wjson" | jq -r '.workspaces[] | [.ref, .title, (.description//"")] | @tsv' | \
@@ -352,3 +412,30 @@ print_tree() {
 [[ $DRY_RUN -eq 0 ]] && print_tree
 
 echo "organize-workspaces: done."
+}
+
+# --- dispatch ----------------------------------------------------------------
+cmd="${1:-}"
+case "$cmd" in
+  ""|--help|-h|help)
+    print_help
+    ;;
+  install)
+    shift
+    cmd_install "$@"
+    ;;
+  run)
+    shift
+    cmd_run "$@"
+    ;;
+  test)
+    shift
+    cmd_test "$@"
+    ;;
+  *)
+    echo "organize-workspaces: unknown command: $cmd" >&2
+    echo >&2
+    print_help >&2
+    exit 2
+    ;;
+esac
