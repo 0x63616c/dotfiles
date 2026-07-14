@@ -50,8 +50,9 @@ local function rel_time(secs)
   return string.format("%d%s ago", math.max(math.floor(n), 1), suffix)
 end
 
--- "#8253bfe · 30m ago · ⇣2" — sha, age, and how far behind origin we are.
-local function status_line(dir)
+-- Returns the sha (left-aligned) and the age + sync marker (right-aligned),
+-- justified to `width`:  "#8253bfe                        30m ago ⇣2"
+local function status_line(dir, width)
   local info = git(dir, "log", "-1", "--format=%h %ct")
   if not info then
     return nil
@@ -61,7 +62,8 @@ local function status_line(dir)
     return nil
   end
 
-  local parts = { "#" .. sha, rel_time(os.time() - tonumber(ts)) }
+  local left = "#" .. sha
+  local right = rel_time(os.time() - tonumber(ts))
 
   local upstream = git(dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
   if upstream then
@@ -69,21 +71,25 @@ local function status_line(dir)
     local counts = git(dir, "rev-list", "--left-right", "--count", upstream .. "...HEAD")
     local behind, ahead = (counts or ""):match("^(%d+)%s+(%d+)$")
     behind, ahead = tonumber(behind) or 0, tonumber(ahead) or 0
+
+    local marks = {}
     if behind > 0 then
-      table.insert(parts, "⇣" .. behind) -- remote has commits to pull
+      table.insert(marks, "⇣" .. behind) -- remote has commits to pull
     end
     if ahead > 0 then
-      table.insert(parts, "⇡" .. ahead) -- local commits not yet pushed
+      table.insert(marks, "⇡" .. ahead) -- local commits not yet pushed
     end
-    if behind == 0 and ahead == 0 then
-      table.insert(parts, "✓")
+    if #marks == 0 then
+      marks = { "✓" }
     end
+    right = right .. " " .. table.concat(marks, " ")
 
     -- Detached: refresh the cached ref for next launch without blocking this one.
     vim.system({ "git", "-C", dir, "fetch", "--quiet" }, { detach = true })
   end
 
-  return table.concat(parts, " · ")
+  local gap = width - vim.fn.strdisplaywidth(left) - vim.fn.strdisplaywidth(right)
+  return left .. string.rep(" ", math.max(gap, 1)) .. right
 end
 
 local art = {
@@ -97,11 +103,12 @@ local art = {
 
 local header = table.concat(art, "\n")
 local dir = repo_dir()
-local status = dir and status_line(dir)
+-- Justified across the art's width so the sha sits under its left edge and the
+-- age under its right.
+local status = dir and status_line(dir, vim.fn.strdisplaywidth(art[1]))
 
 if status then
-  local pad = math.floor((vim.fn.strdisplaywidth(art[1]) - vim.fn.strdisplaywidth(status)) / 2)
-  header = header .. "\n\n" .. string.rep(" ", math.max(pad, 0)) .. status
+  header = header .. "\n\n" .. status
 end
 
 return {

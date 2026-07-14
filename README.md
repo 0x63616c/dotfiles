@@ -27,7 +27,7 @@ from the pinned `lazy-lock.json`.
 | `nvim/lazyvim.json` | Enabled LazyVim extras: `lang.typescript` (vtsls), `lang.json`, `lang.markdown`, `lang.typescript.biome` (Biome format/lint — matches tidepool's toolchain). |
 | `nvim/lazy-lock.json` | Pinned plugin commit SHAs — reproducible setup across machines. |
 | `nvim/lua/plugins/` | Personal plugin overrides (only what differs from LazyVim defaults). |
-| `nvim/lua/plugins/snacks-dashboard.lua` | Dashboard header: CALUM ASCII art over a status line for this repo — short SHA, commit age, and sync state (e.g. `#a309986 · 5m ago · ✓`). `✓` in sync, `⇣N` remote has N commits to pull, `⇡N` N local commits unpushed. Locates the repo by resolving its own path through the `~/.config/nvim` symlink, so it works wherever the repo is cloned. Sync state is read from the cached remote ref (no network on startup); a detached `git fetch` refreshes it for the next launch. |
+| `nvim/lua/plugins/snacks-dashboard.lua` | Dashboard header: CALUM ASCII art over a status line for this repo, justified to the art's width — short SHA on the left, commit age + sync state on the right (`#a309986` … `5m ago ✓`). `✓` in sync, `⇣N` remote has N commits to pull, `⇡N` N local commits unpushed. Locates the repo by resolving its own path through the `~/.config/nvim` symlink, so it works wherever the repo is cloned. Sync state is read from the cached remote ref (no network on startup); a detached `git fetch` refreshes it for the next launch. |
 
 ### Auto-push (continuous backup of this repo)
 
