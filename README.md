@@ -27,6 +27,7 @@ from the pinned `lazy-lock.json`.
 | `nvim/lazyvim.json` | Enabled LazyVim extras: `lang.typescript` (vtsls), `lang.json`, `lang.markdown`, `lang.typescript.biome` (Biome format/lint — matches tidepool's toolchain). |
 | `nvim/lazy-lock.json` | Pinned plugin commit SHAs — reproducible setup across machines. |
 | `nvim/lua/plugins/` | Personal plugin overrides (only what differs from LazyVim defaults). |
+| `nvim/lua/plugins/snacks-dashboard.lua` | Dashboard header: CALUM ASCII art, with this repo's current short SHA centered below it (e.g. `#8253bfe`). Locates the repo by resolving its own path through the `~/.config/nvim` symlink, so it works wherever the repo is cloned. |
 
 ### Auto-push (continuous backup of this repo)
 
