@@ -297,6 +297,22 @@ for bin in cmux jq git; do
   command -v "$bin" >/dev/null 2>&1 || { echo "organize-workspaces: missing dependency: $bin" >&2; exit 1; }
 done
 
+# Preflight: wait for cmux to answer RPC before touching anything. On shell
+# start (the auto-run path) the daemon socket isn't accepting yet, so the first
+# call dies with "Failed to write to socket (Broken pipe)". Probe until it
+# responds — up to ~15s — instead of aborting the whole run on that race.
+tries=0
+until cmux workspace list --json "${WINDOW_ARGS[@]}" >/dev/null 2>&1; do
+  tries=$((tries+1))
+  if [[ $tries -ge 30 ]]; then
+    echo "organize-workspaces: cmux not responding after ${tries} probes; aborting" >&2
+    exit 1
+  fi
+  [[ $tries -eq 1 ]] && echo "organize-workspaces: waiting for cmux to become ready…"
+  sleep 0.5
+done
+[[ $tries -gt 0 ]] && echo "organize-workspaces: cmux ready after ${tries} probe(s)"
+
 run() {
   if [[ $DRY_RUN -eq 1 ]]; then
     printf 'DRY  cmux'; printf ' %q' "$@"; printf '\n'
