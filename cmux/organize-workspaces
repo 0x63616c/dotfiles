@@ -17,12 +17,17 @@
 #   organize-workspaces [--help|-h]        show this help (default with no args)
 #   organize-workspaces install [--force]  symlink onto PATH + wire auto-run into ~/.zshrc
 #     --force             relink even if the name on PATH points somewhere else
-#   organize-workspaces run [options]      apply grouping now
+#   organize-workspaces run [options]      apply grouping now (logged)
 #     -n, --dry-run       print the cmux commands, change nothing
 #     --window <ref>      target a specific window
+#   organize-workspaces logs [options]     view the run log
+#     -f, --follow        stream new lines (tail -f)
+#     -n, --lines <n>     show last n lines (default 200)
 #   organize-workspaces test <name>        print the colour + icon chosen for <name>
 #
 # Install target dir defaults to ~/.local/bin (override: ORGANIZE_BIN_DIR).
+# Runs are logged to $XDG_STATE_HOME/organize-workspaces/run.log
+# (override: ORGANIZE_LOG_FILE).
 #
 # Requires (for `run`/`install`): cmux (on PATH), jq, git.
 
@@ -34,6 +39,14 @@ ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
 INSTALL_MARKER="# organize-workspaces: auto-run on shell start"
 PATH_MARKER="# organize-workspaces: ensure install dir is on PATH"
 BIN_DIR="${ORGANIZE_BIN_DIR:-$HOME/.local/bin}"
+
+# Where every `run` (and the auto-run breadcrumb) is logged. Override with
+# ORGANIZE_LOG_FILE. Kept in XDG state dir so it survives across shells.
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/organize-workspaces"
+LOG_FILE="${ORGANIZE_LOG_FILE:-$LOG_DIR/run.log}"
+LOG_MAX_LINES=2000   # trim the log to this many lines after each run
+
+now() { date '+%Y-%m-%d %H:%M:%S'; }
 
 # --- palette ------------------------------------------------------------
 # Curated colour + icon per known repo. Anything not listed falls back to a
@@ -137,6 +150,18 @@ resolve_path() {
   ( cd "$(dirname "$p")" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$(basename "$p")" )
 }
 
+# Remove the managed auto-run block (marker line through its closing col-0 `fi`)
+# so install can rewrite an up-to-date version instead of leaving a stale one.
+strip_autorun_block() {
+  [[ -f "$ZSHRC" ]] || return 0
+  awk -v m="$INSTALL_MARKER" '
+    index($0, m)==1 { skip=1 }
+    skip && $0=="fi" { skip=0; next }
+    skip { next }
+    { print }
+  ' "$ZSHRC" > "$ZSHRC.tmp" && mv "$ZSHRC.tmp" "$ZSHRC"
+}
+
 cmd_install() {
   local force=0
   while [[ $# -gt 0 ]]; do
@@ -212,18 +237,37 @@ cmd_install() {
   fi
 
   # --- 4. auto-run snippet --------------------------------------------------
+  # Always (re)write the managed block so an older version gets refreshed in
+  # place rather than left stale beside a duplicate.
+  local had=0
   if [[ -f "$ZSHRC" ]] && grep -qF "$INSTALL_MARKER" "$ZSHRC"; then
-    echo "organize-workspaces: auto-run already installed in $ZSHRC"
-    return 0
+    had=1
+    strip_autorun_block
   fi
+  # The snippet logs a breadcrumb every time it fires (so you can tell whether
+  # ~/.zshrc actually ran it on shell start), then backgrounds the real run —
+  # which self-logs its own output to the same file. If the command isn't on
+  # PATH, that fact is logged too instead of vanishing silently.
   {
     echo ""
     echo "$INSTALL_MARKER — background, non-blocking, only inside a cmux workspace."
-    echo 'if [[ -o interactive && -n $CMUX_WORKSPACE_ID ]] && command -v organize-workspaces >/dev/null 2>&1; then'
-    echo '  (organize-workspaces run >/dev/null 2>&1 &) 2>/dev/null'
+    echo 'if [[ -o interactive && -n $CMUX_WORKSPACE_ID ]]; then'
+    echo '  _ow_log="${XDG_STATE_HOME:-$HOME/.local/state}/organize-workspaces/run.log"'
+    echo '  mkdir -p "${_ow_log:h}" 2>/dev/null'
+    echo '  if command -v organize-workspaces >/dev/null 2>&1; then'
+    echo '    print -r -- "[$(date "+%Y-%m-%d %H:%M:%S")] autorun: shell start in $CMUX_WORKSPACE_ID -> launching run" >>"$_ow_log"'
+    echo '    (organize-workspaces run >/dev/null 2>&1 &) 2>/dev/null'
+    echo '  else'
+    echo '    print -r -- "[$(date "+%Y-%m-%d %H:%M:%S")] autorun: organize-workspaces NOT on PATH; skipped" >>"$_ow_log"'
+    echo '  fi'
+    echo '  unset _ow_log'
     echo 'fi'
   } >> "$ZSHRC"
-  echo "organize-workspaces: installed auto-run into $ZSHRC"
+  if [[ $had -eq 1 ]]; then
+    echo "organize-workspaces: refreshed auto-run block in $ZSHRC"
+  else
+    echo "organize-workspaces: installed auto-run into $ZSHRC"
+  fi
 }
 
 # --- run ----------------------------------------------------------------
@@ -238,6 +282,16 @@ while [[ $# -gt 0 ]]; do
     *) echo "organize-workspaces run: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+# Self-log every real run: tee all stdout+stderr to LOG_FILE so a backgrounded
+# auto-run (whose output the ~/.zshrc snippet throws at /dev/null) is still
+# captured for later inspection via `organize-workspaces logs`. Dry-runs are
+# left alone — they change nothing and are meant for the terminal.
+if [[ $DRY_RUN -eq 0 ]]; then
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  exec > >(tee -a "$LOG_FILE") 2>&1
+  echo "=== $(now) run (pid $$, cwd $PWD${WINDOW_ARGS[*]:+, window ${WINDOW_ARGS[*]}}) ==="
+fi
 
 for bin in cmux jq git; do
   command -v "$bin" >/dev/null 2>&1 || { echo "organize-workspaces: missing dependency: $bin" >&2; exit 1; }
@@ -503,6 +557,39 @@ print_tree() {
 [[ $DRY_RUN -eq 0 ]] && print_tree
 
 echo "organize-workspaces: done."
+
+# Keep the log bounded — trim to the last LOG_MAX_LINES lines. tee has already
+# flushed this run's output by the time the script exits; trimming here (before
+# exit) is a best-effort cap, so failure is non-fatal.
+if [[ $DRY_RUN -eq 0 && -f "$LOG_FILE" ]]; then
+  if [[ $(wc -l < "$LOG_FILE") -gt $LOG_MAX_LINES ]]; then
+    tail -n "$LOG_MAX_LINES" "$LOG_FILE" > "$LOG_FILE.tmp" 2>/dev/null && mv "$LOG_FILE.tmp" "$LOG_FILE" || rm -f "$LOG_FILE.tmp"
+  fi
+fi
+}
+
+# --- logs -------------------------------------------------------------------
+cmd_logs() {
+  local follow=0 lines=200
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -f|--follow) follow=1; shift ;;
+      -n|--lines)  lines="$2"; shift 2 ;;
+      -h|--help)   print_help; exit 0 ;;
+      *) echo "organize-workspaces logs: unknown arg: $1" >&2; exit 2 ;;
+    esac
+  done
+  if [[ ! -f "$LOG_FILE" ]]; then
+    echo "organize-workspaces: no log yet at $LOG_FILE" >&2
+    echo "  (it's written on the first \`run\`; auto-run logs a breadcrumb on shell start)" >&2
+    exit 1
+  fi
+  echo "# $LOG_FILE" >&2
+  if [[ $follow -eq 1 ]]; then
+    tail -n "$lines" -f "$LOG_FILE"
+  else
+    tail -n "$lines" "$LOG_FILE"
+  fi
 }
 
 # --- dispatch ----------------------------------------------------------------
@@ -518,6 +605,10 @@ case "$cmd" in
   run)
     shift
     cmd_run "$@"
+    ;;
+  logs)
+    shift
+    cmd_logs "$@"
     ;;
   test)
     shift
