@@ -83,6 +83,16 @@ True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cu
 
 See `themes/README.md` for full per-app install + tweak instructions.
 
+### `hammerspoon/`
+
+macOS automation config. `~/.hammerspoon` is a symlink to `hammerspoon/`.
+Requires `brew install --cask hammerspoon media-control`, plus Accessibility
+permission for Hammerspoon (System Settings → Privacy & Security → Accessibility).
+
+| Path | What it does |
+|---|---|
+| `hammerspoon/init.lua` | Mic-watcher: auto pause/resume media around Wispr Flow dictation. Polls the default input device's in-use state; when any app grabs the mic (Wispr recording) it sends a system-wide play/pause toggle via `media-control` to pause whatever's playing (Spotify, YouTube, anything in the media-key routing), and toggles again on mic release to resume. Toggles fire only in mic-on/mic-off pairs, so a failed dictation launch (mic never grabbed) does nothing and playback state can't desync. Pressing the physical play/pause media key mid-dictation sets a user-took-control flag and the auto-resume is skipped (an eventtap watches `systemDefined` key events; needs Accessibility). Known limits: resuming by clicking a player's UI mid-dictation isn't detected (only the media key is), and any mic-grabbing app (Zoom etc.) also triggers the pause. Reading playback state via MediaRemote (`nowplaying-cli`, `media-control get`) is blind to Chrome on macOS 26 — that's why the design is a stateless paired toggle rather than pause/play commands. |
+
 ### `splitflap/`
 
 A complete, self-contained build plan for a **modular 4×16 (64-module) split-flap
@@ -129,6 +139,11 @@ ln -s "$PWD/codex/themes/blackout.tmTheme"                  ~/.codex/themes/blac
 
 # Neovim (LazyVim) config
 ln -s "$PWD/nvim"                                          ~/.config/nvim
+
+# Hammerspoon (mic-watcher: auto pause/resume media around dictation)
+brew install --cask hammerspoon
+brew install media-control
+ln -s "$PWD/hammerspoon"                                   ~/.hammerspoon
 
 # cmux + OpenCode config
 mkdir -p ~/.config/cmux ~/.config/opencode
