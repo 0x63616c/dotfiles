@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# gcamai — `git commit --all` with an AI-written Conventional Commits subject.
+#
+# Same shape as `gcam`, minus the message: the diff goes to the Codex CLI
+# (fast model, read-only, no tools) and whatever it says becomes the subject.
+# Deliberately low-effort: a decent one-liner in ~3s beats a perfect one in 30s.
+#
+# Logs: ~/.local/state/gcamai/  (one file per run, newest is `latest.log`)
+# Debug: GCAMAI_DEBUG=1 gcamai   → prints the log path and skips the animation
+# Dry run: GCAMAI_DRY=1 gcamai   → prints the message, does not commit
+
+set -uo pipefail
+
+MODEL="${GCAMAI_MODEL:-gpt-5.3-codex-spark}"
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/gcamai"
+mkdir -p "$LOG_DIR"
+LOG="$LOG_DIR/$(date +%Y%m%d-%H%M%S)-$$.log"
+MSG_FILE="$LOG.msg"
+ln -sf "$LOG" "$LOG_DIR/latest.log"
+
+log() { printf '[gcamai] %s\n' "$*" >>"$LOG"; }
+
+die() { printf '\r\033[2Kgcamai: %s\n' "$*" >&2; exit 1; }
+
+git rev-parse --git-dir >/dev/null 2>&1 || die "not a git repository"
+
+# `--all` only picks up tracked changes, so that's all we look at.
+if git diff --quiet HEAD -- 2>/dev/null; then
+  die "no tracked changes to commit"
+fi
+
+# ---------------------------------------------------------------- context ----
+# Cheap, bounded context. Stat first (always survives truncation), then the
+# diff body capped so a huge change can't blow up latency or the token bill.
+{
+  echo "## Files changed"
+  git diff HEAD --stat
+  echo
+  echo "## Recent commit subjects (match this style)"
+  git log -10 --format='%s' 2>/dev/null
+  echo
+  echo "## Diff (may be truncated)"
+  git diff HEAD -U0 | head -c "${GCAMAI_DIFF_BYTES:-12000}"
+} >"$LOG.ctx" 2>/dev/null
+
+PROMPT='Write the commit subject line for the changes below.
+
+Rules:
+- Output ONE line only. No body, no quotes, no backticks, no explanation.
+- Conventional Commits: type(scope): summary. Scope optional.
+- Max 65 characters. Imperative mood. Lowercase after the colon.
+- Match the style of the recent commit subjects shown.
+- Stay high level. Describe the change, not every file. Do not enumerate.
+- Do not use tools, do not read files, do not run commands. Answer from the diff alone.'
+
+# ---------------------------------------------------------------- run it -----
+codex exec \
+  --ephemeral \
+  --ignore-user-config \
+  --skip-git-repo-check \
+  -s read-only \
+  -m "$MODEL" \
+  -c model_reasoning_effort=low \
+  -o "$MSG_FILE" \
+  "$PROMPT" <"$LOG.ctx" >>"$LOG" 2>&1 &
+CODEX_PID=$!
+log "pid=$CODEX_PID model=$MODEL"
+
+# ---------------------------------------------------------------- theatre ----
+PHRASES=(
+  "Generating commit message..."
+  "Exploring what changed..."
+  "Reading the diff..."
+  "Squinting at your code..."
+  "Recalling how you usually word these..."
+  "Picking a conventional prefix..."
+  "Wording it..."
+  "Almost there..."
+)
+
+# `(5s)` is printed instantly and ticks on its own; only the phrase is "typed".
+render() { printf '\r\033[2K\033[2m(%ds)\033[0m %s' "$SECONDS" "$1"; }
+
+animate() {
+  local type_delay=0.022 erase_delay=0.006 hold=0.55
+  local i=0 p n j
+  while kill -0 "$CODEX_PID" 2>/dev/null; do
+    p="${PHRASES[$(( i % ${#PHRASES[@]} ))]}"
+    n=${#p}
+    for (( j = 1; j <= n; j++ )); do
+      kill -0 "$CODEX_PID" 2>/dev/null || return
+      render "${p:0:j}"
+      sleep "$type_delay"
+    done
+    sleep "$hold"
+    for (( j = n - 1; j >= 0; j-- )); do
+      kill -0 "$CODEX_PID" 2>/dev/null || return
+      render "${p:0:j}"
+      sleep "$erase_delay"
+    done
+    i=$(( i + 1 ))
+  done
+}
+
+if [[ -t 1 && -z "${GCAMAI_DEBUG:-}" ]]; then
+  printf '\033[?25l'                                    # hide cursor
+  trap 'printf "\033[?25h\r\033[2K"; exit 130' INT TERM
+  animate
+  printf '\033[?25h'
+else
+  echo "gcamai: log $LOG"
+fi
+
+wait "$CODEX_PID"; CODEX_RC=$?
+printf '\r\033[2K'
+
+# ---------------------------------------------------------------- clean up ---
+# Take the first non-empty line and strip anything the model wrapped it in.
+MSG="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$MSG_FILE" 2>/dev/null \
+  | grep -v '^$' | head -1 \
+  | sed -e 's/^["`'"'"']*//' -e 's/["`'"'"']*$//')"
+
+if [[ $CODEX_RC -ne 0 || -z "$MSG" ]]; then
+  die "could not generate a message (rc=$CODEX_RC). log: $LOG"
+fi
+
+log "message: $MSG"
+
+if [[ -n "${GCAMAI_DRY:-}" ]]; then
+  printf '%s\n' "$MSG"
+  exit 0
+fi
+
+git commit --all --message "$MSG" || die "git commit failed. log: $LOG"

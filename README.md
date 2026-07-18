@@ -100,11 +100,20 @@ project you build from. Start at `splitflap/docs/00-build-guide.md`.
 | `splitflap/hardware/pcb/README.md` | Shift-register driver board (6 modules/board, ×11) — schematic, netlist, JLCPCB order notes. |
 | `splitflap/hardware/flaps/charset.json` | Canonical 48-glyph flap order (A–Z, 0–9, punctuation, `$ £ € ¥`); firmware + web app both derive from it. |
 
+### git
+
+| Path | What it does |
+|---|---|
+| `git/gcamai` | `gcam` (`git commit --all --message`) with the message written for you. Feeds `git diff HEAD` (stat + `-U0` body, capped at 12 KB) plus the last 10 commit subjects to the Codex CLI — `gpt-5.3-codex-spark`, read-only sandbox, `model_reasoning_effort=low`, tools forbidden — and commits whatever single Conventional Commits subject comes back (~3–6s). Deliberately shallow: a decent one-liner fast beats a perfect one slow. While it thinks, a human-speed typing animation cycles phrases behind a live `(5s)` elapsed counter. Logs every run (codex output, context, chosen message) to `$XDG_STATE_HOME/gcamai/`, newest also at `latest.log`. Env: `GCAMAI_DRY=1` print the message without committing, `GCAMAI_DEBUG=1` skip the animation and print the log path, `GCAMAI_MODEL` / `GCAMAI_DIFF_BYTES` to override. |
+
 ## Install
 
 ```bash
 git clone https://github.com/0x63616c/dotfiles.git
 cd dotfiles
+
+# gcamai — AI-written commit subject (needs the `codex` CLI on PATH)
+echo "alias gcamai='$PWD/git/gcamai'" >> ~/.aliases
 
 # Claude skills
 ln -s "$PWD/claude/skills/codebase-audit"                  ~/.claude/skills/codebase-audit
