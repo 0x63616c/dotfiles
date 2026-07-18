@@ -65,8 +65,9 @@ now() { date '+%Y-%m-%d %H:%M:%S'; }
 # Config format — one repo per line, whitespace-separated:
 #     <name>  <#RRGGBB|->  [sf-symbol-icon]
 # `-` (or an omitted field) means "no override, fall back to the hash" for that
-# column, so you can pin a colour without pinning an icon. `#` starts a comment;
-# blank lines ignored. Names are matched lowercase (same as group names).
+# column, so you can pin a colour without pinning an icon. A `#` at the start of
+# a line, or after the three fields, starts a comment; blank lines are ignored.
+# Names are matched lowercase (same as group names).
 PALETTE_FILE="${ORGANIZE_PALETTE:-${XDG_CONFIG_HOME:-$HOME/.config}/organize-workspaces/palette.conf}"
 
 declare -A PALETTE_COLOR=()
