@@ -39,8 +39,20 @@ fi
   echo "## Recent commit subjects (match this style)"
   git log -10 --format='%s' 2>/dev/null
   echo
-  echo "## Diff (may be truncated)"
-  git diff HEAD -U0 | head -c "${GCAMAI_DIFF_BYTES:-12000}"
+  echo "## Diff (per-file, each may be truncated)"
+  # Budget per file, not globally: a single huge file must not eat the whole
+  # allowance and starve every path after it alphabetically. Floor of 400B so a
+  # 100-file commit still shows a taste of each rather than one line apiece.
+  files="$(git diff HEAD --name-only)"
+  count=$(printf '%s\n' "$files" | grep -c .)
+  [ "$count" -lt 1 ] && count=1
+  budget=$(( ${GCAMAI_DIFF_BYTES:-12000} / count ))
+  [ "$budget" -lt 400 ] && budget=400
+  printf '%s\n' "$files" | while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    git diff HEAD -U0 -- "$f" | head -c "$budget"
+    echo
+  done
 } >"$LOG.ctx" 2>/dev/null
 
 PROMPT='Write the commit subject line for the changes below.
