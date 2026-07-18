@@ -2,7 +2,7 @@
 git/hooks/*.old
 git/hooks/*.clobbered
 
-# QMK keyboard passwords — never commit/push (auto-push is on!)
+# QMK keyboard passwords — never commit/push
 secrets.h
 qmk/**/secrets.h
 

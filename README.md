@@ -6,12 +6,12 @@ My dotfiles, configs, and other bits worth sharing across machines.
 
 ### cmux + OpenCode
 
-cmux file-managed settings and OpenCode's cmux plugin list are tracked here, while
-cmux's volatile session restore state stays local.
+cmux file-managed settings and OpenCode's cmux plugin list are tracked here.
 
 | Path | What it does |
 |---|---|
-| `cmux/settings.json` | Symlink target for `~/.config/cmux/settings.json`. Stores stable cmux settings such as keyboard shortcuts. Do not track `~/.config/cmux/cmux.json`, it contains volatile `terminal.resumeCommands` session IDs. |
+| `cmux/cmux.json` | Symlink target for `~/.config/cmux/cmux.json` — cmux's current primary config (shortcuts, sidebars, notifications, terminal). Keys absent from the file fall back to cmux's schema defaults, so the notification block is intentionally not present (all defaults). Note cmux also writes volatile `terminal.resumeCommands` session IDs here, so `git status` goes dirty as you work — commit when you mean to. |
+| `cmux/settings.json` | Legacy `~/.config/cmux/settings.json` config, superseded by `cmux/cmux.json`. Kept for reference only; not symlinked. |
 | `cmux/organize-workspaces` | CLI (symlinked onto PATH) that groups the current cmux window's workspaces by their enclosing git repo — one collapsible group per repo, named after the lowercase repo basename, each with a colour + SF Symbol icon from the palette config (see `cmux/palette.conf`), falling back to a stable name-hash, and every member workspace tinted to its group's colour + its description set to the git branch it's on. Repos are ordered alphabetically; nested sub-folders resolve to their repo; workspaces not in any git repo land in an `other…` group forced last — which only appears when there's a genuine non-git workspace. Empty groups (only their throwaway anchor left, no real workspaces) are deleted. Pinned groups are left floating on top (cmux owns that). Reuses existing groups and skips any rename/colour/icon/description/tint that's already correct, then applies the whole sidebar order in a single atomic `reorder-workspaces` — so re-runs don't shuffle — and prints a coloured tree of the result. `--dry-run` prints the plan; `--window <ref>` targets another window. Every `run` first waits for cmux's RPC socket to answer (up to ~15s) — on shell start the daemon isn't accepting yet, so the first call would otherwise die with `Failed to write to socket (Broken pipe)` — then self-logs its full output (banner + cmux calls + resulting tree) to `$XDG_STATE_HOME/organize-workspaces/run.log` (override with `ORGANIZE_LOG_FILE`, trimmed to the last 2000 lines) — so a backgrounded auto-run whose output goes to `/dev/null` is still inspectable; `organize-workspaces logs [-f] [-n <n>]` tails it. `organize-workspaces install` wires the whole thing up itself — symlinks the script into `~/.local/bin` (override with `ORGANIZE_BIN_DIR`), ensures that dir is on `PATH`, and (re)writes the auto-run snippet in `~/.zshrc` so it runs on every shell opened inside a cmux workspace; the snippet logs a breadcrumb each shell start (including a "NOT on PATH; skipped" line if the command can't be found), so you can tell whether it actually fired. `install` is idempotent and self-healing (refreshes a stale block in place), refuses to overwrite a different file/symlink already holding the name (`--force` repoints it), and warns if another copy shadows it on `PATH`. |
 | `cmux/palette.conf` | Curated colour + icon per repo for `organize-workspaces`, symlinked to `~/.config/organize-workspaces/palette.conf` by its `install`. One `<name>  <#RRGGBB\|->  [sf-symbol]` line per repo, whitespace-separated; `-` or an omitted field means "hash this column instead", so a colour can be pinned without pinning an icon. `#` at line start or after the three fields is a comment. Names match lowercase. Any repo absent from this file gets a colour + icon deterministically hashed from its name — stable across runs, so nothing needs listing here unless you dislike what it drew. `organize-workspaces test <name>` prints the resolved pair and whether each half came from this file or the hash. |
 | `opencode/opencode.json` | Symlink target for `~/.config/opencode/opencode.json`. Enables cmux's OpenCode restore and feed plugins with absolute file URLs to the cmux-managed plugin files. The plugin files themselves are installed/updated by `cmux hooks setup`, not tracked here. |
@@ -29,20 +29,6 @@ from the pinned `lazy-lock.json`.
 | `nvim/lazy-lock.json` | Pinned plugin commit SHAs — reproducible setup across machines. |
 | `nvim/lua/plugins/` | Personal plugin overrides (only what differs from LazyVim defaults). |
 | `nvim/lua/plugins/snacks-dashboard.lua` | Dashboard header: CALUM ASCII art over a status line for this repo, justified to the art's width — short SHA on the left, commit age + sync state on the right (`#a309986` … `5m ago ✓`). `✓` in sync, `⇣N` remote has N commits to pull, `⇡N` N local commits unpushed. Locates the repo by resolving its own path through the `~/.config/nvim` symlink, so it works wherever the repo is cloned. Sync state is read from the cached remote ref (no network on startup); a detached `git fetch` refreshes it for the next launch. |
-
-### Auto-push (continuous backup of this repo)
-
-A LaunchAgent that every 5 minutes (and once at each login/reboot) auto-commits any
-local changes in this repo and pushes to its upstream branch — so the dotfiles are
-always backed up to GitHub without you remembering to push.
-
-| Path | What it does |
-|---|---|
-| `auto-push/auto-push.sh` | Staged-commit-and-push the target repo (path passed as `$1`). Commits only when the tree is dirty; the unattended snapshot bypasses ALL git hooks (`core.hooksPath=/dev/null`). Fail-soft: a transient push/auth failure logs and the next tick retries (not `set -e`). |
-| `auto-push/launchd/…plist.template` | `com.calum.dotfiles-autopush` LaunchAgent: `StartInterval` 300s + `RunAtLoad`. `install.sh` fills `__SCRIPT__/__REPO__/__HOME__/__PATH__/__SSH_ENV__` (machine-specific). |
-| `auto-push/install.sh` | Bakes this repo's path into the plist, resolves `git` onto launchd's PATH, injects the GUI `SSH_AUTH_SOCK` if present (ssh remote), and bootstraps the agent. Idempotent — run it directly to (re)install. Logs: `~/.local/state/autopush/{log,err}`. |
-
-> Uninstall: `launchctl bootout gui/$(id -u)/com.calum.dotfiles-autopush && rm ~/Library/LaunchAgents/com.calum.dotfiles-autopush.plist`.
 
 ### `claude/`
 
@@ -148,7 +134,7 @@ ln -s "$PWD/hammerspoon"                                   ~/.hammerspoon
 
 # cmux + OpenCode config
 mkdir -p ~/.config/cmux ~/.config/opencode
-ln -s "$PWD/cmux/settings.json"                            ~/.config/cmux/settings.json
+ln -s "$PWD/cmux/cmux.json"                                ~/.config/cmux/cmux.json
 ln -s "$PWD/opencode/opencode.json"                        ~/.config/opencode/opencode.json
 
 # cmux workspace organizer CLI — self-installing:
@@ -168,6 +154,4 @@ ln -s "$PWD/opencode/opencode.json"                        ~/.config/opencode/op
 mkdir -p "$HOME/Library/Application Support/presenterm/themes"
 ln -s "$PWD/presenterm/themes/blackout.yaml"               "$HOME/Library/Application Support/presenterm/themes/blackout.yaml"
 
-# Auto-push continuous backup (installs + loads the LaunchAgent for this repo)
-./auto-push/install.sh
 ```
