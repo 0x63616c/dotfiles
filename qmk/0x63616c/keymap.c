@@ -172,6 +172,25 @@ void housekeeping_task_user(void) {
     }
 }
 
+// Lock-key indicators: light just the key's own LED white (indices from the
+// board's config.h). Used both while RGB is on and while it's toggled off.
+static void lock_key_indicators(void) {
+    if (host_keyboard_led_state().caps_lock) {
+        rgb_matrix_set_color(CAPS_LOCK_INDEX, 255, 255, 255);
+    }
+    if (host_keyboard_led_state().num_lock) {
+        rgb_matrix_set_color(NUM_LOCK_INDEX, 255, 255, 255);
+    }
+}
+
+// RGB toggled off (Fn+RGB_TOG): the NONE "effect" renders black once — this hook
+// runs inside that render so the lock keys stay lit. Keychron's led_update_kb
+// re-draws on lock-state changes and keeps the LED driver awake while a lock is
+// active, so the light survives driver shutdown too.
+void rgb_matrix_none_indicators_user(void) {
+    lock_key_indicators();
+}
+
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     if (bootblu_timer != 0) {
         // blue for the first phase, then purple for the final stretch before bootloader
@@ -193,11 +212,6 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         }
         return false; // overrides caps/normal while Hyper is held
     }
-    if (host_keyboard_led_state().caps_lock) {
-        // Just the Caps Lock key's own LED white (index from the board's config.h).
-        if (CAPS_LOCK_INDEX >= led_min && CAPS_LOCK_INDEX < led_max) {
-            rgb_matrix_set_color(CAPS_LOCK_INDEX, 255, 255, 255);
-        }
-    }
+    lock_key_indicators();
     return false;
 }
