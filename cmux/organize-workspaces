@@ -23,7 +23,15 @@
 #   organize-workspaces logs [options]     view the run log
 #     -f, --follow        stream new lines (tail -f)
 #     -n, --lines <n>     show last n lines (default 200)
-#   organize-workspaces test <name>        print the colour + icon chosen for <name>
+#   organize-workspaces test <name>        print the colour + icon chosen for <name>,
+#                                          and whether each came from the palette
+#                                          config or the name-hash fallback
+#
+# Colours + icons come from a palette config — one `<name> <#RRGGBB|-> [icon]`
+# line per repo — at $XDG_CONFIG_HOME/organize-workspaces/palette.conf
+# (override: ORGANIZE_PALETTE). `install` symlinks the copy shipped beside this
+# script into place. Any repo not listed there gets a colour + icon hashed from
+# its name: stable across runs, no config needed.
 #
 # Install target dir defaults to ~/.local/bin (override: ORGANIZE_BIN_DIR).
 # Runs are logged to $XDG_STATE_HOME/organize-workspaces/run.log
@@ -49,25 +57,53 @@ LOG_MAX_LINES=2000   # trim the log to this many lines after each run
 now() { date '+%Y-%m-%d %H:%M:%S'; }
 
 # --- palette ------------------------------------------------------------
-# Curated colour + icon per known repo. Anything not listed falls back to a
-# deterministic slot in the palette below (stable across runs for a given name).
-curated_color() {
-  case "$1" in
-    world-wide-webb)     echo "#2E86DE" ;;
-    organizer)           echo "#B9770E" ;;
-    dotfiles)            echo "#27AE60" ;;
-    the-workflow-engine) echo "#8E44AD" ;;
-    *) return 1 ;;
-  esac
-}
-curated_icon() {
-  case "$1" in
-    world-wide-webb)     echo "globe" ;;
-    organizer)           echo "square.grid.2x2" ;;
-    dotfiles)            echo "gearshape" ;;
-    the-workflow-engine) echo "arrow.triangle.branch" ;;
-    *) return 1 ;;
-  esac
+# Curated colour + icon per repo live in a config file, NOT in this script.
+# Lookup order for any repo name:
+#   1. the palette config (see PALETTE_FILE below)
+#   2. a deterministic slot in the fallback arrays (stable for a given name)
+#
+# Config format — one repo per line, whitespace-separated:
+#     <name>  <#RRGGBB|->  [sf-symbol-icon]
+# `-` (or an omitted field) means "no override, fall back to the hash" for that
+# column, so you can pin a colour without pinning an icon. `#` starts a comment;
+# blank lines ignored. Names are matched lowercase (same as group names).
+PALETTE_FILE="${ORGANIZE_PALETTE:-${XDG_CONFIG_HOME:-$HOME/.config}/organize-workspaces/palette.conf}"
+
+declare -A PALETTE_COLOR=()
+declare -A PALETTE_ICON=()
+PALETTE_LOADED=0
+
+# Parse PALETTE_FILE into PALETTE_COLOR / PALETTE_ICON. Missing file is not an
+# error (the fallback hash covers everything). A malformed line warns with its
+# line number and is skipped — one bad row must never take down a whole run.
+load_palette() {
+  [[ $PALETTE_LOADED -eq 1 ]] && return 0
+  PALETTE_LOADED=1
+  [[ -r "$PALETTE_FILE" ]] || return 0
+
+  local lineno=0 line name color icon rest
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lineno=$((lineno + 1))
+    # A `#` can't just be treated as "comment starts here" — #RRGGBB begins with
+    # one. So: drop whole-line comments, then split into the three known fields
+    # and let anything after them (a trailing comment) fall into `rest`.
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    read -r name color icon rest <<< "$line"   # collapses whitespace, trims
+    [[ -z "$name" ]] && continue
+    # `name #RRGGBB # note` would otherwise read "#" as the icon.
+    [[ "$icon" == \#* ]] && icon=""
+
+    name=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
+    if [[ -n "$color" && "$color" != "-" ]]; then
+      if [[ "$color" =~ ^#[0-9A-Fa-f]{6}$ ]]; then
+        PALETTE_COLOR["$name"]="$color"
+      else
+        echo "organize-workspaces: $PALETTE_FILE:$lineno: bad colour '$color' (want #RRGGBB or -); ignoring" >&2
+      fi
+    fi
+    [[ -n "$icon" && "$icon" != "-" ]] && PALETTE_ICON["$name"]="$icon"
+  done < "$PALETTE_FILE"
+  return 0   # the loop's final failed `read` must not trip `set -e`
 }
 
 FALLBACK_COLORS=(
@@ -92,13 +128,21 @@ name_slot() {
 
 color_for() {
   local name="$1"
-  curated_color "$name" && return 0
+  load_palette
+  if [[ -n "${PALETTE_COLOR[$name]:-}" ]]; then
+    echo "${PALETTE_COLOR[$name]}"
+    return 0
+  fi
   local i; i=$(name_slot "$name" "${#FALLBACK_COLORS[@]}")
   echo "${FALLBACK_COLORS[$i]}"
 }
 icon_for() {
   local name="$1"
-  curated_icon "$name" && return 0
+  load_palette
+  if [[ -n "${PALETTE_ICON[$name]:-}" ]]; then
+    echo "${PALETTE_ICON[$name]}"
+    return 0
+  fi
   local i; i=$(name_slot "$name" "${#FALLBACK_ICONS[@]}")
   echo "${FALLBACK_ICONS[$i]}"
 }
@@ -131,10 +175,17 @@ cmd_test() {
     exit 2
   fi
   local lname; lname=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
-  local color icon
+  local color icon csrc isrc
+  load_palette
   color=$(color_for "$lname")
   icon=$(icon_for "$lname")
-  printf '%s  %-8s %-45s %s\n' "$(swatch "$color")" "$color" "$icon" "$lname"
+  # Say where each value came from — otherwise a typo'd palette line looks
+  # identical to a working one (both print *a* colour).
+  csrc=$([[ -n "${PALETTE_COLOR[$lname]:-}" ]] && echo config || echo hash)
+  isrc=$([[ -n "${PALETTE_ICON[$lname]:-}" ]] && echo config || echo hash)
+  printf '%s  %-8s (%s)  %-45s (%s)  %s\n' \
+    "$(swatch "$color")" "$color" "$csrc" "$icon" "$isrc" "$lname"
+  [[ -r "$PALETTE_FILE" ]] || echo "  (no palette file at $PALETTE_FILE — everything hashes)" >&2
 }
 
 # --- install ------------------------------------------------------------
@@ -207,7 +258,32 @@ cmd_install() {
     echo "organize-workspaces: symlinked $link -> $self"
   fi
 
-  # --- 2. make sure BIN_DIR is on PATH -------------------------------------
+  # --- 2. symlink the shipped palette into place ---------------------------
+  # Only if the repo ships one next to this script and nothing is there yet —
+  # the config is yours to edit, so an existing file is never touched without
+  # --force. No palette at all is fine: everything just hashes.
+  local shipped="$(dirname "$self")/palette.conf"
+  if [[ -f "$shipped" ]]; then
+    mkdir -p "$(dirname "$PALETTE_FILE")"
+    if [[ -L "$PALETTE_FILE" ]]; then
+      local pcur; pcur=$(resolve_path "$PALETTE_FILE")
+      if [[ "$pcur" == "$shipped" ]]; then
+        echo "organize-workspaces: palette already linked: $PALETTE_FILE -> $shipped"
+      elif [[ $force -eq 1 ]]; then
+        ln -sfn "$shipped" "$PALETTE_FILE"
+        echo "organize-workspaces: relinked palette: $pcur -> $shipped"
+      else
+        echo "organize-workspaces: $PALETTE_FILE points elsewhere ($pcur); leaving it (--force to repoint)" >&2
+      fi
+    elif [[ -e "$PALETTE_FILE" ]]; then
+      echo "organize-workspaces: $PALETTE_FILE exists (not a symlink); leaving your copy alone"
+    else
+      ln -s "$shipped" "$PALETTE_FILE"
+      echo "organize-workspaces: symlinked palette $PALETTE_FILE -> $shipped"
+    fi
+  fi
+
+  # --- 3. make sure BIN_DIR is on PATH -------------------------------------
   if [[ ":$PATH:" == *":$BIN_DIR:"* ]]; then
     echo "organize-workspaces: $BIN_DIR already on PATH"
   elif [[ -f "$ZSHRC" ]] && grep -qF "$PATH_MARKER" "$ZSHRC"; then
@@ -221,7 +297,7 @@ cmd_install() {
     echo "organize-workspaces: added $BIN_DIR to PATH in $ZSHRC"
   fi
 
-  # --- 3. warn if some OTHER organize-workspaces shadows us on PATH --------
+  # --- 4. warn if some OTHER organize-workspaces shadows us on PATH --------
   # BIN_DIR may sit late in PATH behind a stale copy or another clone — you'd
   # keep editing this file while a different one actually runs.
   local found
@@ -236,7 +312,7 @@ cmd_install() {
     fi
   fi
 
-  # --- 4. auto-run snippet --------------------------------------------------
+  # --- 5. auto-run snippet --------------------------------------------------
   # Always (re)write the managed block so an older version gets refreshed in
   # place rather than left stale beside a duplicate.
   local had=0

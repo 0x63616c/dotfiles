@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/manaflow-ai/cmux/main/web/data/cmux.schema.json",
+  "customSidebars": {
+    "renderer": "inProcess"
+  },
+  "schemaVersion": 1,
+  "shortcuts": {
+    "bindings": {
+      "nextSidebarTab": "cmd+]",
+      "prevSidebarTab": "cmd+[",
+      "selectSurfaceByNumber": "ctrl+opt+1"
+    }
+  },
+  "terminal": {
+    "resumeCommands": [
+      {
+        "commandPrefix": [
+          "opencode",
+          "--session",
+          "ses_11f8112adffeeOAAPBtAunjmzM"
+        ],
+        "createdAt": 1781883780.041023,
+        "cwd": "/Users/calum/code/github.com/0x63616c/world-wide-webb",
+        "environmentKeys": [],
+        "id": "a0a29cad-3275-4e32-b851-222db6aa3c3b",
+        "name": "OpenCode",
+        "policy": "manual",
+        "signature": "FLBcqtPNQEK6Ir+tXEAvMrnToL3w7lOACuQEQkkeNZs=",
+        "source": "cli",
+        "updatedAt": 1781883780.041023,
+        "version": 1
+      }
+    ]
+  }
+}
