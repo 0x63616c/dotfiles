@@ -29,7 +29,7 @@ return {
 
   -- Don't let Mason auto-install the marksman binary.
   {
-    "williamboman/mason.nvim",
+    "mason-org/mason.nvim",
     opts = function(_, opts)
       opts.ensure_installed = vim.tbl_filter(function(pkg)
         return pkg ~= "marksman"
