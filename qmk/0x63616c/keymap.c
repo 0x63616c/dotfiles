@@ -194,13 +194,9 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         return false; // overrides caps/normal while Hyper is held
     }
     if (host_keyboard_led_state().caps_lock) {
-        // Whole main typing block white: number row down to bottom row, ` .. Backspace,
-        // Left-Ctrl .. Right-Ctrl. y>=10 drops the top function/media row (y=0);
-        // x<=150 drops the nav cluster + numpad (x>=159). Everything else keeps its effect.
-        for (uint8_t i = led_min; i < led_max; i++) {
-            if (g_led_config.point[i].y >= 10 && g_led_config.point[i].x <= 150) {
-                rgb_matrix_set_color(i, 255, 255, 255);
-            }
+        // Just the Caps Lock key's own LED white (index from the board's config.h).
+        if (CAPS_LOCK_INDEX >= led_min && CAPS_LOCK_INDEX < led_max) {
+            rgb_matrix_set_color(CAPS_LOCK_INDEX, 255, 255, 255);
         }
     }
     return false;
