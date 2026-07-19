@@ -1,5 +1,0 @@
-#!/bin/sh
-# Stub: this .app exists only as a registered bundle identity for terminal-notifier
-# -sender (so CI notifications get their own Notification Center group). It is never
-# meant to be launched; if it is, do nothing and exit cleanly.
-exit 0
