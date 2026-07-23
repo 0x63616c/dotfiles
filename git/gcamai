@@ -153,5 +153,9 @@ if [[ -n "$USAGE_LINE" ]] && command -v jq >/dev/null 2>&1; then
   CACHED=$(jq -r '.usage.cached_input_tokens' <<<"$USAGE_LINE")
   OUT=$(jq -r '.usage.output_tokens' <<<"$USAGE_LINE")
   TOTAL=$(( IN + OUT ))
-  printf 'tokens: %s in (%s cached) + %s out = %s total\n' "$IN" "$CACHED" "$OUT" "$TOTAL"
+  if [[ -t 1 ]]; then
+    printf '\033[32mtokens: %s in (%s cached) + %s out = %s total [%s]\033[0m\n' "$IN" "$CACHED" "$OUT" "$TOTAL" "$MODEL"
+  else
+    printf 'tokens: %s in (%s cached) + %s out = %s total [%s]\n' "$IN" "$CACHED" "$OUT" "$TOTAL" "$MODEL"
+  fi
 fi
