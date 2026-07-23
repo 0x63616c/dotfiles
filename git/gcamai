@@ -73,6 +73,7 @@ codex exec \
   -s read-only \
   -m "$MODEL" \
   -c model_reasoning_effort=low \
+  --json \
   -o "$MSG_FILE" \
   "$PROMPT" <"$LOG.ctx" >>"$LOG" 2>&1 &
 CODEX_PID=$!
@@ -144,3 +145,13 @@ if [[ -n "${GCAMAI_DRY:-}" ]]; then
 fi
 
 git commit --all --message "$MSG" || die "git commit failed. log: $LOG"
+
+# ------------------------------------------------------------- token usage ---
+USAGE_LINE="$(grep -o '{"type":"turn.completed".*}' "$LOG" | tail -1)"
+if [[ -n "$USAGE_LINE" ]] && command -v jq >/dev/null 2>&1; then
+  IN=$(jq -r '.usage.input_tokens' <<<"$USAGE_LINE")
+  CACHED=$(jq -r '.usage.cached_input_tokens' <<<"$USAGE_LINE")
+  OUT=$(jq -r '.usage.output_tokens' <<<"$USAGE_LINE")
+  TOTAL=$(( IN + OUT ))
+  printf 'tokens: %s in (%s cached) + %s out = %s total\n' "$IN" "$CACHED" "$OUT" "$TOTAL"
+fi
