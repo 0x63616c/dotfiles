@@ -1,6 +1,6 @@
 # themes
 
-Custom themes for Cursor, VS Code, OpenCode, Codex, Claude, Neovim, presenterm, and Antinote.
+Custom themes for Cursor, VS Code, OpenCode, Codex, Claude, Neovim, presenterm, k9s, and Antinote.
 
 ## Structure
 
@@ -8,6 +8,7 @@ Custom themes for Cursor, VS Code, OpenCode, Codex, Claude, Neovim, presenterm, 
 cursor/         → Cursor & VS Code themes (package.json, install script, build pipeline)
 opencode/       → OpenCode desktop and TUI theme files
 ../codex/       → Codex CLI/TUI theme files
+../k9s/         → k9s TUI skin files
 antinote/       → Antinote (notes app) theme files
 ```
 
@@ -78,6 +79,26 @@ Global config:
   "theme": "lucent-orng-plusplus",
   "plugin": ["/Users/calum/code/github.com/0x63616c/dotfiles/themes"]
 }
+```
+
+## k9s — Blackout
+
+A true-black skin for [k9s](https://k9scli.io). k9s loads skins from
+`~/Library/Application Support/k9s/skins` (macOS) / `~/.config/k9s/skins`
+(Linux).
+
+```bash
+mkdir -p ~/Library/Application\ Support/k9s/skins
+ln -sf /Users/calum/code/github.com/0x63616c/dotfiles/k9s/themes/blackout.yaml \
+  ~/Library/Application\ Support/k9s/skins/blackout.yaml
+```
+
+Then set the default in `~/Library/Application Support/k9s/config.yaml`:
+
+```yaml
+k9s:
+  ui:
+    skin: blackout
 ```
 
 ## Antinote — Blackout
