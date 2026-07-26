@@ -34,21 +34,6 @@ RED='\e[38;2;247;118;142m'      # #f7768e — context % when high (>80)
 ORANGE='\e[38;2;255;158;100m'   # #ff9e64 — xhigh effort
 BRIGHT='\e[38;2;192;202;245m'   # #c0caf5 — clock (brighter fg)
 
-# Build context segment with color based on usage
-ctx_segment=""
-if [ -n "$used" ]; then
-  used_int=${used%.*}
-  used_int=${used_int:-0}
-  if [ "$used_int" -ge 80 ]; then
-    ctx_color="$RED"
-  elif [ "$used_int" -ge 50 ]; then
-    ctx_color="$YELLOW"
-  else
-    ctx_color="$CYAN"
-  fi
-  ctx_segment=" ${FG}·${RESET} ${ctx_color}${used_int}%%${RESET}"
-fi
-
 # Check git dirty status
 dirty=""
 if [ -n "$cwd" ]; then
@@ -71,8 +56,8 @@ if [ -n "$cwd" ]; then
   fi
 fi
 
-# Build rate-limit segment — Limits[5h:n%, Wk:y%], color per-number by usage
-limit_color() {
+# Build Ctx[n%, 5h:n%, Wk:n%] segment — color per-number by usage
+pct_color() {
   local pct_int=${1%.*}
   pct_int=${pct_int:-0}
   if [ "$pct_int" -ge 80 ]; then
@@ -84,23 +69,27 @@ limit_color() {
   fi
 }
 
-limits_segment=""
-if [ -n "$five_h" ] || [ -n "$seven_d" ]; then
-  limits_segment=" ${FG}·${RESET} ${FG}Limits[${RESET}"
-  if [ -n "$five_h" ]; then
-    five_h_int=${five_h%.*}
-    five_h_color=$(limit_color "$five_h")
-    limits_segment="${limits_segment}${FG}5h:${RESET}${five_h_color}${five_h_int}%%${RESET}"
+ctx_segment=""
+if [ -n "$used" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
+  ctx_segment=" ${FG}·${RESET} ${FG}Ctx[${RESET}"
+  first=1
+  if [ -n "$used" ]; then
+    used_int=${used%.*}
+    ctx_segment="${ctx_segment}$(pct_color "$used")${used_int}%%${RESET}"
+    first=0
   fi
-  if [ -n "$five_h" ] && [ -n "$seven_d" ]; then
-    limits_segment="${limits_segment}${FG}, ${RESET}"
+  if [ -n "$five_h" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
+    five_h_int=${five_h%.*}
+    ctx_segment="${ctx_segment}${FG}5h:${RESET}$(pct_color "$five_h")${five_h_int}%%${RESET}"
+    first=0
   fi
   if [ -n "$seven_d" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     seven_d_int=${seven_d%.*}
-    seven_d_color=$(limit_color "$seven_d")
-    limits_segment="${limits_segment}${FG}Wk:${RESET}${seven_d_color}${seven_d_int}%%${RESET}"
+    ctx_segment="${ctx_segment}${FG}Wk:${RESET}$(pct_color "$seven_d")${seven_d_int}%%${RESET}"
   fi
-  limits_segment="${limits_segment}${FG}]${RESET}"
+  ctx_segment="${ctx_segment}${FG}]${RESET}"
 fi
 
 # Build effort segment — wrapped in parens, all gray
@@ -118,4 +107,4 @@ if [ -n "$branch" ]; then
   branch_segment="${branch_segment}${CYAN})${RESET}"
 fi
 
-printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${ctx_segment}${limits_segment}\n"
+printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${ctx_segment}\n"
