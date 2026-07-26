@@ -6,6 +6,8 @@ input=$(cat)
 model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // ""')
 used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
+five_h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+seven_d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 
 # Shorten model name: "Claude 3.5 Sonnet" -> "Sonnet", "Claude Opus 4.5" -> "Opus", etc.
 short_model=$(echo "$model" | sed -E 's/^Claude //; s/ \(default\)//g; s/\(([0-9]+[KMG]) context\)/[\1]/g')
@@ -69,6 +71,38 @@ if [ -n "$cwd" ]; then
   fi
 fi
 
+# Build rate-limit segment — Limits[5h:n%, Wk:y%], color per-number by usage
+limit_color() {
+  local pct_int=${1%.*}
+  pct_int=${pct_int:-0}
+  if [ "$pct_int" -ge 80 ]; then
+    echo -en "$RED"
+  elif [ "$pct_int" -ge 50 ]; then
+    echo -en "$YELLOW"
+  else
+    echo -en "$CYAN"
+  fi
+}
+
+limits_segment=""
+if [ -n "$five_h" ] || [ -n "$seven_d" ]; then
+  limits_segment=" ${FG}·${RESET} ${FG}Limits[${RESET}"
+  if [ -n "$five_h" ]; then
+    five_h_int=${five_h%.*}
+    five_h_color=$(limit_color "$five_h")
+    limits_segment="${limits_segment}${FG}5h:${RESET}${five_h_color}${five_h_int}%%${RESET}"
+  fi
+  if [ -n "$five_h" ] && [ -n "$seven_d" ]; then
+    limits_segment="${limits_segment}${FG}, ${RESET}"
+  fi
+  if [ -n "$seven_d" ]; then
+    seven_d_int=${seven_d%.*}
+    seven_d_color=$(limit_color "$seven_d")
+    limits_segment="${limits_segment}${FG}Wk:${RESET}${seven_d_color}${seven_d_int}%%${RESET}"
+  fi
+  limits_segment="${limits_segment}${FG}]${RESET}"
+fi
+
 # Build effort segment — wrapped in parens, all gray
 effort_level=$(echo "$input" | jq -r '.effort.level // empty')
 effort_segment=""
@@ -84,4 +118,4 @@ if [ -n "$branch" ]; then
   branch_segment="${branch_segment}${CYAN})${RESET}"
 fi
 
-printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${ctx_segment}\n"
+printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${ctx_segment}${limits_segment}\n"
