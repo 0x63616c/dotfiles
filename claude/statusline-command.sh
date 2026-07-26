@@ -6,6 +6,7 @@ input=$(cat)
 model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // ""')
 used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
+tokens=$(echo "$input" | jq -r '((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0)) | if . > 0 then . else empty end')
 five_h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 seven_d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 
@@ -69,11 +70,28 @@ pct_color() {
   fi
 }
 
+# Format a raw token count as e.g. 950, 12.3k, 1.2m
+fmt_tokens() {
+  local n="$1"
+  if [ "$n" -ge 1000000 ]; then
+    awk -v n="$n" 'BEGIN { printf "%.1fm", n/1000000 }'
+  elif [ "$n" -ge 1000 ]; then
+    awk -v n="$n" 'BEGIN { printf "%.1fk", n/1000 }'
+  else
+    echo "$n"
+  fi
+}
+
 ctx_segment=""
-if [ -n "$used" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
+if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
   ctx_segment=" ${FG}·${RESET} ${FG}[${RESET}"
   first=1
+  if [ -n "$tokens" ]; then
+    ctx_segment="${ctx_segment}${FG}Tkns:${RESET}${CYAN}$(fmt_tokens "$tokens")${RESET}"
+    first=0
+  fi
   if [ -n "$used" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     used_int=${used%.*}
     ctx_segment="${ctx_segment}${FG}Ctx:${RESET}$(pct_color "$used")${used_int}%%${RESET}"
     first=0
