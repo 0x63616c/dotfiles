@@ -71,23 +71,23 @@ pct_color() {
 
 ctx_segment=""
 if [ -n "$used" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
-  ctx_segment=" ${FG}·${RESET} ${FG}Ctx[${RESET}"
+  ctx_segment=" ${FG}·${RESET} ${FG}[${RESET}"
   first=1
   if [ -n "$used" ]; then
     used_int=${used%.*}
-    ctx_segment="${ctx_segment}$(pct_color "$used")${used_int}%%${RESET}"
+    ctx_segment="${ctx_segment}${FG}Ctx:${RESET}$(pct_color "$used")${used_int}%%${RESET}"
     first=0
   fi
   if [ -n "$five_h" ]; then
     [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     five_h_int=${five_h%.*}
-    ctx_segment="${ctx_segment}${FG}5h:${RESET}$(pct_color "$five_h")${five_h_int}%%${RESET}"
+    ctx_segment="${ctx_segment}${FG}5h: ${RESET}$(pct_color "$five_h")${five_h_int}%%${RESET}"
     first=0
   fi
   if [ -n "$seven_d" ]; then
     [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     seven_d_int=${seven_d%.*}
-    ctx_segment="${ctx_segment}${FG}Wk:${RESET}$(pct_color "$seven_d")${seven_d_int}%%${RESET}"
+    ctx_segment="${ctx_segment}${FG}Wk: ${RESET}$(pct_color "$seven_d")${seven_d_int}%%${RESET}"
   fi
   ctx_segment="${ctx_segment}${FG}]${RESET}"
 fi
