@@ -82,46 +82,37 @@ fmt_tokens() {
   fi
 }
 
-# Build the bracket segment twice: colored (for display) and plain (to measure width for right-align)
 ctx_segment=""
-ctx_plain=""
 if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
-  ctx_segment="${FG}[${RESET}"
-  ctx_plain="["
+  ctx_segment=" ${FG}·${RESET} ${FG}[${RESET}"
   first=1
   if [ -n "$used" ]; then
     used_int=${used%.*}
     ctx_segment="${ctx_segment}${FG}Ctx: ${RESET}$(pct_color "$used")${used_int}%%${RESET}"
-    ctx_plain="${ctx_plain}Ctx: ${used_int}%"
     first=0
   fi
   if [ -n "$tokens" ]; then
-    [ "$first" -eq 0 ] && { ctx_segment="${ctx_segment}${FG}, ${RESET}"; ctx_plain="${ctx_plain}, "; }
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     tok_fmt=$(fmt_tokens "$tokens")
     ctx_segment="${ctx_segment}${FG}Tkns: ${RESET}${CYAN}${tok_fmt}${RESET}"
-    ctx_plain="${ctx_plain}Tkns: ${tok_fmt}"
     first=0
   fi
   if { [ -n "$five_h" ] || [ -n "$seven_d" ]; } && [ "$first" -eq 0 ]; then
-    ctx_segment="${ctx_segment}${FG} // ${RESET}"
-    ctx_plain="${ctx_plain} // "
+    ctx_segment="${ctx_segment}${ORANGE} // ${RESET}"
     first=1
   fi
   if [ -n "$five_h" ]; then
-    [ "$first" -eq 0 ] && { ctx_segment="${ctx_segment}${FG}, ${RESET}"; ctx_plain="${ctx_plain}, "; }
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     five_h_int=${five_h%.*}
     ctx_segment="${ctx_segment}${FG}5h: ${RESET}$(pct_color "$five_h")${five_h_int}%%${RESET}"
-    ctx_plain="${ctx_plain}5h: ${five_h_int}%"
     first=0
   fi
   if [ -n "$seven_d" ]; then
-    [ "$first" -eq 0 ] && { ctx_segment="${ctx_segment}${FG}, ${RESET}"; ctx_plain="${ctx_plain}, "; }
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     seven_d_int=${seven_d%.*}
     ctx_segment="${ctx_segment}${FG}Wk: ${RESET}$(pct_color "$seven_d")${seven_d_int}%%${RESET}"
-    ctx_plain="${ctx_plain}Wk: ${seven_d_int}%"
   fi
   ctx_segment="${ctx_segment}${FG}]${RESET}"
-  ctx_plain="${ctx_plain}]"
 fi
 
 # Build effort segment — wrapped in parens, all gray
@@ -139,13 +130,4 @@ if [ -n "$branch" ]; then
   branch_segment="${branch_segment}${CYAN})${RESET}"
 fi
 
-printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}\n"
-
-# Second line: bracket segment right-aligned to terminal width
-if [ -n "$ctx_segment" ]; then
-  cols=$(tput cols 2>/dev/null)
-  cols=${cols:-${COLUMNS:-80}}
-  pad=$((cols - ${#ctx_plain}))
-  [ "$pad" -lt 0 ] && pad=0
-  printf "%${pad}s${ctx_segment}\n" ""
-fi
+printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${ctx_segment}\n"
