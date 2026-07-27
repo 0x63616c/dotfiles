@@ -4,6 +4,15 @@ My dotfiles, configs, and other bits worth sharing across machines.
 
 ## Contents
 
+### `worktrees/`
+
+Cron-style cleanup for `wtp`-managed git worktrees (used across `~/code/github.com/0x63616c/*` repos). Claude Code's `EnterWorktree({path})` — the form `wtp`'s own workflow requires, since only `wtp add` runs its post_create hooks — never registers the session as the worktree's "owner", so `ExitWorktree` always refuses to remove it. Left unattended, worktrees under `~/.worktrees/<repo>/` never get cleaned up.
+
+| Path | What it does |
+|---|---|
+| `worktrees/prune-worktrees.sh` | Scans `~/.worktrees/<repo>/**` (any depth, so branch names with slashes work) for worktrees that are both git-clean and whose branch is a merged ancestor of `origin/<default-branch>`, and removes those (worktree + local branch). Anything dirty or unmerged is skipped and logged — never touches the main checkout. Doesn't catch squash-merged branches (their tip isn't a literal ancestor of main), so those still need a manual `git worktree remove`. Dry-run by default (prints "WOULD REMOVE"); pass `--apply` to actually delete. Symlinked onto `PATH` as `prune-worktrees`. |
+| `worktrees/com.calum.prune-worktrees.plist` | launchd agent running `prune-worktrees --apply` hourly (`StartInterval=3600`) plus once at login. Symlinked to `~/Library/LaunchAgents/`; log at `~/.cache/prune-worktrees/launchd.log`. |
+
 ### cmux + OpenCode
 
 cmux file-managed settings and OpenCode's cmux plugin list are tracked here.

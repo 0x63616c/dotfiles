@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.calum.prune-worktrees</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/calum/.local/bin/prune-worktrees</string>
+        <string>--apply</string>
+    </array>
+
+    <!-- Run once at login, then hourly while logged in. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/calum/.cache/prune-worktrees/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/calum/.cache/prune-worktrees/launchd.log</string>
+</dict>
+</plist>
