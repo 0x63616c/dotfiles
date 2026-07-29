@@ -11,7 +11,7 @@ Cron-style cleanup for `wtp`-managed git worktrees (used across `~/code/github.c
 | Path | What it does |
 |---|---|
 | `worktrees/prune-worktrees.sh` | Scans `~/.worktrees/<repo>/**` (any depth, so branch names with slashes work) for worktrees that are both git-clean and whose branch counts as merged into `origin/<default-branch>`, and removes those (worktree + local branch). "Merged" is tested three ways, in order: tip is a literal ancestor of the default branch; every commit has an equivalent patch-id upstream (`git cherry`); or `gh` reports a merged PR for the branch. The last two exist because squash-merged PRs rewrite history, so their tips are never ancestors of main — without them nothing is ever pruned. Anything dirty or genuinely unmerged is skipped and logged — never touches the main checkout. Dry-run by default (prints "WOULD REMOVE"); pass `--apply` to actually delete. Symlinked onto `PATH` as `prune-worktrees`. |
-| `worktrees/com.calum.prune-worktrees.plist` | launchd agent running `prune-worktrees --apply` hourly (`StartInterval=3600`) plus once at login. Symlinked to `~/Library/LaunchAgents/`; log at `~/.cache/prune-worktrees/launchd.log`. |
+| `worktrees/com.calum.prune-worktrees.plist` | launchd agent running `prune-worktrees --apply` every 15 min (`StartInterval=900`) plus once at login. Each worktree costs ~1G (almost entirely `node_modules`), so the tighter interval keeps accrual bounded; a pass takes ~40s. Symlinked to `~/Library/LaunchAgents/`; log at `~/.cache/prune-worktrees/launchd.log`. |
 
 ### cmux + OpenCode
 

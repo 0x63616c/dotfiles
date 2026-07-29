@@ -11,11 +11,14 @@
         <string>--apply</string>
     </array>
 
-    <!-- Run once at login, then hourly while logged in. -->
+    <!-- Run once at login, then every 15 min while logged in. Worktrees cost
+         ~1G each (node_modules), so an hour of accrual is real disk. A pass is
+         ~40s: one `git fetch` per worktree, plus a `gh` call only for branches
+         that fail the cheap local merge tests. -->
     <key>RunAtLoad</key>
     <true/>
     <key>StartInterval</key>
-    <integer>3600</integer>
+    <integer>900</integer>
 
     <key>StandardOutPath</key>
     <string>/Users/calum/.cache/prune-worktrees/launchd.log</string>
