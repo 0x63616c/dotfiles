@@ -25,6 +25,12 @@ log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
 PR_CACHE_DIR=$(mktemp -d) || exit 1
 trap 'rm -rf "$PR_CACHE_DIR"' EXIT
 
+# Without gh, squash-merged branches are indistinguishable from unmerged ones
+# and nothing gets pruned. Say so instead of failing quietly — launchd's
+# minimal PATH excludes Homebrew, which hid this for a full day of runs.
+command -v gh >/dev/null 2>&1 || \
+  log "WARN gh not on PATH — squash-merged branches will be skipped"
+
 # Echoes the merged-PR number for $2 (branch) in repo rooted at $1, or nothing.
 merged_pr_for() {
   local main_toplevel=$1 branch=$2

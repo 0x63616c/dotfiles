@@ -20,6 +20,16 @@
     <key>StartInterval</key>
     <integer>900</integer>
 
+    <!-- launchd starts jobs with a minimal PATH that excludes Homebrew, so
+         `gh` (at /opt/homebrew/bin) silently fails to run and every
+         squash-merged branch reads as "not merged". `git` is /usr/bin/git so
+         the local merge tests worked and masked this. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
     <key>StandardOutPath</key>
     <string>/Users/calum/.cache/prune-worktrees/launchd.log</string>
     <key>StandardErrorPath</key>
