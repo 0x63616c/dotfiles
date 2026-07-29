@@ -1,0 +1,77 @@
+# restic --exclude-file for the macbook-pro repo.
+#
+# Rule of thumb: exclude only what a package manager, compiler, or app can
+# rebuild from scratch. Everything else stays in, because the failure mode of a
+# curated allow-list is that you discover the missing thing at restore time.
+#
+# Sizes are from `du -sh -x` on 2026-07-28 and are here to justify each line —
+# they will drift, that's fine.
+#
+# Absolute paths, not $HOME — restic's env expansion in exclude files is not
+# worth relying on when a silent miss means backing up 30G of caches.
+
+# ── Derived caches ────────────────────────────────────────────────────────────
+/Users/calum/Library/Caches                 # 30G
+/Users/calum/.cache                         # 7.3G
+/Users/calum/Library/Metadata               # 3.5G — Spotlight index, rebuilt on demand
+/Users/calum/Library/Developer              # 15G — Xcode DerivedData + DeviceSupport
+
+# NOT excluded: /Users/calum/Library/Photos. Despite the name it is the
+# Syndication library ("Shared with You" media from Messages) — real media, not
+# cache. 2.3G, and dedupes against Messages/Attachments anyway.
+
+# ── Package manager stores ────────────────────────────────────────────────────
+/Users/calum/.bun                           # 4.6G
+/Users/calum/.npm                           # 2.7G
+/Users/calum/Library/pnpm                   # 1.9G
+/Users/calum/go/pkg                         # ~5G — module cache; ~/go/bin stays
+/Users/calum/.rustup                        # 1.3G
+/Users/calum/.cargo/registry
+/Users/calum/.gradle                        # 876M
+/Users/calum/.goenv                         # 801M
+/Users/calum/.pyenv                         # 333M
+/Users/calum/.cursor                        # 1.2G
+
+# ── Reproducible working copies ───────────────────────────────────────────────
+# Every worktree is a checkout of a repo that lives on a git remote. 34G of
+# node_modules and build output that `git clone` regenerates.
+/Users/calum/.worktrees
+
+# ── VM / container disk images ────────────────────────────────────────────────
+# OrbStack is also an NFS mount; -x already stops restic crossing into it, this
+# is belt-and-braces.
+/Users/calum/OrbStack                       # 4.1G
+/Users/calum/Virtual Machines               # 457M
+
+# ── Scratch ───────────────────────────────────────────────────────────────────
+/Users/calum/yt-tmp                         # 5.8G
+
+# ── Photos library ────────────────────────────────────────────────────────────
+# 31G, of which originals/ is 57M. iCloud Photos with "Optimise Mac Storage" is
+# on, so the full-resolution photographs are NOT on this Mac — this directory is
+# a database plus thumbnails. Backing it up would store 31G and recover no
+# photographs.
+#
+# The actual photos have exactly one copy and it is Apple's. Fixing that needs
+# Immich / osxphotos pulling originals down; see the follow-ups in the README.
+/Users/calum/Pictures/Photos Library.photoslibrary
+
+# ── Messages: keep the data, drop the caches ──────────────────────────────────
+# Attachments (34G) and chat.db are the most irreplaceable data on the machine
+# and are deliberately included. These two are not.
+/Users/calum/Library/Messages/Caches        # 6.2G
+/Users/calum/Library/Messages/NickNameCache # 93M
+
+# ── Recovery sheet ────────────────────────────────────────────────────────────
+# Holds both repo passwords in plaintext. Backing it up would put the keys to
+# the repo inside the repo. Must never be captured.
+/Users/calum/.recovery
+
+# ── Pattern-based ─────────────────────────────────────────────────────────────
+**/node_modules
+**/.venv
+**/__pycache__
+**/.DS_Store
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache

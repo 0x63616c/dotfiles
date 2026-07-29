@@ -1,0 +1,96 @@
+<!-- Printable recovery sheet TEMPLATE. Placeholders only — this file is in a
+     PUBLIC repo and must never contain a real secret.
+
+     The install step renders it to ~/.recovery/macbook-pro-restic-recovery.html
+     (a path on restic's exclude list, so the filled sheet can never end up
+     inside the repo it unlocks). Print it, store it offsite, delete the file.
+
+     Placeholders: {{REPO_URL}} {{NAS_HOST}} {{MACHINE_PASSWORD}}
+                   {{RECOVERY_PASSWORD}} {{GENERATED}} -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Backup Recovery Sheet — MacBook Pro</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  body { font: 11pt/1.45 -apple-system, "Helvetica Neue", sans-serif; color: #000; max-width: 190mm; }
+  h1 { font-size: 16pt; margin: 0 0 2mm; }
+  h2 { font-size: 11pt; margin: 6mm 0 1.5mm; text-transform: uppercase; letter-spacing: .06em; border-bottom: 1px solid #000; padding-bottom: 1mm; }
+  .meta { font-size: 9pt; color: #444; margin-bottom: 4mm; }
+  .secret { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11pt;
+            border: 1.5px solid #000; padding: 2.5mm 3mm; margin: 1.5mm 0 3mm;
+            word-break: break-all; background: #f4f4f4; }
+  .label { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 9.5pt; }
+  pre { background: #f4f4f4; border-left: 2px solid #000; padding: 2mm 3mm; margin: 1.5mm 0; white-space: pre-wrap; }
+  .warn { border: 2px solid #000; padding: 3mm; margin: 4mm 0; font-size: 10pt; }
+  .write-in { border-bottom: 1px solid #000; display: inline-block; min-width: 62mm; }
+  ul { margin: 1.5mm 0; padding-left: 5mm; }
+  li { margin: .8mm 0; }
+</style>
+</head>
+<body>
+
+<h1>Backup Recovery Sheet — MacBook Pro</h1>
+<div class="meta">restic repository on the Synology NAS · generated {{GENERATED}} · <strong>store offsite</strong></div>
+
+<div class="warn">
+  <strong>This sheet is the only thing that survives losing both the Mac and the NAS.</strong>
+  Anyone holding it can read every backup. Treat it like a passport: offsite, physically
+  secured, never photographed, never typed into anything that syncs.
+</div>
+
+<h2>Repository</h2>
+<div class="label">Location</div>
+<div class="secret">{{REPO_URL}}</div>
+<p style="font-size:10pt;margin:0 0 3mm">
+Reachable over Tailscale at <code>{{NAS_HOST}}</code>, or on the home LAN via SMB at
+<code>Storage → Backups → Devices → macbook-pro → restic</code>. Any SSH key works —
+the original was machine-specific and disposable; make a new one and add it in DSM.
+</p>
+
+<h2>Passwords — either one opens the repository</h2>
+<div class="label">Machine password (was on the Mac at ~/.config/restic/hometb-password)</div>
+<div class="secret">{{MACHINE_PASSWORD}}</div>
+<div class="label">Recovery password (never stored on the Mac)</div>
+<div class="secret">{{RECOVERY_PASSWORD}}</div>
+<p style="font-size:10pt;margin:0">
+If the Mac was lost or stolen, assume the machine password is compromised: restore first,
+then <code>restic key list</code> and <code>restic key remove &lt;id&gt;</code> to revoke it.
+</p>
+
+<h2>Restoring</h2>
+<pre>brew install restic          # or: apt install restic
+
+export RESTIC_REPOSITORY='{{REPO_URL}}'
+restic snapshots                          # prompts for either password above
+
+# browse before committing to anything
+restic mount /tmp/backup                  # snapshots appear as normal folders
+
+# or restore outright
+restic restore latest --target /tmp/restore
+restic restore latest --target /tmp/restore --include /Users/calum/Documents</pre>
+
+<h2>What is NOT in this backup</h2>
+<ul>
+  <li><strong>Photos.</strong> iCloud Photos held the originals; the Mac only had thumbnails. Recover from iCloud.</li>
+  <li>Caches, package stores, git worktrees, VM images — all rebuildable.</li>
+  <li>No bare-metal restore. This is files, not a bootable system.</li>
+</ul>
+
+<h2>1Password — fill in by hand</h2>
+<p style="font-size:10pt;margin:0 0 2mm">
+Without the Secret Key, 1Password itself is unrecoverable — and it holds the digital copies
+of everything above. AgileBits cannot help you. This is the piece people skip.
+</p>
+<div style="font-size:10pt;line-height:2.1">
+  Sign-in address <span class="write-in"></span><br>
+  Email <span class="write-in"></span><br>
+  Secret Key <span class="write-in" style="min-width:110mm"></span><br>
+  Master password <span class="write-in"></span>
+</div>
+
+</body>
+</html>

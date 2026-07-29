@@ -115,6 +115,22 @@ project you build from. Start at `splitflap/docs/00-build-guide.md`.
 |---|---|
 | `git/gcamai` | `gcam` (`git commit --all --message`) with the message written for you. Feeds `git diff HEAD` (stat + `-U0` body, budgeted per changed file at 12 KB ÷ file count, floor 400 B each, so one huge file can't starve the paths after it alphabetically) plus the last 10 commit subjects to the Codex CLI — `gpt-5.3-codex-spark`, read-only sandbox, `model_reasoning_effort=low`, tools forbidden — and commits whatever single Conventional Commits subject comes back (~3–6s). Deliberately shallow: a decent one-liner fast beats a perfect one slow. While it thinks, a human-speed typing animation cycles phrases behind a live `(5s)` elapsed counter. Logs every run (codex output, context, chosen message) to `$XDG_STATE_HOME/gcamai/`, newest also at `latest.log`. Env: `GCAMAI_DRY=1` print the message without committing, `GCAMAI_DEBUG=1` skip the animation and print the log path, `GCAMAI_MODEL` / `GCAMAI_DIFF_BYTES` to override. |
 
+### `restic/`
+
+Daily encrypted backup of this MacBook to the Synology NAS (`hometb`) over Tailscale. Before this existed the machine had no backup of any kind — `tmutil destinationinfo` said "No destinations configured", 375G on a disk 91% full, one copy of everything. Deliberately **not** Time Machine: TM can only target an SMB share root (so it can't live under `Backups/Devices/`) and it corrupts its sparsebundle over anything flakier than a LAN. restic is encrypted client-side, deduplicated, and works over SFTP from anywhere on the tailnet.
+
+| Path | What it does |
+|---|---|
+| `restic/restic-backup.sh` | The whole system, mode-dispatched: `backup` (snapshot + `forget`, daily), `maintain` (`prune` + `check`, weekly), `verify` (deep data check), `status`. Symlinked onto `PATH` as `restic-backup`. Preflight gates before every run — NAS SSH port reachable (a TCP test, not `tailscale ping`: the tailscale layer answers happily while DSM's sshd is down, and then restic hangs instead of skipping), AC power or battery >40%, and a `mkdir`-based lock with stale-PID reclaim so a multi-hour `prune` can't have a `backup` stack up behind it. Every outcome — success, failure, and each distinct skip reason — posts to ntfy. Runs restic under `taskpolicy -b` (background QoS throttles disk I/O as well as CPU, unlike `nice`), backs up `/Users/calum` with `-x` so it can't wander into the `/Volumes/*` SMB mounts or the OrbStack NFS mount and back the NAS up into itself, and passes the SSH key via restic's own `sftp.args` rather than adding a `Host` block to `~/.ssh/config`. Retention is `--keep-last 3 --keep-daily 14 --keep-weekly 8 --keep-monthly 24 --keep-yearly -1 --keep-tag keep` (~50 snapshots, unlimited yearlies, and anything tagged `keep` pinned forever). `forget` runs daily because it's metadata-only and takes seconds; `prune` is weekly because it repacks data over SFTP and takes hours. |
+| `restic/restic-excludes.txt` | The `--exclude-file`, with the measured size and justification against each line — only things a package manager, compiler, or app can rebuild. ~119G of caches, package stores, and git worktrees. Two entries are load-bearing and non-obvious: `Photos Library.photoslibrary` is excluded because iCloud Photos "Optimise Mac Storage" is on and `originals/` holds **57 MB of a 31 GB library** — backing it up would store a database and thumbnails and recover no photographs; and `~/.recovery` is excluded because it holds the rendered recovery sheet, which would otherwise put both repo passwords inside the repo they unlock. `~/Library/Photos` is deliberately **kept** despite the name — it's the Syndication library ("Shared with You" media), real content, not cache. |
+| `restic/com.calum.restic-backup.plist` | launchd agent, daily at 12:00. Noon rather than overnight because a laptop is asleep at 03:00, so a night schedule really means "runs when you next open the lid" — precisely when you want the machine responsive. `StartCalendarInterval` (not `StartInterval`) still fires a missed run on wake, so sleep and travel don't leave silent gaps. Invokes `/bin/bash <script>` rather than the script directly because macOS attributes Full Disk Access to the executable launchd spawns — **without FDA restic silently skips `~/Library`, `~/Documents` and `~/Desktop` and still exits 0**, producing green backups that are missing the data you care about. Sets `PATH` explicitly (Homebrew for `restic`, `/usr/sbin` for `taskpolicy`); the `prune-worktrees` agent lost a day of runs to launchd's default `PATH` excluding Homebrew. |
+| `restic/com.calum.restic-maintain.plist` | launchd agent, Sundays 12:30. `prune` + `check`; in the first week of each month it also runs `check --read-data-subset=<month>/12`. The `n/t` form is a *deterministic* partition of the pack files, so rotating the month through it verifies every byte in the repo exactly once a year — the `x%` form restic also accepts picks packs at random and guarantees no coverage. Plain `check` only validates structure and never opens a pack, so this is the only thing that catches bitrot. |
+| `restic/recovery-sheet.template.html` | Placeholders-only template (this repo is public) for the printable offline recovery sheet — repo URL, both passwords, restore commands, and blanks to hand-write the 1Password Emergency Kit and Secret Key. Rendered at install time to `~/.recovery/`, which is on the exclude list. Exists because the repo password is the single point of failure: keep it only on the Mac being backed up and the backup is unopenable in exactly the disaster it was built for. |
+
+Secrets live outside this repo (`~/.config/restic/`, mode 600) — no SOPS, because the age key would sit unprotected in the same home directory as the file it encrypts, which is complexity without security. The repo carries a **second** password via `restic key add` that is never stored on this Mac, so a stolen laptop can be locked out with `restic key remove` without touching the data.
+
+Known gaps, in priority order: photo originals exist only in iCloud and need Immich or `osxphotos` pulling them down; there is no bare-metal restore (Time Machine, later); ntfy reports events that happen but cannot report a job that never ran, so silence still looks like success until a dead-man's switch is added; and the SSH key can delete the repo, which wants append-only `rest-server` or DSM Btrfs snapshots.
+
 ## Install
 
 ```bash
@@ -172,4 +188,47 @@ ln -s "$PWD/opencode/opencode.json"                        ~/.config/opencode/op
 mkdir -p "$HOME/Library/Application Support/presenterm/themes"
 ln -s "$PWD/presenterm/themes/blackout.yaml"               "$HOME/Library/Application Support/presenterm/themes/blackout.yaml"
 
+# restic backup → Synology NAS over Tailscale
+brew install restic
+ln -s "$PWD/restic/restic-backup.sh"                       ~/.local/bin/restic-backup
+
+# 1. Dedicated SSH key, no passphrase (launchd can't type one, and a passphrase
+#    protects nothing an attacker with your disk doesn't already have)
+ssh-keygen -t ed25519 -f ~/.ssh/id_restic_hometb -N "" -C "restic-macbook-pro"
+ssh-copy-id -i ~/.ssh/id_restic_hometb.pub calumwebb@hometb.tail8c014d.ts.net
+#    then in DSM, prefix that authorized_keys line with:
+#      restrict,from="<this mac's tailscale IP>"
+
+# 2. Secrets — outside this repo, which is public
+mkdir -p ~/.config/restic ~/.recovery && chmod 700 ~/.config/restic ~/.recovery
+(umask 077; openssl rand -base64 32 | tr -d '\n' > ~/.config/restic/hometb-password)
+cat > ~/.config/restic/env <<'EOF'
+# Always the MagicDNS FQDN, never bare `hometb` — that resolves to the LAN IP
+# first and silently stops working the moment you leave the house.
+NAS_SSH_HOST=hometb.tail8c014d.ts.net
+NAS_SSH_KEY=/Users/calum/.ssh/id_restic_hometb
+RESTIC_REPOSITORY='sftp:calumwebb@hometb.tail8c014d.ts.net:/volumeN/Storage/Backups/Devices/macbook-pro/restic'
+NTFY_TOPIC=0x63616c-macbook-backups
+EOF
+chmod 600 ~/.config/restic/env
+
+# 3. Init, plus a SECOND password that never lives on this Mac — so a stolen
+#    laptop can be locked out with `restic key remove` without losing the data
+restic init
+restic key add
+
+# 4. Schedule
+mkdir -p ~/.cache/restic-backup
+ln -s "$PWD/restic/com.calum.restic-backup.plist"          ~/Library/LaunchAgents/com.calum.restic-backup.plist
+ln -s "$PWD/restic/com.calum.restic-maintain.plist"        ~/Library/LaunchAgents/com.calum.restic-maintain.plist
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.calum.restic-backup.plist
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.calum.restic-maintain.plist
+
+# 5. Grant /bin/bash Full Disk Access in System Settings → Privacy & Security.
+#    NOT optional and NOT self-announcing: without it restic skips ~/Library,
+#    ~/Documents and ~/Desktop and still exits 0. Verify it actually took:
+restic-backup backup
+restic ls latest /Users/calum/Library/Messages | head   # empty ⇒ FDA is missing
+
+# 6. Render the recovery sheet, print it, store it offsite, delete the file
 ```

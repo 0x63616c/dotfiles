@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.calum.restic-backup</string>
+
+    <!-- Invoked as `/bin/bash <script>` rather than running the script
+         directly, because macOS attributes Full Disk Access to the executable
+         launchd spawns. Without FDA, restic silently skips ~/Library,
+         ~/Documents and ~/Desktop and still exits 0 — a green backup missing
+         the data you care about. Grant FDA to /bin/bash. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/calum/.local/bin/restic-backup</string>
+        <string>backup</string>
+    </array>
+
+    <!-- Daily at noon. Not 03:00: a laptop is asleep then, so a night schedule
+         really means "runs the moment you next open the lid", which is exactly
+         when you want the machine responsive. StartCalendarInterval (not
+         StartInterval) still runs a missed job on wake, so sleep and travel
+         don't create silent gaps. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>12</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- launchd's default PATH excludes Homebrew (restic) and /usr/sbin
+         (taskpolicy). The prune-worktrees agent lost a full day of runs to
+         exactly this — `gh` didn't resolve and every branch read as unmerged. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/calum/.cache/restic-backup/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/calum/.cache/restic-backup/launchd.log</string>
+</dict>
+</plist>

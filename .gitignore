@@ -8,3 +8,11 @@ qmk/**/secrets.h
 
 # QMK fork: 1.2G vendor tree, keeps its own git, re-clonable — never track here
 qmk/qmk_firmware/
+
+# restic — repo passwords and the rendered recovery sheet live in ~/.config and
+# ~/.recovery by design. These patterns are belt-and-braces in case a copy ever
+# lands here: this repo is public, and one of these leaking exposes every backup.
+restic/env
+restic/*password*
+restic/*.key
+restic/*-recovery.html
