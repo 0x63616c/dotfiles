@@ -38,13 +38,33 @@ find "$WORKTREES_ROOT" -type f -name .git 2>/dev/null | while read -r gitfile; d
   git -C "$wt" fetch origin --quiet 2>/dev/null
 
   branch=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null)
-  if ! git -C "$wt" merge-base --is-ancestor HEAD "$default_branch" 2>/dev/null; then
-    log "SKIP $label — branch '$branch' not merged into $default_branch"
+
+  # Three escalating "is this merged?" tests. Only the first works on a plain
+  # merge commit; the repo squash-merges PRs, which rewrites history so the
+  # branch's commits never become ancestors of main. Without the fallbacks
+  # every worktree is skipped forever (34G of them, observed 2026-07-28).
+  merged_by=""
+  if git -C "$wt" merge-base --is-ancestor HEAD "$default_branch" 2>/dev/null; then
+    merged_by="ancestor of $default_branch"
+  elif [ -z "$(git -C "$wt" cherry "$default_branch" HEAD 2>/dev/null | grep '^+')" ] \
+       && [ -n "$(git -C "$wt" cherry "$default_branch" HEAD 2>/dev/null)" ]; then
+    # Every commit has an equivalent patch-id upstream. The second test guards
+    # against an empty branch (no commits) reading as "fully merged".
+    merged_by="all patches present in $default_branch"
+  elif pr=$(cd "$wt" && gh pr list --head "$branch" --state merged --json number -q '.[0].number' 2>/dev/null) \
+       && [ -n "$pr" ]; then
+    # Squash-merged multi-commit branch: patch-ids won't match, but GitHub
+    # knows the PR landed.
+    merged_by="merged PR #$pr"
+  fi
+
+  if [ -z "$merged_by" ]; then
+    log "SKIP $label — branch '$branch' not merged into $default_branch (no equivalent patches, no merged PR)"
     continue
   fi
 
   if [ "$APPLY" = 1 ]; then
-    log "REMOVE $label (branch '$branch', merged+clean)"
+    log "REMOVE $label (branch '$branch', clean, $merged_by)"
     git -C "$main_toplevel" worktree remove "$wt" --force
     git -C "$main_toplevel" branch -D "$branch" 2>/dev/null
   else
