@@ -18,10 +18,33 @@ WORKTREES_ROOT="$HOME/.worktrees"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
 
+# Merged-PR branch names, fetched once per repo and cached here. Doing this
+# per-worktree meant ~40 `gh` calls in 90s, which trips GitHub's secondary
+# rate limit; the failed calls then read as "not merged" and the worktree was
+# skipped even though its PR had landed. One call per repo instead.
+PR_CACHE_DIR=$(mktemp -d) || exit 1
+trap 'rm -rf "$PR_CACHE_DIR"' EXIT
+
+# Echoes the merged-PR number for $2 (branch) in repo rooted at $1, or nothing.
+merged_pr_for() {
+  local main_toplevel=$1 branch=$2
+  local cache="$PR_CACHE_DIR/$(echo "$main_toplevel" | tr '/' '_')"
+  if [ ! -f "$cache" ]; then
+    (cd "$main_toplevel" && gh pr list --state merged --limit 500 \
+      --json number,headRefName -q '.[] | "\(.headRefName)\t\(.number)"' \
+      2>/dev/null) > "$cache" || true
+  fi
+  awk -F'\t' -v b="$branch" '$1 == b {print $2; exit}' "$cache"
+}
+
 # Linked worktrees have a *file* named .git (not a dir) at their root, unlike
 # the main checkout. Branch names with slashes (feat/foo) nest arbitrarily
 # deep, so we can't assume a fixed depth.
-find "$WORKTREES_ROOT" -type f -name .git 2>/dev/null | while read -r gitfile; do
+#
+# Process substitution (not a pipe) so the loop body runs in *this* shell —
+# a piped `while` gets a subshell, and the PR cache built inside it would be
+# discarded between iterations.
+while read -r gitfile; do
   wt=$(dirname "$gitfile")
   label=${wt#"$WORKTREES_ROOT"/}
 
@@ -51,11 +74,11 @@ find "$WORKTREES_ROOT" -type f -name .git 2>/dev/null | while read -r gitfile; d
     # Every commit has an equivalent patch-id upstream. The second test guards
     # against an empty branch (no commits) reading as "fully merged".
     merged_by="all patches present in $default_branch"
-  elif pr=$(cd "$wt" && gh pr list --head "$branch" --state merged --json number -q '.[0].number' 2>/dev/null) \
-       && [ -n "$pr" ]; then
+  else
     # Squash-merged multi-commit branch: patch-ids won't match, but GitHub
     # knows the PR landed.
-    merged_by="merged PR #$pr"
+    pr=$(merged_pr_for "$main_toplevel" "$branch")
+    [ -n "$pr" ] && merged_by="merged PR #$pr"
   fi
 
   if [ -z "$merged_by" ]; then
@@ -68,6 +91,6 @@ find "$WORKTREES_ROOT" -type f -name .git 2>/dev/null | while read -r gitfile; d
     git -C "$main_toplevel" worktree remove "$wt" --force
     git -C "$main_toplevel" branch -D "$branch" 2>/dev/null
   else
-    log "WOULD REMOVE $label (branch '$branch', merged+clean) — rerun with --apply"
+    log "WOULD REMOVE $label (branch '$branch', clean, $merged_by) — rerun with --apply"
   fi
-done
+done < <(find "$WORKTREES_ROOT" -type f -name .git 2>/dev/null)
