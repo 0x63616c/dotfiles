@@ -174,8 +174,13 @@ do_backup() {
   #
   # -x                       don't cross filesystem boundaries — keeps restic
   #                          out of /Volumes/* SMB mounts and the OrbStack NFS
-  #                          mount, which would otherwise be backed up into
-  #                          themselves
+  #                          mount. NOT sufficient on its own: macOS File
+  #                          Provider mounts under ~/Library/CloudStorage share
+  #                          the home directory's st_dev, so -x sees no boundary
+  #                          and walks straight into them. The first run hit
+  #                          this and tried to back the NAS up onto itself
+  #                          (9 TB estimated instead of 128 GB). That path is
+  #                          excluded explicitly in the exclude file.
   # --exclude-caches         honours CACHEDIR.TAG (Cargo and friends drop these)
   # --exclude-if-present     drop a .nobackup file anywhere to skip that dir
   # --skip-if-unchanged      no empty snapshot when the Mac sat idle

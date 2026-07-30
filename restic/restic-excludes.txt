@@ -43,6 +43,27 @@
 /Users/calum/OrbStack                       # 4.1G
 /Users/calum/Virtual Machines               # 457M
 
+# ── Network storage that -x CANNOT catch ──────────────────────────────────────
+# This one bit us on the first run: restic reported 9.06 TB to process instead
+# of ~128 GB, because CloudMounter-Homelab maps the NAS's own Homelab share and
+# restic walked straight into it — reading the NAS over the network in order to
+# back it up onto the NAS.
+#
+# --one-file-system (-x) does not help here. macOS File Provider mounts under
+# ~/Library/CloudStorage (CloudMounter, OneDrive, Dropbox, Google Drive) are NOT
+# real mounts: they never appear in `mount`, and they report the SAME st_dev as
+# the home directory (16777230 for all of /Users/calum, .../CloudStorage, and
+# .../CloudMounter-Homelab). There is no filesystem boundary for -x to stop at,
+# so this has to be an explicit path exclude.
+#
+# -x still earns its place for genuine mounts: /Volumes/* SMB shares and the
+# OrbStack NFS mount. It is simply blind to exactly the directory modern macOS
+# uses for network storage.
+#
+# Note ~/Library/Mobile Documents (iCloud Drive) is deliberately NOT excluded —
+# it is fully materialised locally (zero .icloud stubs) and is real data.
+/Users/calum/Library/CloudStorage
+
 # ── Scratch ───────────────────────────────────────────────────────────────────
 /Users/calum/yt-tmp                         # 5.8G
 
