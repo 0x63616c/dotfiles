@@ -62,6 +62,21 @@ while read -r gitfile; do
     continue
   fi
 
+  # A worktree fresh off `wtp add -b <branch> origin/main` has HEAD identical
+  # to origin/main's tip, so merge-base --is-ancestor trivially returns true
+  # before a single commit exists — indistinguishable from a merged branch.
+  # Floor age gives an agent mid-research (clean tree, no commits yet) time
+  # to survive to its first commit before the merge test below even runs.
+  # world-wide-webb#444
+  MIN_AGE_SECONDS=$((4 * 3600))
+  created_epoch=$(stat -f %B "$wt" 2>/dev/null || echo 0)
+  now_epoch=$(date +%s)
+  age_seconds=$((now_epoch - created_epoch))
+  if [ "$created_epoch" -gt 0 ] && [ "$age_seconds" -lt "$MIN_AGE_SECONDS" ]; then
+    log "SKIP $label — worktree is ${age_seconds}s old, younger than ${MIN_AGE_SECONDS}s floor"
+    continue
+  fi
+
   default_branch=$(git -C "$wt" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's#refs/remotes/##')
   [ -z "$default_branch" ] && default_branch="origin/main"
   git -C "$wt" fetch origin --quiet 2>/dev/null
