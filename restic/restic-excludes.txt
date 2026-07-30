@@ -4,90 +4,112 @@
 # rebuild from scratch. Everything else stays in, because the failure mode of a
 # curated allow-list is that you discover the missing thing at restore time.
 #
-# Sizes are from `du -sh -x` on 2026-07-28 and are here to justify each line —
-# they will drift, that's fine.
+# ─────────────────────────────────────────────────────────────────────────────
+# FORMAT WARNING, learned the hard way:
+#
+# restic only treats a line as a comment when '#' is the FIRST character.
+# There is no inline-comment support. An earlier version of this file wrote
+#
+#     /Users/calum/Library/Caches                 # 30G
+#
+# which restic read as the literal pattern "/Users/calum/Library/Caches
+# <spaces> # 30G". It matched nothing, silently. Every annotated line here was
+# dead, and the first real snapshot came out 239 GiB instead of ~145 GiB with
+# ~94 GiB of caches in it. Nothing warns you — the run just succeeds.
+#
+# So: sizes go in a comment ABOVE the path, never after it. Never put anything
+# on a path line.
+# ─────────────────────────────────────────────────────────────────────────────
 #
 # Absolute paths, not $HOME — restic's env expansion in exclude files is not
 # worth relying on when a silent miss means backing up 30G of caches.
+#
+# Sizes measured 2026-07-28 with `du -sh -x`; they drift, that's fine. Note du
+# reports ALLOCATED blocks, so it is blind to sparse files — see the VM disk
+# section below for why that matters.
 
 # ── Derived caches ────────────────────────────────────────────────────────────
-/Users/calum/Library/Caches                 # 30G
-/Users/calum/.cache                         # 7.3G
-/Users/calum/Library/Metadata               # 3.5G — Spotlight index, rebuilt on demand
-/Users/calum/Library/Developer              # 15G — Xcode DerivedData + DeviceSupport
+# 30G
+/Users/calum/Library/Caches
+# 7.3G
+/Users/calum/.cache
+# 3.5G — Spotlight index, rebuilt on demand
+/Users/calum/Library/Metadata
+# 15G — Xcode DerivedData + DeviceSupport
+/Users/calum/Library/Developer
 
 # NOT excluded: /Users/calum/Library/Photos. Despite the name it is the
 # Syndication library ("Shared with You" media from Messages) — real media, not
 # cache. 2.3G, and dedupes against Messages/Attachments anyway.
 
 # ── Package manager stores ────────────────────────────────────────────────────
-/Users/calum/.bun                           # 4.6G
-/Users/calum/.npm                           # 2.7G
-/Users/calum/Library/pnpm                   # 1.9G
-/Users/calum/go/pkg                         # ~5G — module cache; ~/go/bin stays
-/Users/calum/.rustup                        # 1.3G
+# 4.6G
+/Users/calum/.bun
+# 2.7G
+/Users/calum/.npm
+# 1.9G
+/Users/calum/Library/pnpm
+# ~5G module cache; ~/go/bin stays
+/Users/calum/go/pkg
+# 1.3G
+/Users/calum/.rustup
 /Users/calum/.cargo/registry
-/Users/calum/.gradle                        # 876M
-/Users/calum/.goenv                         # 801M
-/Users/calum/.pyenv                         # 333M
-/Users/calum/.cursor                        # 1.2G
+# 876M
+/Users/calum/.gradle
+# 801M
+/Users/calum/.goenv
+# 333M
+/Users/calum/.pyenv
+# 1.2G
+/Users/calum/.cursor
 
 # ── Reproducible working copies ───────────────────────────────────────────────
-# Every worktree is a checkout of a repo that lives on a git remote. 34G of
-# node_modules and build output that `git clone` regenerates.
+# 34G of node_modules and build output that `git clone` regenerates.
 /Users/calum/.worktrees
 
 # ── VM / container disk images ────────────────────────────────────────────────
-# OrbStack is also an NFS mount; -x already stops restic crossing into it, this
-# is belt-and-braces.
-/Users/calum/OrbStack                       # 4.1G
-/Users/calum/Virtual Machines               # 457M
+# 4.1G — presentation mount only; the real disk is under Group Containers below
+/Users/calum/OrbStack
+# 457M
+/Users/calum/Virtual Machines
 
-# The one that actually matters. ~/OrbStack is only the *presentation* mount;
-# OrbStack's real VM disk lives here, and it is SPARSE:
+# The one that actually matters. OrbStack's real VM disk is SPARSE:
 #
 #   data.img.raw    apparent 8192G    allocated 22G
 #
-# restic sizes work from apparent size (st_size), so this single file made the
-# second backup run estimate 8.99 TB of work — 8 TB of it zeroes it would have
-# had to read to discover were zeroes. `du` shows 22G and hides the problem
-# completely, which is why the earlier du-based survey missed it.
-#
-# Rebuildable: it's a Linux VM disk. `orb` recreates it.
+# restic sizes work from apparent size (st_size), so this single file made a
+# backup run estimate 8.99 TB of work — 8 TB of it zeroes it had to read in
+# order to discover were zeroes. `du` shows 22G and hides the problem entirely,
+# which is why the du-based survey that built this list originally missed it.
+# Rebuildable: `orb` recreates it.
 /Users/calum/Library/Group Containers/HUAQ24HBR6.dev.orbstack
 
-# Claude Code's local VM image — 10G apparent / 5.6G allocated, also rebuildable.
+# Claude Code's local VM image — 10G apparent / 5.6G allocated, rebuildable.
 /Users/calum/Library/Application Support/Claude/vm_bundles
 
-# NOTE deliberately NOT adding --exclude-larger-than as a blanket guard. It
-# would have caught both of these, but it silently drops any large file — which
-# is precisely the "green backup, missing data" failure this whole setup exists
-# to avoid. Kept: the WhatsApp Media.tar / Video.tar under Mobile Documents
-# (~5G each, real user data).
-
 # ── Network storage that -x CANNOT catch ──────────────────────────────────────
-# This one bit us on the first run: restic reported 9.06 TB to process instead
-# of ~128 GB, because CloudMounter-Homelab maps the NAS's own Homelab share and
-# restic walked straight into it — reading the NAS over the network in order to
-# back it up onto the NAS.
+# CloudMounter-Homelab maps the NAS's own Homelab share, so restic walked into
+# it and began reading the NAS over the network in order to back it up onto the
+# NAS.
 #
-# --one-file-system (-x) does not help here. macOS File Provider mounts under
+# --one-file-system (-x) does not help. macOS File Provider mounts under
 # ~/Library/CloudStorage (CloudMounter, OneDrive, Dropbox, Google Drive) are NOT
-# real mounts: they never appear in `mount`, and they report the SAME st_dev as
-# the home directory (16777230 for all of /Users/calum, .../CloudStorage, and
-# .../CloudMounter-Homelab). There is no filesystem boundary for -x to stop at,
-# so this has to be an explicit path exclude.
+# real mounts: they never appear in `mount`, and report the SAME st_dev as the
+# home directory (16777230 for all of /Users/calum, .../CloudStorage and
+# .../CloudMounter-Homelab). No boundary exists for -x to stop at.
 #
 # -x still earns its place for genuine mounts: /Volumes/* SMB shares and the
-# OrbStack NFS mount. It is simply blind to exactly the directory modern macOS
-# uses for network storage.
+# OrbStack NFS mount. It is simply blind to the one directory modern macOS uses
+# for network storage.
 #
-# Note ~/Library/Mobile Documents (iCloud Drive) is deliberately NOT excluded —
-# it is fully materialised locally (zero .icloud stubs) and is real data.
+# ~/Library/Mobile Documents (iCloud Drive) is deliberately NOT excluded — it is
+# fully materialised locally (zero dataless files) and is real data. It is slow
+# to read (File Provider IPC per file), which --read-concurrency compensates for.
 /Users/calum/Library/CloudStorage
 
 # ── Scratch ───────────────────────────────────────────────────────────────────
-/Users/calum/yt-tmp                         # 5.8G
+# 5.8G
+/Users/calum/yt-tmp
 
 # ── Photos library ────────────────────────────────────────────────────────────
 # 31G, of which originals/ is 57M. iCloud Photos with "Optimise Mac Storage" is
@@ -102,8 +124,10 @@
 # ── Messages: keep the data, drop the caches ──────────────────────────────────
 # Attachments (34G) and chat.db are the most irreplaceable data on the machine
 # and are deliberately included. These two are not.
-/Users/calum/Library/Messages/Caches        # 6.2G
-/Users/calum/Library/Messages/NickNameCache # 93M
+# 6.2G
+/Users/calum/Library/Messages/Caches
+# 93M
+/Users/calum/Library/Messages/NickNameCache
 
 # ── Recovery sheet ────────────────────────────────────────────────────────────
 # Holds both repo passwords in plaintext. Backing it up would put the keys to

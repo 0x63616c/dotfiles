@@ -87,6 +87,18 @@ fail() {
 [ -f "$PASSWORD_FILE" ] || fail "password file missing"
 [ -f "$EXCLUDE_FILE" ]  || fail "exclude file missing"
 
+# restic only honours '#' as a comment when it is the first character of the
+# line — there is no inline-comment support. A path line with a trailing
+# "# 30G" annotation becomes a literal pattern containing spaces and a hash,
+# matches nothing, and restic says nothing about it. That silently put ~94 GiB
+# of caches into the first real snapshot. Refuse to run rather than produce
+# another quietly-wrong backup.
+if grep -qE '^[^#].*[^[:space:]][[:space:]]+#' "$EXCLUDE_FILE"; then
+  log "exclude file has inline comments on these lines:"
+  grep -nE '^[^#].*[^[:space:]][[:space:]]+#' "$EXCLUDE_FILE" | tee -a "$LOG_FILE"
+  fail "exclude file has inline comments — those patterns match nothing"
+fi
+
 export RESTIC_REPOSITORY
 export RESTIC_PASSWORD_FILE="$PASSWORD_FILE"
 
