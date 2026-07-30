@@ -102,6 +102,37 @@ fi
 export RESTIC_REPOSITORY
 export RESTIC_PASSWORD_FILE="$PASSWORD_FILE"
 
+# ── Which restic binary, and why it matters ──────────────────────────────────
+# macOS TCC attributes file access to the binary that actually issues the
+# read(), not to the shell that spawned it. Granting Full Disk Access to
+# /bin/bash therefore covers bash's own reads but does nothing for restic —
+# the noon run popped 'restic would like to access data from other apps' and
+# 'restic would like to access Downloads' prompts from an unattended launchd
+# job, which is both wrong and unanswerable when nobody is at the machine.
+#
+# So FDA has to be granted to restic itself. But Homebrew's restic lives at
+#   /opt/homebrew/Cellar/restic/<version>/bin/restic
+# and TCC pins a path, so `brew upgrade restic` moves the binary and silently
+# revokes the grant — you would get green backups missing ~/Library again with
+# no signal.
+#
+# Fix: a real copy at a path we own, which never moves. FDA is granted to that.
+# The version-drift check below catches the copy going stale after an upgrade.
+RESTIC_BIN="$HOME/.local/bin/restic-fda"
+if [ ! -x "$RESTIC_BIN" ]; then
+  RESTIC_BIN="$(command -v restic 2>/dev/null)"
+  [ -n "$RESTIC_BIN" ] || fail "restic not found on PATH"
+  log "WARN using $RESTIC_BIN — no FDA-granted copy at ~/.local/bin/restic-fda;"
+  log "WARN protected paths (~/Library, ~/Documents, ~/Desktop) may be skipped"
+elif command -v restic >/dev/null 2>&1; then
+  _v_fda=$("$RESTIC_BIN" version 2>/dev/null | awk '{print $2}')
+  _v_brew=$(restic version 2>/dev/null | awk '{print $2}')
+  if [ -n "$_v_brew" ] && [ "$_v_fda" != "$_v_brew" ]; then
+    log "WARN FDA copy is restic $_v_fda but PATH has $_v_brew —"
+    log "WARN refresh with: cp \"\$(readlink -f \$(command -v restic))\" $RESTIC_BIN"
+  fi
+fi
+
 # The SSH key has a non-default name, so a bare sftp would never offer it.
 # Passing it through restic's own sftp.args keeps the whole configuration in
 # this repo instead of scattering a Host block into ~/.ssh/config.
@@ -235,7 +266,7 @@ do_backup() {
   #                          Only bites on a first run: later backups have a
   #                          parent snapshot and skip unchanged files on
   #                          metadata alone, without ever opening them.
-  taskpolicy -b restic "${SFTP_OPT[@]}" backup /Users/calum \
+  taskpolicy -b "$RESTIC_BIN" "${SFTP_OPT[@]}" backup /Users/calum \
     -x \
     --exclude-caches \
     --exclude-if-present .nobackup \
@@ -276,12 +307,12 @@ do_backup() {
   # Retention. `forget` without --prune is metadata-only and takes seconds;
   # actually reclaiming the space is `maintain`'s job, weekly. Running --prune
   # here would mean hours of repacking every single night.
-  restic "${SFTP_OPT[@]}" forget \
+  "$RESTIC_BIN" "${SFTP_OPT[@]}" forget \
     --keep-last 3 \
     --keep-daily 14 \
     --keep-weekly 8 \
     --keep-monthly 24 \
-    --keep-yearly -1 \
+    --keep-yearly unlimited \
     --keep-tag keep \
     >>"$LOG_FILE" 2>&1 \
     || log "WARN forget failed — retention not applied this run"
@@ -296,13 +327,13 @@ do_maintain() {
   log "=== maintain starting ==="
 
   # prune is the expensive one — it repacks data over SFTP. Hours, potentially.
-  taskpolicy -b restic "${SFTP_OPT[@]}" prune >>"$LOG_FILE" 2>&1
+  taskpolicy -b "$RESTIC_BIN" "${SFTP_OPT[@]}" prune >>"$LOG_FILE" 2>&1
   rc=$?
   [ $rc -eq 0 ] || fail "prune exited $rc"
 
   # Structural check: every blob a snapshot references exists, index is sane.
   # Cheap, but it never opens a pack file — it cannot see bitrot.
-  taskpolicy -b restic "${SFTP_OPT[@]}" check >>"$LOG_FILE" 2>&1
+  taskpolicy -b "$RESTIC_BIN" "${SFTP_OPT[@]}" check >>"$LOG_FILE" 2>&1
   rc=$?
   [ $rc -eq 0 ] || fail "check exited $rc"
 
@@ -329,7 +360,7 @@ do_verify() {
   started=$(date +%s)
   log "=== verify (slice $slice) starting ==="
 
-  taskpolicy -b restic "${SFTP_OPT[@]}" check --read-data-subset="$slice" >>"$LOG_FILE" 2>&1
+  taskpolicy -b "$RESTIC_BIN" "${SFTP_OPT[@]}" check --read-data-subset="$slice" >>"$LOG_FILE" 2>&1
   rc=$?
   elapsed=$(( $(date +%s) - started ))
 
@@ -370,11 +401,11 @@ do_progress() {
 }
 
 do_status() {
-  restic "${SFTP_OPT[@]}" snapshots --compact 2>&1 | tail -20
+  "$RESTIC_BIN" "${SFTP_OPT[@]}" snapshots --compact 2>&1 | tail -20
   echo
-  restic "${SFTP_OPT[@]}" stats --mode raw-data 2>&1
+  "$RESTIC_BIN" "${SFTP_OPT[@]}" stats --mode raw-data 2>&1
   echo
-  restic "${SFTP_OPT[@]}" stats --mode restore-size latest 2>&1
+  "$RESTIC_BIN" "${SFTP_OPT[@]}" stats --mode restore-size latest 2>&1
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
