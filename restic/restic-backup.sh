@@ -148,6 +148,35 @@ gate_power() {
   [ "$pct" -gt 40 ] || skip "on battery (${pct}%)"
 }
 
+# Sparse-file bomb detector.
+#
+# restic sizes its work from apparent size (st_size), not allocated blocks. A
+# single sparse VM disk therefore poisons a whole run: OrbStack's data.img.raw
+# is 8192G apparent / 22G allocated, and it made a run estimate 8.99 TB of work
+# — 8 TB of it zeroes restic had to read in order to find out they were zeroes.
+# `du` reports 22G and hides this completely, so a du-based survey will never
+# find it.
+#
+# Both offenders are excluded by path now, but the next one will arrive with
+# some future app. This turns "silently waste a whole night" into "fail loudly
+# in 30 seconds". Threshold is well above any plausible real file here (largest
+# genuine one is a 4.6G WhatsApp media tar).
+gate_sparse_bomb() {
+  local found
+  found=$(find /Users/calum \
+      \( -path '*/Library/Caches' -o -path '*/.worktrees' -o -path '*/.cache' \
+         -o -path '*/Library/Developer' -o -path '*/Library/CloudStorage' \
+         -o -path '*HUAQ24HBR6.dev.orbstack' -o -path '*/Claude/vm_bundles' \
+         -o -path '*/OrbStack' -o -path '*/node_modules' \) -prune -o \
+      -type f -size +100G -print 2>/dev/null | head -3)
+  if [ -n "$found" ]; then
+    # Deliberately not naming the paths in the notification — the ntfy topic is
+    # public. The log has them.
+    log "SPARSE BOMB DETECTED:"; printf '%s\n' "$found" | tee -a "$LOG_FILE"
+    fail "found file(s) over 100G apparent size not covered by excludes — see log"
+  fi
+}
+
 # ── Modes ────────────────────────────────────────────────────────────────────
 
 # bytes → human, for notification bodies. awk rather than numfmt(1): numfmt is
@@ -300,7 +329,7 @@ do_status() {
 # ── Dispatch ─────────────────────────────────────────────────────────────────
 case "$MODE" in
   backup)
-    acquire_lock; gate_nas; gate_power; do_backup ;;
+    acquire_lock; gate_nas; gate_power; gate_sparse_bomb; do_backup ;;
   maintain)
     acquire_lock; gate_nas; gate_power; do_maintain ;;
   verify)

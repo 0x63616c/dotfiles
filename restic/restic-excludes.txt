@@ -43,6 +43,28 @@
 /Users/calum/OrbStack                       # 4.1G
 /Users/calum/Virtual Machines               # 457M
 
+# The one that actually matters. ~/OrbStack is only the *presentation* mount;
+# OrbStack's real VM disk lives here, and it is SPARSE:
+#
+#   data.img.raw    apparent 8192G    allocated 22G
+#
+# restic sizes work from apparent size (st_size), so this single file made the
+# second backup run estimate 8.99 TB of work — 8 TB of it zeroes it would have
+# had to read to discover were zeroes. `du` shows 22G and hides the problem
+# completely, which is why the earlier du-based survey missed it.
+#
+# Rebuildable: it's a Linux VM disk. `orb` recreates it.
+/Users/calum/Library/Group Containers/HUAQ24HBR6.dev.orbstack
+
+# Claude Code's local VM image — 10G apparent / 5.6G allocated, also rebuildable.
+/Users/calum/Library/Application Support/Claude/vm_bundles
+
+# NOTE deliberately NOT adding --exclude-larger-than as a blanket guard. It
+# would have caught both of these, but it silently drops any large file — which
+# is precisely the "green backup, missing data" failure this whole setup exists
+# to avoid. Kept: the WhatsApp Media.tar / Video.tar under Mobile Documents
+# (~5G each, real user data).
+
 # ── Network storage that -x CANNOT catch ──────────────────────────────────────
 # This one bit us on the first run: restic reported 9.06 TB to process instead
 # of ~128 GB, because CloudMounter-Homelab maps the NAS's own Homelab share and
