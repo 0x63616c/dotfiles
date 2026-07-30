@@ -214,12 +214,22 @@ do_backup() {
   # --exclude-caches         honours CACHEDIR.TAG (Cargo and friends drop these)
   # --exclude-if-present     drop a .nobackup file anywhere to skip that dir
   # --skip-if-unchanged      no empty snapshot when the Mac sat idle
+  # --read-concurrency 12    default is 2. ~/Library/Mobile Documents (iCloud
+  #                          Drive) is served by File Provider, and every read
+  #                          is an IPC round-trip to fileproviderd/bird — the
+  #                          first run crawled its 57k files at ~2.2 files/s
+  #                          while local APFS files fly. The cost is latency,
+  #                          not bandwidth or CPU, so concurrency is the lever.
+  #                          Only bites on a first run: later backups have a
+  #                          parent snapshot and skip unchanged files on
+  #                          metadata alone, without ever opening them.
   taskpolicy -b restic "${SFTP_OPT[@]}" backup /Users/calum \
     -x \
     --exclude-caches \
     --exclude-if-present .nobackup \
     --exclude-file="$EXCLUDE_FILE" \
     --skip-if-unchanged \
+    --read-concurrency 12 \
     --tag auto \
     --json > "$json" 2>>"$LOG_FILE"
   rc=$?
