@@ -6,6 +6,7 @@
 #   restic-backup maintain   prune + check                (weekly, Sun 12:30)
 #   restic-backup verify     force the deep data check    (manual)
 #   restic-backup status     print repo stats             (manual)
+#   restic-backup progress   live progress of a running backup (manual)
 #
 # Why a wrapper and not a bare `restic` in the plist: unattended runs need
 # preflight gates (is the NAS even reachable? are we about to flatten the
@@ -318,6 +319,34 @@ do_verify() {
     "🔍 Slice $slice verified · $(printf '%dm%02ds' $((elapsed/60)) $((elapsed%60)))"
 }
 
+# Live progress of a run happening right now. Reads the --json stream the
+# backup is already writing, so it costs nothing and doesn't touch the repo
+# (which would block on the repo lock).
+do_progress() {
+  local json="$LOG_DIR/last-backup.json"
+  if ! pgrep -f 'restic -o sftp' >/dev/null 2>&1; then
+    if pgrep -f 'restic-backup (backup|maintain)' >/dev/null 2>&1; then
+      echo "preflight running (sparse-bomb scan takes ~80s) — no upload started yet"
+      return 0
+    fi
+    echo "no backup running."
+    grep -hE 'backup ok|FAIL|SKIP|no changes' "$LOG_DIR/backup.log" 2>/dev/null | tail -1
+    return 0
+  fi
+  while pgrep -f 'restic -o sftp' >/dev/null 2>&1; do
+    tail -1 "$json" 2>/dev/null | jq -r '
+      select(.message_type=="status")
+      | "\((.percent_done*100)|floor)%  "
+      + "\(.files_done // 0)/\(.total_files // 0) files  "
+      + "\(((.bytes_done // 0)/1000000000)|floor)/\(((.total_bytes // 0)/1000000000)|floor) GB  "
+      + "\((.seconds_elapsed // 0)/60|floor)m elapsed"' 2>/dev/null \
+      | tr -d '\n' | awk '{printf "\r\033[K%s", $0}'
+    sleep 3
+  done
+  echo
+  grep -hE 'backup ok|FAIL|SKIP|no changes' "$LOG_DIR/backup.log" 2>/dev/null | tail -1
+}
+
 do_status() {
   restic "${SFTP_OPT[@]}" snapshots --compact 2>&1 | tail -20
   echo
@@ -334,8 +363,10 @@ case "$MODE" in
     acquire_lock; gate_nas; gate_power; do_maintain ;;
   verify)
     acquire_lock; gate_nas; gate_power; do_verify ;;
+  progress)
+    do_progress ;;
   status)
     gate_nas; do_status ;;
   *)
-    echo "usage: restic-backup {backup|maintain|verify|status}" >&2; exit 2 ;;
+    echo "usage: restic-backup {backup|maintain|verify|status|progress}" >&2; exit 2 ;;
 esac
