@@ -12,7 +12,7 @@
 # preflight gates (is the NAS even reachable? are we about to flatten the
 # battery?), and they need to *say something* when they skip — a backup system
 # that silently does nothing is worse than no backup system, because you think
-# you're covered.
+# you're covered. ntfy is error-only: successful and unchanged runs stay quiet.
 #
 # Config lives outside this repo (which is public) at ~/.config/restic/env.
 # See the README for the install steps.
@@ -282,6 +282,8 @@ do_backup() {
     # snapshot exists. Worth flagging, not worth screaming about.
     if [ $rc -eq 3 ]; then
       log "WARN backup completed with unreadable files (rc=3)"
+      notify high warning "Backup incomplete" \
+        "⚠️ Snapshot created, but some files could not be read · see local log"
     else
       fail "backup exited $rc"
     fi
@@ -298,7 +300,6 @@ do_backup() {
   else
     # --skip-if-unchanged produced no snapshot: nothing changed.
     log "no changes — no snapshot created"
-    notify low zzz "Backup: no changes" "😴 Nothing changed · ${elapsed}s"
     return 0
   fi
 
@@ -315,10 +316,11 @@ do_backup() {
     --keep-yearly unlimited \
     --keep-tag keep \
     >>"$LOG_FILE" 2>&1 \
-    || log "WARN forget failed — retention not applied this run"
-
-  notify low white_check_mark "Backup OK" \
-    "✅ $(printf '%dm%02ds' $((elapsed/60)) $((elapsed%60))) · +$(human "$added") · $files_new new / $files_chg changed · snap $snap"
+    || {
+      log "WARN forget failed — retention not applied this run"
+      notify high warning "Backup retention failed" \
+        "⚠️ Snapshot succeeded, but retention was not applied · see local log"
+    }
 }
 
 do_maintain() {
@@ -339,8 +341,6 @@ do_maintain() {
 
   elapsed=$(( $(date +%s) - started ))
   log "maintain ok (${elapsed}s)"
-  notify low broom "Maintenance OK" \
-    "🧹 Prune + check clean · $(printf '%dm%02ds' $((elapsed/60)) $((elapsed%60)))"
 
   # First maintenance run of the month also verifies a twelfth of the actual
   # data. See do_verify for why it's n/12 and not a percentage.
@@ -368,8 +368,6 @@ do_verify() {
     fail "data verification failed on slice $slice — possible corruption"
   fi
   log "verify ok (slice $slice, ${elapsed}s)"
-  notify low mag "Verify OK" \
-    "🔍 Slice $slice verified · $(printf '%dm%02ds' $((elapsed/60)) $((elapsed%60)))"
 }
 
 # Live progress of a run happening right now. Reads the --json stream the
