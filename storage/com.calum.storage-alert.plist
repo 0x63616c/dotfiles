@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.calum.storage-alert</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/calum/.local/bin/storage-alert</string>
+        <string>--volume</string>
+        <string>/</string>
+        <string>--warn-percent</string>
+        <string>88</string>
+        <string>--warn-free-gb</string>
+        <string>25</string>
+        <string>--critical-percent</string>
+        <string>92</string>
+        <string>--critical-free-gb</string>
+        <string>10</string>
+        <string>--reminder-minutes</string>
+        <string>60</string>
+    </array>
+
+    <!-- Run every 10 minutes, plus once at login if launchd is loaded then. -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>600</integer>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>NTFY_TOPIC</key>
+        <string>0x63616c</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/calum/.cache/storage-alert/storage-alert.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/calum/.cache/storage-alert/storage-alert.log</string>
+</dict>
+</plist>

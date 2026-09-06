@@ -13,6 +13,14 @@ Cron-style cleanup for `wtp`-managed git worktrees (used across `~/code/github.c
 | `worktrees/prune-worktrees.sh` | Scans `~/.worktrees/<repo>/**` (any depth, so branch names with slashes work) for worktrees that are both git-clean and whose branch counts as merged into `origin/<default-branch>`, and removes those (worktree + local branch). "Merged" is tested three ways, in order: tip is a literal ancestor of the default branch; every commit has an equivalent patch-id upstream (`git cherry`); or `gh` reports a merged PR for the branch. The last two exist because squash-merged PRs rewrite history, so their tips are never ancestors of main — without them nothing is ever pruned. Anything dirty or genuinely unmerged is skipped and logged — never touches the main checkout. Dry-run by default (prints "WOULD REMOVE"); pass `--apply` to actually delete. Symlinked onto `PATH` as `prune-worktrees`. |
 | `worktrees/com.calum.prune-worktrees.plist` | launchd agent running `prune-worktrees --apply` every 15 min (`StartInterval=900`) plus once at login. Each worktree costs ~1G (almost entirely `node_modules`), so the tighter interval keeps accrual bounded; a pass takes ~40s. Sets `PATH` explicitly — launchd's default excludes Homebrew, so `gh` wouldn't resolve and every squash-merged branch was treated as unmerged. Symlinked to `~/Library/LaunchAgents/`; log at `~/.cache/prune-worktrees/launchd.log`. |
 
+### `storage/`
+
+Storage checks for low disk conditions.
+
+| Path | What it does |
+|---|---|
+| `storage/storage-alert.sh` | Checks configured volume usage and sends a native macOS notification when space is low (default: >=88% used OR <25GB free), with deduped alerts plus a persistent log at `~/.cache/storage-alert/storage-alert.log`. |
+
 ### cmux + OpenCode
 
 cmux file-managed settings and OpenCode's cmux plugin list are tracked here.
@@ -132,6 +140,19 @@ Secrets live outside this repo (`~/.config/restic/`, mode 600) — no SOPS, beca
 Known gaps, in priority order: photo originals exist only in iCloud and need Immich or `osxphotos` pulling them down; there is no bare-metal restore (Time Machine, later); ntfy reports events that happen but cannot report a job that never ran, so silence still looks like success until a dead-man's switch is added; and the SSH key can delete the repo, which wants append-only `rest-server` or DSM Btrfs snapshots.
 
 ## Install
+
+### Storage alert launchd setup
+
+```bash
+# Optional: keep the script handy on PATH
+mkdir -p "$HOME/.local/bin"
+ln -sfn "$PWD/storage/storage-alert.sh" "$HOME/.local/bin/storage-alert"
+
+# Run every 10 minutes via launchd and send alerts to ntfy.sh/0x63616c.
+ln -sfn "$PWD/storage/com.calum.storage-alert.plist" \
+  "$HOME/Library/LaunchAgents/com.calum.storage-alert.plist"
+launchctl bootstrap gui/$UID "$HOME/Library/LaunchAgents/com.calum.storage-alert.plist"
+```
 
 ```bash
 git clone https://github.com/0x63616c/dotfiles.git
