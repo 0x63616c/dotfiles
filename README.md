@@ -19,7 +19,7 @@ Storage checks for low disk conditions.
 
 | Path | What it does |
 |---|---|
-| `storage/storage-alert.sh` | Checks configured volume usage and sends a native macOS notification when space is low (default: >=88% used OR <25GB free), with deduped alerts plus a persistent log at `~/.cache/storage-alert/storage-alert.log`. |
+| `storage/storage-alert.sh` | Checks free space in the configured APFS container and sends a native macOS notification when space is low (warning: at or below 25GB; critical: at or below 10GB), with deduped alerts plus a persistent log at `~/.cache/storage-alert/storage-alert.log`. |
 
 ### cmux + OpenCode
 

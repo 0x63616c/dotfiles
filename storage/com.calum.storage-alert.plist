@@ -10,12 +10,8 @@
         <string>/Users/calum/.local/bin/storage-alert</string>
         <string>--volume</string>
         <string>/</string>
-        <string>--warn-percent</string>
-        <string>88</string>
         <string>--warn-free-gb</string>
         <string>25</string>
-        <string>--critical-percent</string>
-        <string>92</string>
         <string>--critical-free-gb</string>
         <string>10</string>
         <string>--reminder-minutes</string>

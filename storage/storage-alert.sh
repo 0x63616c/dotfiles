@@ -3,15 +3,13 @@
 #
 # Defaults:
 #   volume: /
-#   warning: >=88% used OR <25GB free
-#   critical: >=92% used OR <10GB free
+#   warning: at or below 25GB free
+#   critical: at or below 10GB free
 #   reminders: disabled
 #
 # Environment overrides:
 #   STORAGE_ALERT_VOLUME (default /)
-#   STORAGE_ALERT_WARN_PCT (default 88)
 #   STORAGE_ALERT_WARN_FREE_GB (default 25)
-#   STORAGE_ALERT_CRITICAL_PCT (default 92)
 #   STORAGE_ALERT_CRITICAL_FREE_GB (default 10)
 #   STORAGE_ALERT_REMINDER_MINUTES (default 0)
 #   NTFY_TOPIC
@@ -24,9 +22,7 @@
 set -eu -o pipefail
 
 VOLUME="${STORAGE_ALERT_VOLUME:-/}"
-WARN_PCT="${STORAGE_ALERT_WARN_PCT:-88}"
 WARN_FREE_GB="${STORAGE_ALERT_WARN_FREE_GB:-25}"
-CRIT_PCT="${STORAGE_ALERT_CRITICAL_PCT:-92}"
 CRIT_FREE_GB="${STORAGE_ALERT_CRITICAL_FREE_GB:-10}"
 REMINDER_MINUTES="${STORAGE_ALERT_REMINDER_MINUTES:-0}"
 NTFY_TOPIC="${NTFY_TOPIC:-}"
@@ -38,16 +34,8 @@ while [ "$#" -gt 0 ]; do
       VOLUME="$2"
       shift 2
       ;;
-    --warn-percent)
-      WARN_PCT="$2"
-      shift 2
-      ;;
     --warn-free-gb)
       WARN_FREE_GB="$2"
-      shift 2
-      ;;
-    --critical-percent)
-      CRIT_PCT="$2"
       shift 2
       ;;
     --critical-free-gb)
@@ -72,9 +60,7 @@ Usage: storage-alert.sh [options]
 
 Options:
   --volume PATH            Volume to monitor (default /)
-  --warn-percent N         Warning percent threshold (default: 88)
   --warn-free-gb N         Warning free-space threshold in GB (default: 25)
-  --critical-percent N     Critical percent threshold (default: 92)
   --critical-free-gb N     Critical free-space threshold in GB (default: 10)
   --reminder-minutes N     Send the same warning again every N minutes (default: 0)
   --ntfy-topic TOPIC       Send notifications to ntfy.sh/TOPIC
@@ -85,20 +71,16 @@ USAGE
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--volume /] [--warn-percent 88] [--warn-free-gb 25] [--critical-percent 92] [--critical-free-gb 10] [--reminder-minutes 0] [--always-notify]"
+      echo "Usage: $0 [--volume /] [--warn-free-gb 25] [--critical-free-gb 10] [--reminder-minutes 0] [--always-notify]"
       exit 1
       ;;
   esac
 done
 
 # Normalize numeric values
-WARN_PCT="${WARN_PCT%\%}"
 WARN_FREE_GB=$((WARN_FREE_GB + 0))
-CRIT_PCT="${CRIT_PCT%\%}"
 CRIT_FREE_GB=$((CRIT_FREE_GB + 0))
 REMINDER_MINUTES=$((REMINDER_MINUTES + 0))
-WARN_PCT=$((WARN_PCT + 0))
-CRIT_PCT=$((CRIT_PCT + 0))
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/storage-alert"
 LOG_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/storage-alert"
@@ -145,28 +127,29 @@ OSCRIPT
   fi
 }
 
-read -r used_pct_str available_kb _rest <<<"$(df -k "$VOLUME" | awk 'NR==2 {print $5, $4, $9}')"
-if [ -z "${used_pct_str:-}" ] || [ -z "${available_kb:-}" ]; then
-  log "ERROR cannot read disk data for $VOLUME"
+container_free_bytes="$(diskutil info -plist "$VOLUME" | plutil -extract APFSContainerFree raw - 2>/dev/null || true)"
+container_total_bytes="$(diskutil info -plist "$VOLUME" | plutil -extract APFSContainerSize raw - 2>/dev/null || true)"
+if [ -z "$container_free_bytes" ] || [ -z "$container_total_bytes" ]; then
+  log "ERROR cannot read APFS container data for $VOLUME"
   exit 1
 fi
 
-used_percent=${used_pct_str%\%}
-free_gb=$((available_kb / 1024 / 1024))
-warn_threshold_kb=$((WARN_FREE_GB * 1024 * 1024))
-crit_threshold_kb=$((CRIT_FREE_GB * 1024 * 1024))
+free_gb="$(awk -v bytes="$container_free_bytes" 'BEGIN { printf "%.1f", bytes / 1000 / 1000 / 1000 }')"
+total_gb="$(awk -v bytes="$container_total_bytes" 'BEGIN { printf "%.0f", bytes / 1000 / 1000 / 1000 }')"
+warn_threshold_bytes=$((WARN_FREE_GB * 1000 * 1000 * 1000))
+crit_threshold_bytes=$((CRIT_FREE_GB * 1000 * 1000 * 1000))
 now_epoch="$(date +%s)"
 
 state="ok"
 reason=""
-if (( used_percent >= CRIT_PCT )) || (( available_kb <= crit_threshold_kb )); then
+if (( container_free_bytes <= crit_threshold_bytes )); then
   state="critical"
-  reason="critical threshold reached: used ${used_percent}% (>= ${CRIT_PCT}%), free ${free_gb}GB (<= ${CRIT_FREE_GB}GB)."
-elif (( used_percent >= WARN_PCT )) || (( available_kb <= warn_threshold_kb )); then
+  reason="${free_gb}GB free of ${total_gb}GB. At or below the critical ${CRIT_FREE_GB}GB limit."
+elif (( container_free_bytes <= warn_threshold_bytes )); then
   state="warn"
-  reason="warning threshold reached: used ${used_percent}% (>= ${WARN_PCT}%), free ${free_gb}GB (<= ${WARN_FREE_GB}GB)."
+  reason="${free_gb}GB free of ${total_gb}GB. At or below the warning ${WARN_FREE_GB}GB limit."
 else
-  reason="OK: used ${used_percent}% free ${free_gb}GB."
+  reason="${free_gb}GB free of ${total_gb}GB."
 fi
 
 prev_state="ok"
@@ -180,9 +163,9 @@ fi
 
 if [ "$state" = "ok" ]; then
   if [ "$prev_state" != "ok" ]; then
-    log "RECOVERED ${VOLUME}: used ${used_percent}% free ${free_gb}GB"
+    log "RECOVERED ${VOLUME}: ${reason}"
   else
-    log "OK ${VOLUME}: used ${used_percent}% free ${free_gb}GB"
+    log "OK ${VOLUME}: ${reason}"
   fi
   echo "ok $now_epoch" > "$STATE_FILE"
   exit 0
