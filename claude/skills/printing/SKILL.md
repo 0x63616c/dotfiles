@@ -27,24 +27,44 @@ lpstat -p Brother_DCP_L2550DW_series
 - If `lpstat -a` shows other printers, you can mention they exist, but don't use one unless
   Calum explicitly asks for it by name. This one is his only printer in normal use.
 
-## 2. The A4/Letter trap — check this every time
+## 2. Paper size — the tray wins, not the document
 
-The CUPS default page size for this queue is **Letter**, but Calum is UK-based and documents
-are frequently laid out for **A4**. A4 (210×297mm) is narrower but taller than Letter
-(216×279mm). Print an A4-laid-out document at Letter and you clip roughly the bottom **18mm**
-off every page — footers, page numbers, and the last line or two of text just vanish.
+**The tray has Letter paper in it.** Observed 2026-09-20: a document laid out for A4, printed
+with `-o media=A4`, came back clipped at both the top and the bottom of every page after the
+first. The PDF itself was verified correct (12mm margins on all 9 pages), so the clipping was
+purely the A4 imaging area not fitting on Letter paper — A4 is 18mm taller, and the printer
+split the loss across top and bottom.
 
-Don't accept the CUPS default. Work out what size the document was actually laid out for
-(check the source — an HTML `@page` rule, a PDF's page dimensions via `pdfinfo`, or just ask if
-genuinely ambiguous) and pass it explicitly:
+So the rule is the opposite way round from what it looks like:
 
-```bash
-lp -o media=A4 ...      # or
-lp -o media=Letter ...
+> **Match the document to the paper, not the media flag to the document.**
+
+The paper physically in the tray is the fixed constraint. The document is the thing you
+control. If a document is laid out for A4, **re-render it at Letter** rather than forcing
+`-o media=A4` and hoping.
+
+**Default to Letter** unless Calum says the tray has been changed. Letter is also the safer
+default when genuinely unsure: Letter-sized output prints fine on A4 paper (you just get extra
+margin at the bottom), whereas A4-sized output *clips* on Letter. The failure is asymmetric.
+
+For HTML, that means the `@page` rule, then re-render:
+
+```css
+@page { size: Letter; margin: 13mm 12mm 14mm; }
 ```
 
-If a printout comes back clipped, the media size not matching the paper actually loaded in the
-tray is the first thing to suspect.
+Verify before printing rather than discovering it on paper — check the page size, and if you
+want certainty, measure the actual ink margins:
+
+```bash
+pdfinfo out.pdf | grep -i 'page size'    # expect 612 x 792 pts (letter)
+```
+
+Keep at least ~10mm of margin all round: the DCP-L2550DW has a hardware unprintable edge of
+roughly 4mm, so anything tighter risks loss even at the correct paper size.
+
+If a printout comes back clipped, paper-size mismatch is the first thing to suspect — and
+"which paper is actually in the tray" is the question to ask, not "which size is the document".
 
 ## 3. Render to PDF if the source isn't already one
 
@@ -98,7 +118,7 @@ shell, not the content.
 
 ```bash
 lp -d Brother_DCP_L2550DW_series \
-   -o media=A4 \
+   -o media=Letter \
    -o sides=two-sided-long-edge \
    -t "job title" \
    out.pdf
@@ -108,7 +128,7 @@ Useful `lp` options:
 
 | Option | Effect |
 |---|---|
-| `-o media=A4` / `-o media=Letter` | Page size — match the document, see §2. |
+| `-o media=Letter` / `-o media=A4` | Page size. Letter is the default — the tray has Letter in it. See §2. |
 | `-o sides=two-sided-long-edge` | Duplex, long-edge flip (this queue's current default). |
 | `-o sides=two-sided-short-edge` | Duplex, short-edge flip (for landscape-bound documents). |
 | `-o sides=one-sided` | Single-sided. |
@@ -130,7 +150,7 @@ one-line heads-up too, not a reason to refuse.
 Don't fire-and-forget. Poll until the job leaves the queue, then report:
 
 ```bash
-JOB_ID=$(lp -d Brother_DCP_L2550DW_series -o media=A4 -o sides=two-sided-long-edge \
+JOB_ID=$(lp -d Brother_DCP_L2550DW_series -o media=Letter -o sides=two-sided-long-edge \
             -t "job title" out.pdf)
 echo "$JOB_ID"   # "request id is Brother_DCP_L2550DW_series-123 (1 file(s))"
 
@@ -158,7 +178,7 @@ lpstat -p Brother_DCP_L2550DW_series
   --print-to-pdf=out.pdf input.html
 
 # 3. Print — media size matched to the document, not the CUPS default
-lp -d Brother_DCP_L2550DW_series -o media=A4 -o sides=two-sided-long-edge \
+lp -d Brother_DCP_L2550DW_series -o media=Letter -o sides=two-sided-long-edge \
    -t "job title" out.pdf
 
 # 4. Confirm completion
