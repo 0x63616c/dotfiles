@@ -29,6 +29,7 @@ cmux file-managed settings and OpenCode's cmux plugin list are tracked here.
 |---|---|
 | `cmux/cmux.json` | Symlink target for `~/.config/cmux/cmux.json` — cmux's current primary config (shortcuts, sidebars, notifications, terminal). Keys absent from the file fall back to cmux's schema defaults, so the notification block is intentionally not present (all defaults). cmux can also write `terminal.resumeCommands` here (session-restore entries, machine-specific `cwd` + agent session IDs) — only OpenCode panes register them, so it stays quiet with Claude Code; delete stale ones rather than committing them. |
 | `cmux/settings.json` | Legacy `~/.config/cmux/settings.json` config, superseded by `cmux/cmux.json`. Kept for reference only; not symlinked. |
+| `cmux/sidebars/workspaces.swift` | Symlink target for `~/.config/cmux/sidebars/workspaces.swift` — custom left-sidebar workspace list showing each workspace's directory basename (e.g. `dotfiles`) above its git branch, instead of cmux's default full path. Selected as the active sidebar via `cmux sidebar select workspaces`. Written against the interpreted Swift sidebar subset (`.swift`), not the newer reactive `.js` runtime, since the installed cmux build (0.64.22) doesn't validate `.js` sidebars yet. |
 | `opencode/opencode.json` | Symlink target for `~/.config/opencode/opencode.json`. Currently schema-only — the cmux OpenCode restore/feed plugins it used to load were removed (`cmux hooks opencode uninstall`); re-add them with `cmux hooks opencode install`. |
 
 ### `nvim/`
@@ -221,8 +222,9 @@ luajit hammerspoon/tests/run.lua                           # run the tests
 git config core.hooksPath git/hooks
 
 # cmux + OpenCode config
-mkdir -p ~/.config/cmux ~/.config/opencode
+mkdir -p ~/.config/cmux ~/.config/cmux/sidebars ~/.config/opencode
 ln -s "$PWD/cmux/cmux.json"                                ~/.config/cmux/cmux.json
+ln -s "$PWD/cmux/sidebars/workspaces.swift"                ~/.config/cmux/sidebars/workspaces.swift
 ln -s "$PWD/opencode/opencode.json"                        ~/.config/opencode/opencode.json
 
 # Themes — Cursor/VS Code Blackout (links into both editors)
