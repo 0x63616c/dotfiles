@@ -11,9 +11,9 @@
         <string>--volume</string>
         <string>/</string>
         <string>--warn-free-gb</string>
-        <string>25</string>
+        <string>5</string>
         <string>--critical-free-gb</string>
-        <string>10</string>
+        <string>5</string>
         <string>--reminder-minutes</string>
         <string>60</string>
     </array>
