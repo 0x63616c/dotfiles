@@ -6,7 +6,10 @@ description: Use when writing or editing Hammerspoon Lua config — hotkeys, win
 # Writing Hammerspoon config
 
 Hammerspoon is a bridge between macOS and a Lua interpreter. It does nothing out of the box —
-everything comes from `init.lua`.
+everything comes from the config. Here `init.lua` is a ~40-line bootstrap that installs the
+`hs.ipc` CLI and then auto-loads every other top-level `.lua` in `~/.hammerspoon` as a feature
+module (`dictation.lua`, `hyper.lua`, `reload.lua`). **Write new features as their own module
+file** — dropping the file in is all that's needed; there is no list to register it in.
 
 ## Where the config lives on this machine
 
@@ -30,9 +33,9 @@ readlink ~/.hammerspoon
 
 ## Edits are inert until a reload
 
-Saving the file changes nothing by itself. `init.lua` is only executed at load.
+Saving a file changes nothing by itself. The config is only executed at load.
 
-This config installs the standard `hs.pathwatcher` auto-reload (see the bottom of `init.lua`),
+This config installs the standard `hs.pathwatcher` auto-reload (see `reload.lua`),
 so saving a `.lua` file under the config dir triggers `hs.reload()` within a second or so.
 **Don't rely on it silently** — it's a convenience, not a verification. After an edit, reload
 explicitly and check the result:
@@ -45,8 +48,9 @@ See the `hammerspoon-cli` skill for the full test-before-commit loop, and
 `hammerspoon-debug` when something doesn't fire.
 
 `hs.reload()` **destroys the Lua state and builds a fresh one**. Every global, timer, watcher
-and eventtap is torn down and recreated from `init.lua`. Anything you created ad-hoc via the
-console or `hs -c` is gone. Anything not re-established by `init.lua` does not survive.
+and eventtap is torn down and recreated by re-running `init.lua` and every module it loads.
+Anything you created ad-hoc via the console or `hs -c` is gone. Anything not re-established by
+the config does not survive.
 Use `hs.shutdownCallback` if something needs cleaning up before the state is destroyed.
 
 ## The single biggest footgun: garbage collection
@@ -67,22 +71,25 @@ local t = hs.timer.doEvery(60, check)   -- local inside a function = same proble
 configWatcher = hs.pathwatcher.new(hs.configdir, reloadConfig):start()
 ```
 
-This is why Calum's `init.lua` has bare globals — `micState`, `micDevice`, `mediaKeyTap`,
-`configWatcher`. That is **deliberate retention, not sloppiness**. Don't "tidy" them into
-`local`s inside functions. A module-level `local` at the top of the file is fine and is the
-better style for new code; a `local` inside a function is not.
+This is why Calum's modules have bare globals — `micState`, `micDevice`, `mediaKeyTap` in
+`dictation.lua`, `configWatcher` in `reload.lua`, `hyperShortcuts` in `hyper.lua`. That is
+**deliberate retention, not sloppiness**. Don't "tidy" them into `local`s inside functions.
+A module-level `local` at the top of a file is fine and is the better style for new code;
+a `local` inside a function is not. Note the globals are shared across modules — there is one
+Lua state, not one per file — so a global in `hyper.lua` is readable from anywhere.
 
 Symptom to recognise: "it worked for a bit then stopped" → almost always this.
 
 ## House style (match the existing file)
 
-Read `hammerspoon/init.lua` before adding to it. The conventions there:
+Read `hammerspoon/dictation.lua` before adding to the config — it's the fullest worked example
+of the house style. The conventions there:
 
 - **A comment header explaining *why*, not what.** The existing one documents the whole design
   rationale and the known limits. Match that depth for any non-obvious behaviour — especially
   anything learned the hard way (the `--no-artwork` flag exists because large `hs.task` output
   blocked the pipe; that comment is doing real work).
-- **`hs.logger` per subsystem**: `local log = hs.logger.new("micwatch", "debug")`, then
+- **`hs.logger` per module**, named after the module: `local log = hs.logger.new("dictation", "debug")`, then
   `log.d(...)` / `log.df(...)`.
 - **Async `hs.task` with callbacks**, not blocking `hs.execute`.
 - **Absolute paths to binaries** (`/opt/homebrew/bin/media-control`).
@@ -92,9 +99,40 @@ Read `hammerspoon/init.lua` before adding to it. The conventions there:
 - Section dividers: `-- Name ------------------------------------------------------------`
 - Two-space indent, no semicolons.
 
-The file is currently a single `init.lua`. If it grows past a couple of distinct features,
-split into modules (`require("windows")` etc. resolve relative to `hs.configdir`) rather than
-letting one file sprawl — but don't pre-emptively restructure for a small addition.
+**A new feature is a new file.** `init.lua` is a bootstrap that `require`s every other
+top-level `.lua` in the config dir automatically (alphabetically, each in a `pcall`), so
+dropping in `windows.lua` is all it takes — there is no list to register it in. Don't append
+new features to an existing module unless they genuinely belong to it.
+
+Two consequences worth holding onto:
+
+- **Load order is alphabetical, so modules must not depend on it.** Anything that reads another
+  module's state — the `hyperShortcuts` registry, say — must read it at *display/callback* time,
+  not at load time, or it will race whichever module happens to sort later.
+- **A `_` prefix skips a file**, so `_scratch.lua` won't auto-load.
+
+## Adding a Hyper shortcut
+
+Hyper is Ctrl+Shift+Alt+Cmd, held by the Caps key in the QMK firmware. **Never bind it with
+`hs.hotkey.bind` directly.** Go through `hyper.bind`, from any module:
+
+```lua
+local hyper = require("hyper")
+
+hyper.bind("x", "Screenshot library", function()
+  screenshotsLibrary.open()
+end)
+```
+
+Registering and binding are the same call on purpose: `hyper.bind` appends `{key, label}` to
+the `hyper.shortcuts` registry, and the hold-to-reveal cheatsheet (hold Hyper 0.5s) builds
+itself from that registry at display time. So a new shortcut shows up on the card with no
+other wiring — and, equally, there is no way to add one that *doesn't*. The label is asserted
+non-empty and will error at load if you omit it; that's deliberate, not something to work
+around.
+
+`require("hyper")` resolves on demand and caches, so it works from any module regardless of
+`init.lua`'s alphabetical load order.
 
 ## Shelling out: hs.task vs hs.execute
 

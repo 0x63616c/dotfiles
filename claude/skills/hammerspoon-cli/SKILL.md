@@ -31,6 +31,8 @@ hs.ipc.cliInstall("/opt/homebrew")
 `Hammerspoon.app`). Both live in the config, which has a consequence worth internalising:
 
 > **If `init.lua` fails to parse, `hs.ipc` never loads and the `hs` CLI stops answering.**
+> A broken *feature module* is contained: `init.lua` runs `cliInstall` before the load loop and
+> `pcall`s each `require`, so the CLI survives and only that module is skipped.
 > You lose your remote control at exactly the moment you need it, and recovery is via the
 > Hammerspoon menubar icon → Console / Reload Config, i.e. the GUI.
 
@@ -82,7 +84,7 @@ and Hammerspoon's own interpreter is the authoritative parser anyway.
 
 ## Auto-reload is on, but still reload explicitly
 
-`init.lua` installs an `hs.pathwatcher` on `hs.configdir` that calls `hs.reload()` when a
+`reload.lua` installs an `hs.pathwatcher` on `hs.configdir` that calls `hs.reload()` when a
 `.lua` file changes. So a save usually reloads itself within a second.
 
 Treat that as a convenience for Calum, not as your verification step:
