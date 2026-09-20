@@ -51,7 +51,7 @@ end)
 -- Messages. Bundle id is com.apple.MobileSMS, not com.apple.Messages — a
 -- leftover from its iChat/SMS-relay days, and exactly the sort of trap that
 -- makes launching by name tempting right up until Spotlight isn't indexing.
-hyper.bind("m", "Messages", function()
+hyper.bind("m", "Open Messages", function()
   hs.application.launchOrFocusByBundleID("com.apple.MobileSMS")
 end)
 
