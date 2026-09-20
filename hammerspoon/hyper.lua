@@ -44,7 +44,7 @@ end
 -- on-disk identifier is com.electron.wispr-flow.accessibility-mac-app while the
 -- process that actually runs is com.electron.wispr-flow, and a name lookup goes
 -- through Spotlight, which this config already refuses to depend on.
-hyper.bind("w", "Wispr Flow", function()
+hyper.bind("w", "Open Wispr Flow", function()
   hs.application.launchOrFocusByBundleID("com.electron.wispr-flow")
 end)
 
@@ -96,7 +96,7 @@ local KEY_GAP     = 14    -- keycap -> label
 local COL_GAP     = 26
 local HEADER_H    = 46
 local FOOTER_H    = 30
-local RADIUS      = 18
+local RADIUS      = 12   -- shadcn card, rounded-xl
 local LABEL_MIN_W = 132
 local LABEL_MAX_W = 260
 local MAX_ROWS    = 9     -- rows per column before spilling into another
@@ -104,25 +104,26 @@ local MAX_ROWS    = 9     -- rows per column before spilling into another
 -- this the drop shadow would be sliced off flush with the card's edges.
 local SHADOW_PAD  = 40
 
--- ".AppleSystemUIFont" is the system UI face (SF on this machine). It isn't in
+-- ".AppleSystemUIFont" is the system UI face (SF on this machine), and
+-- ".AppleSystemUIFaceHeadline" its semibold cut. Neither is in
 -- hs.styledtext.fontNames() — the SF family ships as a private system font, not
--- an installed one — but NSFont resolves it by name, which is all canvas needs.
+-- an installed one — but NSFont resolves both by name, which is all canvas
+-- needs. Sans rather than mono for the keycaps, matching shadcn's <kbd>.
 local FONT_UI  = ".AppleSystemUIFont"
-local FONT_KEY = "Menlo-Bold"
+local FONT_KEY = ".AppleSystemUIFaceHeadline"
 
--- Magenta throughout, matching the dictation indicator: the two overlays are
--- the same system speaking, so they look like it.
-local BG_TOP    = { red = 0.10, green = 0.09, blue = 0.13, alpha = 0.97 }
-local BG_BOTTOM = { red = 0.04, green = 0.03, blue = 0.06, alpha = 0.97 }
-local EDGE      = { red = 1.0,  green = 0.20, blue = 0.95, alpha = 0.38 }
-local SHEEN     = { white = 1.0, alpha = 0.10 }   -- 1px inner top highlight
-local KEY_TOP   = { red = 1.0,  green = 0.15, blue = 0.90, alpha = 0.30 }
-local KEY_BOT   = { red = 1.0,  green = 0.15, blue = 0.90, alpha = 0.13 }
-local KEY_EDGE  = { red = 1.0,  green = 0.35, blue = 0.95, alpha = 0.45 }
-local TITLE_C   = { red = 1.0,  green = 0.45, blue = 0.95, alpha = 0.95 }
-local TEXT      = { white = 1.0, alpha = 0.96 }
-local DIM       = { white = 1.0, alpha = 0.42 }
-local RULE      = { white = 1.0, alpha = 0.08 }
+-- shadcn's dark "zinc" palette, token for token — flat surfaces, one hairline
+-- border, and all the hierarchy carried by foreground vs muted-foreground
+-- rather than by colour. Deliberately NOT the dictation indicator's magenta:
+-- that overlay is a state you need to notice mid-sentence, so it shouts, while
+-- this one is a thing you read, so it shouldn't.
+local BG        = { hex = "#09090b", alpha = 0.97 }  -- popover
+local BORDER    = { hex = "#27272a", alpha = 1.0 }   -- border      (zinc-800)
+local KEY_BG    = { hex = "#27272a", alpha = 1.0 }   -- muted       (zinc-800)
+local KEY_EDGE  = { hex = "#3f3f46", alpha = 1.0 }   -- zinc-700
+local TEXT      = { hex = "#fafafa", alpha = 1.0 }   -- foreground  (zinc-50)
+local DIM       = { hex = "#a1a1aa", alpha = 1.0 }   -- muted-fg    (zinc-400)
+local RULE      = { hex = "#27272a", alpha = 1.0 }   -- border
 
 -- Retained: an unreferenced canvas, timer or eventtap is garbage-collected and
 -- stops working silently. Same rule as the watchers in dictation.lua.
@@ -182,7 +183,7 @@ local function showCard()
   local rows, labelW, keyW = {}, LABEL_MIN_W, KEY_MIN_W
   for _, item in ipairs(list) do
     local label = styled(item.label, 13.5, TEXT)
-    local glyph = styled(item.key:upper(), 13, TEXT, { font = FONT_KEY, align = "center" })
+    local glyph = styled(item.key:upper(), 12.5, TEXT, { font = FONT_KEY, align = "center" })
     rows[#rows + 1] = { label = label, glyph = glyph }
     labelW = math.max(labelW, widthOf(label) + 2)
     keyW   = math.max(keyW, widthOf(glyph) + KEY_PAD)
@@ -217,30 +218,25 @@ local function showCard()
   local cardFrame = { x = O, y = O, w = cardW, h = cardH }
   local radii     = { xRadius = RADIUS, yRadius = RADIUS }
 
+  -- Flat fill, one hairline border, one soft shadow — shadcn's card, and the
+  -- reason there's no gradient or inner highlight here: those read as chrome,
+  -- and the point of this surface is that you look straight past it at the rows.
   card[#card + 1] = {
     type = "rectangle", action = "fill",
     frame = cardFrame, roundedRectRadii = radii,
-    fillGradient = "linear", fillGradientAngle = 90,
-    fillGradientColors = { BG_TOP, BG_BOTTOM },
+    fillColor = BG,
     withShadow = true,
-    shadow = { blurRadius = 32, color = { alpha = 0.6 }, offset = { h = 12, w = 0 } },
+    shadow = { blurRadius = 26, color = { alpha = 0.5 }, offset = { h = 10, w = 0 } },
   }
   card[#card + 1] = {
     type = "rectangle", action = "stroke",
     frame = cardFrame, roundedRectRadii = radii,
-    strokeColor = EDGE, strokeWidth = 1,
-  }
-  -- Hairline along the top inside edge. Free depth: it reads as light catching
-  -- the rim, which is what stops a flat fill looking like a screenshot.
-  card[#card + 1] = {
-    type = "segments", action = "stroke",
-    coordinates = { { x = O + RADIUS, y = O + 1 }, { x = O + cardW - RADIUS, y = O + 1 } },
-    strokeColor = SHEEN, strokeWidth = 1,
+    strokeColor = BORDER, strokeWidth = 1,
   }
 
   card[#card + 1] = {
     type = "text",
-    text = styled("HYPER", 11, TITLE_C, { font = FONT_KEY, kerning = 2.4 }),
+    text = styled("HYPER", 11, DIM, { kerning = 1.8 }),
     frame = { x = O + PAD, y = O + PAD - 4, w = cardW - PAD * 2, h = 16 },
   }
   -- The modifiers themselves, right-aligned on the title row: the card says
@@ -265,13 +261,12 @@ local function showCard()
     local y   = O + HEADER_H + ((i - 1) % perCol) * ROW_H
     local keyY = y + (ROW_H - KEY_H) / 2
     local keyFrame = { x = x, y = keyY, w = keyW, h = KEY_H }
-    local keyRadii = { xRadius = 7, yRadius = 7 }
+    local keyRadii = { xRadius = 6, yRadius = 6 }  -- shadcn kbd, rounded-md
 
     card[#card + 1] = {
       type = "rectangle", action = "fill",
       frame = keyFrame, roundedRectRadii = keyRadii,
-      fillGradient = "linear", fillGradientAngle = 90,
-      fillGradientColors = { KEY_TOP, KEY_BOT },
+      fillColor = KEY_BG,
     }
     card[#card + 1] = {
       type = "rectangle", action = "stroke",
