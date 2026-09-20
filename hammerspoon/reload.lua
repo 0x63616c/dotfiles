@@ -11,8 +11,12 @@
 -- otherwise tear down and rebuild the whole Lua state.
 --
 -- ~/.hammerspoon is a symlink to this repo, so FSEvents reports the resolved
--- repo path, not the symlink — never match on a path prefix here, only on the
--- extension.
+-- repo path, not the symlink — never match on an absolute path prefix here,
+-- only on the extension and on path components that survive resolution.
+--
+-- Spoons/ is excluded for that reason: EmmyLua.spoon regenerates several
+-- hundred annotation .lua files whenever Hammerspoon updates, and every one of
+-- them would otherwise land here as a config change.
 --
 -- Global, like the watchers above: an unreferenced pathwatcher is garbage-
 -- collected and stops firing silently.
@@ -26,7 +30,7 @@ end)
 
 configWatcher = hs.pathwatcher.new(hs.configdir, function(files)
   for _, file in ipairs(files) do
-    if file:sub(-4) == ".lua" then
+    if file:sub(-4) == ".lua" and not file:find("/Spoons/", 1, true) then
       reloadTimer:start()  -- restarts the countdown; fires once the writes settle
       return
     end

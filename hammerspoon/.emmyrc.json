@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EmmyLuaLs/emmylua-analyzer-rust/refs/heads/main/crates/emmylua_code_analysis/resources/schema.json",
+  "runtime": {
+    "version": "LuaJIT"
+  },
+  "workspace": {
+    "library": [
+      "${workspaceFolder}/Spoons/EmmyLua.spoon/annotations"
+    ]
+  },
+  "diagnostics": {
+    "globals": [
+      "hs",
+      "spoon"
+    ],
+    "globalsRegex": [
+      "^.*Watcher$",
+      "^.*Tap$"
+    ],
+    "disable": [
+      "need-check-nil",
+      "call-non-callable",
+      "assign-type-mismatch",
+      "param-type-mismatch",
+      "unnecessary-if",
+      "global-in-non-module"
+    ]
+  }
+}

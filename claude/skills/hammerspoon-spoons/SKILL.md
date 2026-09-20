@@ -10,10 +10,12 @@ lifecycle, so common automations don't have to be re-implemented in `init.lua`.
 
 Catalog: <https://www.hammerspoon.org/Spoons/> · Source: <https://github.com/Hammerspoon/Spoons>
 
-> **Status on this machine (verified 2026-09-20): no Spoons installed.**
-> `~/.hammerspoon/Spoons/` exists but is empty, and `init.lua` calls no `hs.loadSpoon`.
-> This skill is forward-looking. Everything below is from the official docs, not from
-> established usage in this repo — don't describe any Spoon as "the one Calum uses".
+> **Status on this machine (verified 2026-09-20): one Spoon installed — `EmmyLua.spoon`,**
+> loaded by `annotations.lua`. It is editor tooling, not a runtime feature: it generates
+> the `hs.*` annotation stubs that `hammerspoon/.emmyrc.json` points a language server at.
+> No Spoon is used for behaviour. This skill is otherwise forward-looking — everything
+> below is from the official docs, not from established usage in this repo, so don't
+> describe any Spoon as "the one Calum uses".
 
 ## Anatomy
 
