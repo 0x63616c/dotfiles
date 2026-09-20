@@ -27,6 +27,8 @@
 -- Everything CopyCat's Settings window offered is a constant below.
 
 local hyper = require("hyper")
+local ui    = require("ui")
+local theme = require("lib.theme")
 
 local log = hs.logger.new("screenshots", "info")
 
@@ -137,22 +139,18 @@ rescan()  -- establish the baseline immediately
 -- decoded images is the same trick with less machinery, and the cache is
 -- dropped wholesale once it grows past CACHE_MAX so it can't creep.
 
+-- Built from the shared components in ui.lua on the tokens in lib/theme.lua,
+-- so this window and the Hyper cheatsheet are recognisably one program: same
+-- surface, same hairline, same recessed chip behind a thumbnail as behind a
+-- keycap, same radiating rings. Nothing here picks a colour of its own.
 local COLS, ROWS = 3, 5     -- CopyCat's default grid
-local TILE       = 86
-local GAP         = 8
-local PREVIEW_W  = 300
-local PAD        = 16
-local INFO_H     = 34
-local RADIUS     = 14
+local TILE       = 96
+local GAP        = theme.space.gap
+local PREVIEW_W  = 340
+local PAD        = 24
+local HEADER_H   = 52       -- title row + its hairline
+local INFO_H     = 40       -- filename + timestamp under the preview
 local CACHE_MAX  = 60
-
-local DIM      = { white = 0, alpha = 0.35 }   -- backdrop
-local CARD_BG  = { red = 0.07, green = 0.07, blue = 0.09, alpha = 0.97 }
-local CARD_EDGE = { red = 1.0, green = 0.0, blue = 1.0, alpha = 0.5 }
-local TILE_BG  = { white = 1, alpha = 0.06 }
-local HILITE   = { red = 1.0, green = 0.0, blue = 1.0, alpha = 0.9 }
-local TEXT     = { white = 1, alpha = 0.95 }
-local SUBTLE   = { white = 1, alpha = 0.5 }
 
 local thumbCache = {}
 local thumbCount = 0
@@ -251,11 +249,20 @@ local function ago(at)
   return math.floor(secs / 86400) .. "d ago"
 end
 
--- Retained: an unreferenced canvas or hotkey is collected and stops working.
+-- Retained: an unreferenced canvas, timer or hotkey is collected and stops
+-- working.
 screenshotLibrary = nil
 screenshotLibraryEsc = nil
+screenshotLibraryTimer = nil
+
+local libraryRings = nil
 
 local function closeLibrary()
+  if screenshotLibraryTimer then
+    screenshotLibraryTimer:stop()
+    screenshotLibraryTimer = nil
+  end
+  libraryRings = nil
   if screenshotLibrary then
     screenshotLibrary:delete()
     screenshotLibrary = nil
@@ -274,7 +281,7 @@ local function openLibrary()
   local gridW = COLS * TILE + (COLS - 1) * GAP
   local gridH = ROWS * TILE + (ROWS - 1) * GAP
   local cardW = PAD * 3 + PREVIEW_W + gridW
-  local cardH = PAD * 2 + math.max(gridH, 240 + INFO_H)
+  local cardH = HEADER_H + math.max(gridH, 260 + INFO_H) + PAD
   local screen = hs.screen.mainScreen():frame()
   local cardX = screen.x + (screen.w - cardW) / 2
   local cardY = screen.y + (screen.h - cardH) / 2
@@ -284,52 +291,72 @@ local function openLibrary()
   c:behavior({ "canJoinAllSpaces", "stationary" })
 
   -- Backdrop: dismisses on click, which is why the canvas is fullscreen.
-  c[#c + 1] = { type = "rectangle", action = "fill", fillColor = DIM,
-                trackMouseDown = true, id = "backdrop" }
+  c[#c + 1] = ui.backdrop()
 
   local cx, cy = cardX - screen.x, cardY - screen.y
-  c[#c + 1] = { type = "rectangle", action = "fill", fillColor = CARD_BG,
-                roundedRectRadii = { xRadius = RADIUS, yRadius = RADIUS },
-                frame = { x = cx, y = cy, w = cardW, h = cardH } }
-  c[#c + 1] = { type = "rectangle", action = "stroke", strokeColor = CARD_EDGE,
-                strokeWidth = 1.5,
-                roundedRectRadii = { xRadius = RADIUS, yRadius = RADIUS },
-                frame = { x = cx, y = cy, w = cardW, h = cardH } }
+  local cardFrame = { x = cx, y = cy, w = cardW, h = cardH }
 
-  -- Preview pane. scaleProportionally keeps the native aspect ratio, unlike the
-  -- tiles, which crop to squares.
-  local previewH = cardH - PAD * 2 - INFO_H
+  -- Rings before the surface, so the opaque card paints over their inner half.
+  -- Unlike the cheatsheet this canvas is already the whole screen, so there is
+  -- nothing to pad: they have all the room they need.
+  libraryRings = ui.rings(c, cardFrame)
+  c[#c + 1] = ui.surface(cardFrame)
+  c[#c + 1] = ui.border(cardFrame)
+
+  -- Header, laid out exactly like the cheatsheet's: tracked-out title left,
+  -- secondary detail right, hairline under both.
+  c[#c + 1] = ui.text(ui.title("SCREENSHOTS"),
+    { x = cx + PAD, y = cy + PAD - 4, w = cardW - PAD * 2, h = 18 })
+  c[#c + 1] = ui.text(
+    ui.styled(#shots .. " recent  ·  esc to close", theme.text.caption, ui.muted, { align = "right" }),
+    { x = cx + PAD, y = cy + PAD - 2, w = cardW - PAD * 2, h = 16 })
+  c[#c + 1] = ui.rule(cx + PAD, cy + HEADER_H - 14, cardW - PAD * 2)
+
+  -- Preview pane. The chip behind it is the same recessed fill as a tile, so an
+  -- image with transparent edges still sits on something.
+  local previewTop = cy + HEADER_H
+  local previewH = cardH - HEADER_H - PAD - INFO_H
+  local previewFrame = { x = cx + PAD, y = previewTop, w = PREVIEW_W, h = previewH }
+  c[#c + 1] = ui.chip(previewFrame)
+  -- scaleProportionally keeps the native aspect ratio, unlike the tiles, which
+  -- crop to squares.
   c[#c + 1] = { type = "image", id = "preview",
                 image = previewImage(shots[1].path, PREVIEW_W, previewH),
                 imageScaling = "scaleProportionally", imageAlignment = "center",
-                frame = { x = cx + PAD, y = cy + PAD, w = PREVIEW_W, h = previewH } }
-  c[#c + 1] = { type = "text", id = "info", text = shots[1].name,
-                textColor = TEXT, textSize = 11,
-                frame = { x = cx + PAD, y = cy + PAD + previewH + 4, w = PREVIEW_W, h = 15 } }
-  c[#c + 1] = { type = "text", id = "when", text = ago(shots[1].at) .. "  ·  click a tile to copy",
-                textColor = SUBTLE, textSize = 10,
-                frame = { x = cx + PAD, y = cy + PAD + previewH + 19, w = PREVIEW_W, h = 15 } }
+                frame = previewFrame }
+  c[#c + 1] = ui.border(previewFrame, { radius = theme.radius.control })
+
+  c[#c + 1] = ui.text(ui.styled(shots[1].name, theme.text.body, ui.fg), 
+    { x = cx + PAD, y = previewTop + previewH + 8, w = PREVIEW_W, h = 18 }, "info")
+  c[#c + 1] = ui.text(ui.styled(ago(shots[1].at) .. "  ·  click a tile to copy",
+                                theme.text.caption, ui.muted),
+    { x = cx + PAD, y = previewTop + previewH + 25, w = PREVIEW_W, h = 16 }, "when")
 
   local gx = cx + PAD * 2 + PREVIEW_W
   for i, shot in ipairs(shots) do
     local col = (i - 1) % COLS
     local row = math.floor((i - 1) / COLS)
     local x = gx + col * (TILE + GAP)
-    local y = cy + PAD + row * (TILE + GAP)
-    c[#c + 1] = { type = "rectangle", action = "fill", fillColor = TILE_BG,
-                  roundedRectRadii = { xRadius = 6, yRadius = 6 },
-                  frame = { x = x, y = y, w = TILE, h = TILE } }
+    local y = cy + HEADER_H + row * (TILE + GAP)
+    local tileFrame = { x = x, y = y, w = TILE, h = TILE }
+
+    c[#c + 1] = ui.chip(tileFrame)
     -- The thumbnail is already a cropped square (see downsample), so it lands
     -- in the square frame exactly and the grid stays uniform whatever shape the
     -- capture was.
     c[#c + 1] = { type = "image", id = "tile:" .. i, image = thumbnail(shot.path),
                   imageScaling = "scaleProportionally",
                   trackMouseDown = true, trackMouseEnterExit = true,
-                  frame = { x = x, y = y, w = TILE, h = TILE } }
-    c[#c + 1] = { type = "rectangle", action = "stroke", id = "ring:" .. i,
-                  strokeColor = { white = 1, alpha = 0 }, strokeWidth = 2,
-                  roundedRectRadii = { xRadius = 6, yRadius = 6 },
-                  frame = { x = x, y = y, w = TILE, h = TILE } }
+                  frame = tileFrame }
+    -- Two strokes per tile: a hairline that is always there, and the hover
+    -- highlight over it. Toggling one element's colour between border and
+    -- accent would work, but then an unhovered tile has no edge at all and the
+    -- grid loses its shape.
+    c[#c + 1] = ui.border(tileFrame, { radius = theme.radius.control })
+    c[#c + 1] = ui.border(tileFrame, {
+      radius = theme.radius.control, width = 2,
+      color = ui.color(theme.color.accent, 0), id = "ring:" .. i,
+    })
   end
 
   -- Element ids are stable, so the callback mutates elements in place rather
@@ -351,18 +378,24 @@ local function openLibrary()
       local i = tonumber(id:match("^tile:(%d+)$"))
       if i and shots[i] then
         c["preview"].image = previewImage(shots[i].path, PREVIEW_W, previewH)
-        c["info"].text = shots[i].name
-        c["when"].text = ago(shots[i].at) .. "  ·  click a tile to copy"
-        c["ring:" .. i].strokeColor = HILITE
+        c["info"].text = ui.styled(shots[i].name, theme.text.body, ui.fg)
+        c["when"].text = ui.styled(ago(shots[i].at) .. "  ·  click a tile to copy",
+                                   theme.text.caption, ui.muted)
+        c["ring:" .. i].strokeColor = ui.accent
       end
     elseif event == "mouseExit" then
       local i = tonumber(id:match("^tile:(%d+)$"))
-      if i then c["ring:" .. i].strokeColor = { white = 1, alpha = 0 } end
+      if i then c["ring:" .. i].strokeColor = ui.color(theme.color.accent, 0) end
     end
   end)
 
   screenshotLibrary = c
   c:show()
+
+  local t0 = hs.timer.secondsSinceEpoch()
+  screenshotLibraryTimer = hs.timer.doEvery(ui.FRAME_INTERVAL, function()
+    if libraryRings then libraryRings.tick(hs.timer.secondsSinceEpoch() - t0) end
+  end)
 
   if not screenshotLibraryEsc then
     screenshotLibraryEsc = hs.hotkey.new({}, "escape", closeLibrary)

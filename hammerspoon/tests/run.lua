@@ -46,6 +46,7 @@ end
 local geometry = require("lib.geometry")
 local Chord = require("lib.chord")
 local sonar = require("lib.sonar")
+local theme = require("lib.theme")
 
 -- Chord state machine --------------------------------------------------------
 
@@ -296,6 +297,57 @@ test("sliding card keeps its top above the screen edge", function()
   local _, miny, _, maxy = bounds(segs)
   near(miny, -60, "top tracks the slide")
   near(maxy, 28, "bottom tracks the slide")
+end)
+
+-- theme --------------------------------------------------------------------
+--
+-- The tokens are data, so what's worth testing is that they stay usable data:
+-- ui.lua hands every colour straight to hs.canvas as {hex=...}, and a typo
+-- there is rejected silently, leaving the previous colour in place — the same
+-- class of silent failure as the invalid imageScaling in screenshots.lua.
+
+test("every colour is a canvas-ready hex string", function()
+  local n = 0
+  for name, hex in pairs(theme.color) do
+    check(type(hex) == "string", name .. " must be a string")
+    check(hex:match("^#%x%x%x%x%x%x$") ~= nil, name .. " must be #rrggbb, got " .. tostring(hex))
+    n = n + 1
+  end
+  check(n > 0, "palette is not empty")
+end)
+
+test("alphas are fractions", function()
+  for name, a in pairs(theme.alpha) do
+    check(type(a) == "number" and a >= 0 and a <= 1, name .. " out of range: " .. tostring(a))
+  end
+end)
+
+test("radii and sizes are positive numbers", function()
+  for _, group in ipairs({ theme.radius, theme.text, theme.space }) do
+    for name, v in pairs(group) do
+      check(type(v) == "number" and v > 0, name .. " must be a positive number")
+    end
+  end
+end)
+
+test("a control is rounded less than the card that holds it", function()
+  -- Not arbitrary: a chip with the card's radius reads as a second card.
+  check(theme.radius.control < theme.radius.card, "control radius must be tighter")
+end)
+
+test("the type scale is ordered", function()
+  check(theme.text.caption < theme.text.body, "caption is the smallest")
+  check(theme.text.body <= theme.text.key, "key glyphs are at least body size")
+  check(theme.text.key <= theme.text.label, "labels are the largest row text")
+end)
+
+test("the shared rings outlast the dictation indicator's", function()
+  -- The cheatsheet and library are ambient; dictation.lua's 1.5s is a warning.
+  -- If this ever drops back to 1.5 the overlays start flickering, which is the
+  -- bug that put this number in a token in the first place.
+  check(theme.ring.period > 1.5, "ambient rings must be slower than 1.5s")
+  check(theme.ring.peak > 0 and theme.ring.peak < 1, "peak alpha is a fraction")
+  check(theme.ring.count >= 2, "one ring doesn't read as a pulse")
 end)
 
 -- sonar --------------------------------------------------------------------

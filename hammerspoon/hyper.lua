@@ -1,8 +1,11 @@
 -- Hyper shortcuts -------------------------------------------------------------
 --
--- Hyper is Ctrl+Shift+Alt+Gui, held by the Caps key in the QMK firmware
--- (qmk/0x63616c/keymap.c). macOS sees four real modifier flags, not a distinct
--- keycode, so these are ordinary hs.hotkey binds — no Karabiner F18 indirection.
+-- Hyper is Ctrl+Shift+Alt+Gui. On the QMK board that's held by the Caps key in
+-- hardware (qmk/0x63616c/keymap.c, pending a reflash); on any other keyboard
+-- it's capslock.lua turning a held literal Caps Lock into the same four flags
+-- in software, replacing the old Hyperkey app. Either way macOS sees four real
+-- modifier flags, not a distinct keycode, so these are ordinary hs.hotkey
+-- binds — no Karabiner F18 indirection.
 --
 -- Bindings go through hyper.bind rather than hs.hotkey.bind directly so each one
 -- records what it does. hs.hotkey's own `message` argument can't serve that
@@ -81,15 +84,19 @@ end)
 -- hidden. It appears rarely and briefly, so there's nothing to gain from
 -- holding a canvas (and a stale one would survive a screen change).
 
+local ui    = require("ui")
+local theme = require("lib.theme")
+
 local HOLD_DELAY  = 0.5   -- seconds of holding Hyper before the card appears
 local FADE        = 0.14  -- seconds
 local FLASH_HOLD  = 0.18  -- how long a pressed key stays lit before the card goes
 
--- Layout, in points. The card sizes itself to its contents: the label column is
--- measured from the longest label and the keycaps from the longest key name, so
--- a binding called something long widens the card instead of being clipped.
-local PAD         = 28    -- card inner padding
-local ROW_H       = 42
+-- Layout, in points, on the shared spacing scale. The card sizes itself to its
+-- contents: the label column is measured from the longest label and the keycaps
+-- from the longest key name, so a binding called something long widens the card
+-- instead of being clipped.
+local PAD         = theme.space.pad
+local ROW_H       = theme.space.row
 local KEY_H       = 33
 local KEY_MIN_W   = 42    -- a single-letter keycap; longer names widen it
 local KEY_PAD     = 20    -- keycap padding around its glyph
@@ -97,68 +104,13 @@ local KEY_GAP     = 18    -- keycap -> label
 local COL_GAP     = 32
 local HEADER_H    = 58
 local BOTTOM_PAD  = 22
-local RADIUS      = 15    -- shadcn card, rounded-xl
-local KEY_RADIUS  = 8     -- shadcn kbd, rounded-md
 local LABEL_MIN_W = 165
 local LABEL_MAX_W = 325
 local MAX_ROWS    = 9     -- rows per column before spilling into another
 
-local SIZE_TITLE  = 12
-local SIZE_MODS   = 14
-local SIZE_LABEL  = 15
-local SIZE_KEY    = 14
-
--- Radiating rings, the same gesture as the dictation indicator's — outward from
--- the card here, inward from the screen edge there. The cadence itself lives in
--- lib/sonar.lua so the two can't drift apart; only the direction, the colour and
--- the path are this module's business.
---
--- White rather than that indicator's magenta: magenta on this card would put a
--- colour back that the shadcn palette below deliberately removed.
-local RING_COUNT     = 3
--- Much slower than the dictation indicator's 1.5s, and deliberately so: that
--- one is a live-mic warning that has to register at a glance, this one is
--- ambient while you read a list. At 1.5s over this travel it read as flickering.
-local RING_PERIOD    = 3.2   -- seconds for one ring: card edge -> faded out
-local RING_DISTANCE  = 30    -- how far out it gets, points
-local RING_WIDTH     = 5     -- stroke at spawn; thins as it travels
-local RING_FADE      = 1.7   -- >1 makes the ring die away sooner
-local RING_PEAK      = 0.45  -- alpha at spawn; white is loud
-local FRAME_INTERVAL = 1 / 30
-
-local RING_CADENCE = {
-  count = RING_COUNT, period = RING_PERIOD,
-  width = RING_WIDTH, fade = RING_FADE, distance = RING_DISTANCE,
-}
-
--- Canvas slack around the card. A canvas clips its own contents, so without
--- this the rings and the drop shadow would be sliced off flush with the card's
--- edges. It has to clear the furthest a ring travels plus its own stroke.
-local SHADOW_PAD  = RING_DISTANCE + RING_WIDTH + 24
-
--- ".AppleSystemUIFont" is the system UI face (SF on this machine), and
--- ".AppleSystemUIFaceHeadline" its semibold cut. Neither is in
--- hs.styledtext.fontNames() — the SF family ships as a private system font, not
--- an installed one — but NSFont resolves both by name, which is all canvas
--- needs. Sans rather than mono for the keycaps, matching shadcn's <kbd>.
-local FONT_UI  = ".AppleSystemUIFont"
-local FONT_KEY = ".AppleSystemUIFaceHeadline"
-
--- shadcn's dark "zinc" palette, token for token — flat surfaces, one hairline
--- border, and all the hierarchy carried by foreground vs muted-foreground
--- rather than by colour.
-local BG        = { hex = "#09090b", alpha = 0.97 }  -- popover
-local BG_SOLID  = { hex = "#09090b", alpha = 1.0 }   -- glyph on a lit keycap
-local BORDER    = { hex = "#27272a", alpha = 1.0 }   -- border      (zinc-800)
-local KEY_BG    = { hex = "#27272a", alpha = 1.0 }   -- muted       (zinc-800)
-local KEY_EDGE  = { hex = "#3f3f46", alpha = 1.0 }   -- zinc-700
-local KEY_LIT   = { hex = "#fafafa", alpha = 1.0 }   -- a pressed keycap
-local TEXT      = { hex = "#fafafa", alpha = 1.0 }   -- foreground  (zinc-50)
-local DIM       = { hex = "#a1a1aa", alpha = 1.0 }   -- muted-fg    (zinc-400)
-local RULE      = { hex = "#27272a", alpha = 1.0 }   -- border
-local RING_HEX  = "#fafafa"                          -- alpha is per-frame
-
-local sonar = require("lib.sonar")
+-- Canvas slack around the card: the rings' full travel plus room for the drop
+-- shadow, because a canvas clips its own contents.
+local SHADOW_PAD  = ui.ringPad(24)
 
 -- Retained: an unreferenced canvas, timer or eventtap is garbage-collected and
 -- stops working silently. Same rule as the watchers in dictation.lua.
@@ -168,34 +120,14 @@ hyperTap       = nil
 hyperRingTimer = nil
 hyperFlashTimer = nil
 
--- Set by showCard, read by the ring tick and the key flash. The card's own
--- frame in canvas coordinates, and where each row's elements live.
-local cardGeom = nil
+-- Set by showCard, read by the key flash: where each row's elements live. The
+-- rings keep their own handle, since ui.rings owns their indices.
+local hyperRings = nil
 local rowElements = {}
 -- A key is lit until the card goes. Teardown is then the flash timer's job
 -- alone: releasing Hyper right after pressing a key would otherwise hide the
 -- card before the lit key had been on screen long enough to see.
 local flashing = false
-
--- Text is built as styledtext rather than passed as a bare string so it can be
--- measured before the canvas exists — the card's width depends on it — and so
--- kerning and alignment are available, which canvas's plain text attributes
--- don't offer.
-local function styled(text, size, color, opts)
-  opts = opts or {}
-  local attrs = {
-    font  = { name = opts.font or FONT_UI, size = size },
-    color = color,
-  }
-  if opts.kerning then attrs.kerning = opts.kerning end
-  if opts.align then attrs.paragraphStyle = { alignment = opts.align } end
-  return hs.styledtext.new(text, attrs)
-end
-
-local function widthOf(st)
-  local size = hs.drawing.getTextDrawingSize(st)
-  return size and size.w or 0
-end
 
 local function stopRings()
   if hyperRingTimer then
@@ -212,7 +144,7 @@ local function hideCard()
   end
   flashing = false
   rowElements = {}
-  cardGeom = nil
+  hyperRings = nil
   if hyperCard then
     hyperCard:delete(FADE)
     hyperCard = nil
@@ -228,38 +160,14 @@ local function cancelHold()
   hideCard()
 end
 
--- One frame of the rings: concentric rounded rectangles stepping outward from
--- the card's own edge, each keeping the card's corner profile so they read as
--- the card pulsing rather than as circles behind it. They are the canvas's
--- first elements, so the opaque card covers their inner half and only the part
--- that has escaped the edge is ever seen.
-local function tickRings(elapsed)
-  if not (hyperCard and cardGeom) then return end
-  for k = 1, RING_COUNT do
-    local r = sonar.ring(elapsed, k, RING_CADENCE)
-    local el = hyperCard[k]
-    if not el then return end
-    el.action = "stroke"
-    el.strokeWidth = r.width
-    el.strokeColor = { hex = RING_HEX, alpha = r.alpha * RING_PEAK }
-    el.frame = {
-      x = cardGeom.x - r.offset,
-      y = cardGeom.y - r.offset,
-      w = cardGeom.w + r.offset * 2,
-      h = cardGeom.h + r.offset * 2,
-    }
-    el.roundedRectRadii = { xRadius = RADIUS + r.offset, yRadius = RADIUS + r.offset }
-  end
-end
-
 -- Light up the pressed key's cap, shadcn-style: the accent colour as the fill
 -- with the glyph knocked out of it. Returns false for a key with no binding,
 -- which is the caller's cue to just dismiss.
 local function flashKey(key)
   local row = rowElements[key]
   if not (row and hyperCard) then return false end
-  hyperCard[row.fill].fillColor = KEY_LIT
-  hyperCard[row.stroke].strokeColor = KEY_LIT
+  hyperCard[row.fill].fillColor = ui.accent
+  hyperCard[row.stroke].strokeColor = ui.accent
   hyperCard[row.glyph].text = row.litGlyph
   return true
 end
@@ -280,18 +188,20 @@ local function showCard()
   -- never touched: they belong to whichever module registered them.
   local rows, labelW, keyW = {}, LABEL_MIN_W, KEY_MIN_W
   for _, item in ipairs(list) do
-    local label = styled(item.label, SIZE_LABEL, TEXT)
-    local glyph = styled(item.key:upper(), SIZE_KEY, TEXT, { font = FONT_KEY, align = "center" })
+    local label = ui.styled(item.label, theme.text.label, ui.fg)
+    local glyph = ui.styled(item.key:upper(), theme.text.key, ui.fg,
+                            { font = theme.font.semibold, align = "center" })
     rows[#rows + 1] = {
       key = item.key,
       label = label,
       glyph = glyph,
       -- Built now rather than at press time: a keypress should light the cap on
       -- the next frame, not go and lay out text first.
-      litGlyph = styled(item.key:upper(), SIZE_KEY, BG_SOLID, { font = FONT_KEY, align = "center" }),
+      litGlyph = ui.styled(item.key:upper(), theme.text.key, ui.onAccent,
+                           { font = theme.font.semibold, align = "center" }),
     }
-    labelW = math.max(labelW, widthOf(label) + 2)
-    keyW   = math.max(keyW, widthOf(glyph) + KEY_PAD)
+    labelW = math.max(labelW, ui.width(label) + 2)
+    keyW   = math.max(keyW, ui.width(glyph) + KEY_PAD)
   end
   labelW = math.min(labelW, LABEL_MAX_W)
 
@@ -321,55 +231,20 @@ local function showCard()
 
   local O = SHADOW_PAD  -- every frame below is in canvas space, card-inset
   local cardFrame = { x = O, y = O, w = cardW, h = cardH }
-  local radii     = { xRadius = RADIUS, yRadius = RADIUS }
-  cardGeom = cardFrame
 
-  -- Rings first, so the card is painted over their inner half. The tick owns
-  -- their frame and colour; these are just placeholders of the right shape.
-  for k = 1, RING_COUNT do
-    card[k] = {
-      type = "rectangle", action = "skip",
-      frame = cardFrame, roundedRectRadii = radii,
-      strokeWidth = RING_WIDTH, strokeColor = { hex = RING_HEX, alpha = 0 },
-    }
-  end
+  -- Rings first, so the card paints over their inner half and only what has
+  -- escaped the edge is seen.
+  hyperRings = ui.rings(card, cardFrame)
+  card[#card + 1] = ui.surface(cardFrame)
+  card[#card + 1] = ui.border(cardFrame)
 
-  -- Flat fill, one hairline border, one soft shadow — shadcn's card, and the
-  -- reason there's no gradient or inner highlight here: those read as chrome,
-  -- and the point of this surface is that you look straight past it at the rows.
-  card[#card + 1] = {
-    type = "rectangle", action = "fill",
-    frame = cardFrame, roundedRectRadii = radii,
-    fillColor = BG,
-    withShadow = true,
-    shadow = { blurRadius = 26, color = { alpha = 0.5 }, offset = { h = 10, w = 0 } },
-  }
-  card[#card + 1] = {
-    type = "rectangle", action = "stroke",
-    frame = cardFrame, roundedRectRadii = radii,
-    strokeColor = BORDER, strokeWidth = 1,
-  }
-
-  card[#card + 1] = {
-    type = "text",
-    text = styled("HYPR", SIZE_TITLE, DIM, { kerning = 1.8 }),
-    frame = { x = O + PAD, y = O + PAD - 4, w = cardW - PAD * 2, h = 18 },
-  }
+  card[#card + 1] = ui.text(ui.title("HYPR"),
+    { x = O + PAD, y = O + PAD - 4, w = cardW - PAD * 2, h = 18 })
   -- The modifiers themselves, right-aligned on the title row: the card says
   -- what you are holding, so it doubles as a reminder of what Hyper *is*.
-  card[#card + 1] = {
-    type = "text",
-    text = styled("⌃ ⌥ ⇧ ⌘", SIZE_MODS, DIM, { align = "right" }),
-    frame = { x = O + PAD, y = O + PAD - 6, w = cardW - PAD * 2, h = 20 },
-  }
-  card[#card + 1] = {
-    type = "segments", action = "stroke",
-    coordinates = {
-      { x = O + PAD, y = O + HEADER_H - 14 },
-      { x = O + cardW - PAD, y = O + HEADER_H - 14 },
-    },
-    strokeColor = RULE, strokeWidth = 1,
-  }
+  card[#card + 1] = ui.text(ui.styled("⌃ ⌥ ⇧ ⌘", theme.text.key, ui.muted, { align = "right" }),
+    { x = O + PAD, y = O + PAD - 6, w = cardW - PAD * 2, h = 20 })
+  card[#card + 1] = ui.rule(O + PAD, O + HEADER_H - 14, cardW - PAD * 2)
 
   -- Element indices are recorded per row rather than derived from a base, so a
   -- new element anywhere above can't silently point the key flash at the wrong
@@ -381,29 +256,17 @@ local function showCard()
     local y   = O + HEADER_H + ((i - 1) % perCol) * ROW_H
     local keyY = y + (ROW_H - KEY_H) / 2
     local keyFrame = { x = x, y = keyY, w = keyW, h = KEY_H }
-    local keyRadii = { xRadius = KEY_RADIUS, yRadius = KEY_RADIUS }
+    local capOpts = { radius = theme.radius.control }
 
-    card[#card + 1] = {
-      type = "rectangle", action = "fill",
-      frame = keyFrame, roundedRectRadii = keyRadii,
-      fillColor = KEY_BG,
-    }
+    card[#card + 1] = ui.chip(keyFrame, capOpts)
     local fillIdx = #card
-    card[#card + 1] = {
-      type = "rectangle", action = "stroke",
-      frame = keyFrame, roundedRectRadii = keyRadii,
-      strokeColor = KEY_EDGE, strokeWidth = 1,
-    }
+    card[#card + 1] = ui.border(keyFrame, { radius = theme.radius.control, color = ui.chipEdge })
     local strokeIdx = #card
-    card[#card + 1] = {
-      type = "text", text = row.glyph,
-      frame = { x = x, y = keyY + (KEY_H - 18) / 2, w = keyW, h = 20 },
-    }
+    card[#card + 1] = ui.text(row.glyph,
+      { x = x, y = keyY + (KEY_H - 18) / 2, w = keyW, h = 20 })
     local glyphIdx = #card
-    card[#card + 1] = {
-      type = "text", text = row.label,
-      frame = { x = x + keyW + KEY_GAP, y = y + (ROW_H - 18) / 2, w = labelW, h = 20 },
-    }
+    card[#card + 1] = ui.text(row.label,
+      { x = x + keyW + KEY_GAP, y = y + (ROW_H - 18) / 2, w = labelW, h = 20 })
 
     rowElements[row.key] = {
       fill = fillIdx, stroke = strokeIdx, glyph = glyphIdx, litGlyph = row.litGlyph,
@@ -414,8 +277,8 @@ local function showCard()
   card:show(FADE)
 
   local t0 = hs.timer.secondsSinceEpoch()
-  hyperRingTimer = hs.timer.doEvery(FRAME_INTERVAL, function()
-    tickRings(hs.timer.secondsSinceEpoch() - t0)
+  hyperRingTimer = hs.timer.doEvery(ui.FRAME_INTERVAL, function()
+    if hyperRings then hyperRings.tick(hs.timer.secondsSinceEpoch() - t0) end
   end)
 end
 
