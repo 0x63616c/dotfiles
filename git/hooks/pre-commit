@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+#
+# Pre-commit gate for the Hammerspoon config.
+#
+# Two checks, both cheap enough to run on every commit:
+#
+#   1. Every .lua file parses. A syntax error in the Hammerspoon config is not a
+#      contained failure — it takes down the ENTIRE config including hs.ipc,
+#      which is the CLI you would diagnose it with. The only way back is the
+#      menubar. Catching it here is worth the 50ms.
+#
+#   2. The pure-logic tests pass (hammerspoon/tests/run.lua).
+#
+# Both use luajit rather than the `lua` binary, because luajit is what's
+# actually installed on this machine. LuaJIT is 5.1; the config sticks to
+# 5.1-compatible syntax so this check stays valid.
+#
+# Install:  git config core.hooksPath git/hooks
+# Bypass:   git commit --no-verify   (for a WIP commit on a branch)
+
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root" || exit 1
+
+if ! command -v luajit >/dev/null 2>&1; then
+  echo "pre-commit: luajit not found — skipping Lua checks."
+  echo "            install with: brew install luajit"
+  exit 0
+fi
+
+status=0
+
+# 1. Parse every tracked .lua file that is staged or already in the tree.
+while IFS= read -r file; do
+  [ -f "$file" ] || continue
+  if ! err=$(luajit -e "local f, e = loadfile('$file'); if e then io.stderr:write(e) os.exit(1) end" 2>&1); then
+    echo "pre-commit: SYNTAX ERROR in $file"
+    echo "  $err"
+    status=1
+  fi
+done < <(git ls-files '*.lua')
+
+if [ "$status" -ne 0 ]; then
+  echo
+  echo "pre-commit: refusing to commit a config that would not load."
+  exit 1
+fi
+
+# 2. Pure-logic tests.
+if [ -f hammerspoon/tests/run.lua ]; then
+  if ! out=$(luajit hammerspoon/tests/run.lua 2>&1); then
+    echo "pre-commit: Lua tests FAILED"
+    echo "$out"
+    exit 1
+  fi
+  echo "pre-commit: $(echo "$out" | tail -1)"
+fi
+
+exit 0
