@@ -83,26 +83,58 @@ end)
 
 local HOLD_DELAY  = 0.5   -- seconds of holding Hyper before the card appears
 local FADE        = 0.14  -- seconds
+local FLASH_HOLD  = 0.18  -- how long a pressed key stays lit before the card goes
 
 -- Layout, in points. The card sizes itself to its contents: the label column is
 -- measured from the longest label and the keycaps from the longest key name, so
 -- a binding called something long widens the card instead of being clipped.
-local PAD         = 22    -- card inner padding
-local ROW_H       = 34
-local KEY_H       = 26
-local KEY_MIN_W   = 34    -- a single-letter keycap; longer names widen it
-local KEY_PAD     = 16    -- keycap padding around its glyph
-local KEY_GAP     = 14    -- keycap -> label
-local COL_GAP     = 26
-local HEADER_H    = 46
-local FOOTER_H    = 30
-local RADIUS      = 12   -- shadcn card, rounded-xl
-local LABEL_MIN_W = 132
-local LABEL_MAX_W = 260
+local PAD         = 28    -- card inner padding
+local ROW_H       = 42
+local KEY_H       = 33
+local KEY_MIN_W   = 42    -- a single-letter keycap; longer names widen it
+local KEY_PAD     = 20    -- keycap padding around its glyph
+local KEY_GAP     = 18    -- keycap -> label
+local COL_GAP     = 32
+local HEADER_H    = 58
+local BOTTOM_PAD  = 22
+local RADIUS      = 15    -- shadcn card, rounded-xl
+local KEY_RADIUS  = 8     -- shadcn kbd, rounded-md
+local LABEL_MIN_W = 165
+local LABEL_MAX_W = 325
 local MAX_ROWS    = 9     -- rows per column before spilling into another
+
+local SIZE_TITLE  = 12
+local SIZE_MODS   = 14
+local SIZE_LABEL  = 15
+local SIZE_KEY    = 14
+
+-- Radiating rings, the same gesture as the dictation indicator's — outward from
+-- the card here, inward from the screen edge there. The cadence itself lives in
+-- lib/sonar.lua so the two can't drift apart; only the direction, the colour and
+-- the path are this module's business.
+--
+-- White rather than that indicator's magenta: magenta on this card would put a
+-- colour back that the shadcn palette below deliberately removed.
+local RING_COUNT     = 3
+-- Much slower than the dictation indicator's 1.5s, and deliberately so: that
+-- one is a live-mic warning that has to register at a glance, this one is
+-- ambient while you read a list. At 1.5s over this travel it read as flickering.
+local RING_PERIOD    = 3.2   -- seconds for one ring: card edge -> faded out
+local RING_DISTANCE  = 30    -- how far out it gets, points
+local RING_WIDTH     = 5     -- stroke at spawn; thins as it travels
+local RING_FADE      = 1.7   -- >1 makes the ring die away sooner
+local RING_PEAK      = 0.45  -- alpha at spawn; white is loud
+local FRAME_INTERVAL = 1 / 30
+
+local RING_CADENCE = {
+  count = RING_COUNT, period = RING_PERIOD,
+  width = RING_WIDTH, fade = RING_FADE, distance = RING_DISTANCE,
+}
+
 -- Canvas slack around the card. A canvas clips its own contents, so without
--- this the drop shadow would be sliced off flush with the card's edges.
-local SHADOW_PAD  = 40
+-- this the rings and the drop shadow would be sliced off flush with the card's
+-- edges. It has to clear the furthest a ring travels plus its own stroke.
+local SHADOW_PAD  = RING_DISTANCE + RING_WIDTH + 24
 
 -- ".AppleSystemUIFont" is the system UI face (SF on this machine), and
 -- ".AppleSystemUIFaceHeadline" its semibold cut. Neither is in
@@ -114,22 +146,36 @@ local FONT_KEY = ".AppleSystemUIFaceHeadline"
 
 -- shadcn's dark "zinc" palette, token for token — flat surfaces, one hairline
 -- border, and all the hierarchy carried by foreground vs muted-foreground
--- rather than by colour. Deliberately NOT the dictation indicator's magenta:
--- that overlay is a state you need to notice mid-sentence, so it shouts, while
--- this one is a thing you read, so it shouldn't.
+-- rather than by colour.
 local BG        = { hex = "#09090b", alpha = 0.97 }  -- popover
+local BG_SOLID  = { hex = "#09090b", alpha = 1.0 }   -- glyph on a lit keycap
 local BORDER    = { hex = "#27272a", alpha = 1.0 }   -- border      (zinc-800)
 local KEY_BG    = { hex = "#27272a", alpha = 1.0 }   -- muted       (zinc-800)
 local KEY_EDGE  = { hex = "#3f3f46", alpha = 1.0 }   -- zinc-700
+local KEY_LIT   = { hex = "#fafafa", alpha = 1.0 }   -- a pressed keycap
 local TEXT      = { hex = "#fafafa", alpha = 1.0 }   -- foreground  (zinc-50)
 local DIM       = { hex = "#a1a1aa", alpha = 1.0 }   -- muted-fg    (zinc-400)
 local RULE      = { hex = "#27272a", alpha = 1.0 }   -- border
+local RING_HEX  = "#fafafa"                          -- alpha is per-frame
+
+local sonar = require("lib.sonar")
 
 -- Retained: an unreferenced canvas, timer or eventtap is garbage-collected and
 -- stops working silently. Same rule as the watchers in dictation.lua.
-hyperCard     = nil
+hyperCard      = nil
 hyperHoldTimer = nil
-hyperTap      = nil
+hyperTap       = nil
+hyperRingTimer = nil
+hyperFlashTimer = nil
+
+-- Set by showCard, read by the ring tick and the key flash. The card's own
+-- frame in canvas coordinates, and where each row's elements live.
+local cardGeom = nil
+local rowElements = {}
+-- A key is lit until the card goes. Teardown is then the flash timer's job
+-- alone: releasing Hyper right after pressing a key would otherwise hide the
+-- card before the lit key had been on screen long enough to see.
+local flashing = false
 
 -- Text is built as styledtext rather than passed as a bare string so it can be
 -- measured before the canvas exists — the card's width depends on it — and so
@@ -151,7 +197,22 @@ local function widthOf(st)
   return size and size.w or 0
 end
 
+local function stopRings()
+  if hyperRingTimer then
+    hyperRingTimer:stop()
+    hyperRingTimer = nil
+  end
+end
+
 local function hideCard()
+  stopRings()
+  if hyperFlashTimer then
+    hyperFlashTimer:stop()
+    hyperFlashTimer = nil
+  end
+  flashing = false
+  rowElements = {}
+  cardGeom = nil
   if hyperCard then
     hyperCard:delete(FADE)
     hyperCard = nil
@@ -163,7 +224,44 @@ local function cancelHold()
     hyperHoldTimer:stop()
     hyperHoldTimer = nil
   end
+  if flashing then return end
   hideCard()
+end
+
+-- One frame of the rings: concentric rounded rectangles stepping outward from
+-- the card's own edge, each keeping the card's corner profile so they read as
+-- the card pulsing rather than as circles behind it. They are the canvas's
+-- first elements, so the opaque card covers their inner half and only the part
+-- that has escaped the edge is ever seen.
+local function tickRings(elapsed)
+  if not (hyperCard and cardGeom) then return end
+  for k = 1, RING_COUNT do
+    local r = sonar.ring(elapsed, k, RING_CADENCE)
+    local el = hyperCard[k]
+    if not el then return end
+    el.action = "stroke"
+    el.strokeWidth = r.width
+    el.strokeColor = { hex = RING_HEX, alpha = r.alpha * RING_PEAK }
+    el.frame = {
+      x = cardGeom.x - r.offset,
+      y = cardGeom.y - r.offset,
+      w = cardGeom.w + r.offset * 2,
+      h = cardGeom.h + r.offset * 2,
+    }
+    el.roundedRectRadii = { xRadius = RADIUS + r.offset, yRadius = RADIUS + r.offset }
+  end
+end
+
+-- Light up the pressed key's cap, shadcn-style: the accent colour as the fill
+-- with the glyph knocked out of it. Returns false for a key with no binding,
+-- which is the caller's cue to just dismiss.
+local function flashKey(key)
+  local row = rowElements[key]
+  if not (row and hyperCard) then return false end
+  hyperCard[row.fill].fillColor = KEY_LIT
+  hyperCard[row.stroke].strokeColor = KEY_LIT
+  hyperCard[row.glyph].text = row.litGlyph
+  return true
 end
 
 local function showCard()
@@ -182,9 +280,16 @@ local function showCard()
   -- never touched: they belong to whichever module registered them.
   local rows, labelW, keyW = {}, LABEL_MIN_W, KEY_MIN_W
   for _, item in ipairs(list) do
-    local label = styled(item.label, 13.5, TEXT)
-    local glyph = styled(item.key:upper(), 12.5, TEXT, { font = FONT_KEY, align = "center" })
-    rows[#rows + 1] = { label = label, glyph = glyph }
+    local label = styled(item.label, SIZE_LABEL, TEXT)
+    local glyph = styled(item.key:upper(), SIZE_KEY, TEXT, { font = FONT_KEY, align = "center" })
+    rows[#rows + 1] = {
+      key = item.key,
+      label = label,
+      glyph = glyph,
+      -- Built now rather than at press time: a keypress should light the cap on
+      -- the next frame, not go and lay out text first.
+      litGlyph = styled(item.key:upper(), SIZE_KEY, BG_SOLID, { font = FONT_KEY, align = "center" }),
+    }
     labelW = math.max(labelW, widthOf(label) + 2)
     keyW   = math.max(keyW, widthOf(glyph) + KEY_PAD)
   end
@@ -195,7 +300,7 @@ local function showCard()
   local perCol = math.ceil(#rows / cols)
   local colW   = keyW + KEY_GAP + labelW
   local cardW  = PAD * 2 + cols * colW + (cols - 1) * COL_GAP
-  local cardH  = HEADER_H + perCol * ROW_H + FOOTER_H
+  local cardH  = HEADER_H + perCol * ROW_H + BOTTOM_PAD
 
   -- Same as the registry: read the screen at display time, so moving between
   -- displays needs no rebuild and no screen watcher.
@@ -217,6 +322,17 @@ local function showCard()
   local O = SHADOW_PAD  -- every frame below is in canvas space, card-inset
   local cardFrame = { x = O, y = O, w = cardW, h = cardH }
   local radii     = { xRadius = RADIUS, yRadius = RADIUS }
+  cardGeom = cardFrame
+
+  -- Rings first, so the card is painted over their inner half. The tick owns
+  -- their frame and colour; these are just placeholders of the right shape.
+  for k = 1, RING_COUNT do
+    card[k] = {
+      type = "rectangle", action = "skip",
+      frame = cardFrame, roundedRectRadii = radii,
+      strokeWidth = RING_WIDTH, strokeColor = { hex = RING_HEX, alpha = 0 },
+    }
+  end
 
   -- Flat fill, one hairline border, one soft shadow — shadcn's card, and the
   -- reason there's no gradient or inner highlight here: those read as chrome,
@@ -236,67 +352,80 @@ local function showCard()
 
   card[#card + 1] = {
     type = "text",
-    text = styled("HYPER", 11, DIM, { kerning = 1.8 }),
-    frame = { x = O + PAD, y = O + PAD - 4, w = cardW - PAD * 2, h = 16 },
+    text = styled("HYPR", SIZE_TITLE, DIM, { kerning = 1.8 }),
+    frame = { x = O + PAD, y = O + PAD - 4, w = cardW - PAD * 2, h = 18 },
   }
   -- The modifiers themselves, right-aligned on the title row: the card says
   -- what you are holding, so it doubles as a reminder of what Hyper *is*.
   card[#card + 1] = {
     type = "text",
-    text = styled("⌃ ⌥ ⇧ ⌘", 12, DIM, { align = "right" }),
-    frame = { x = O + PAD, y = O + PAD - 6, w = cardW - PAD * 2, h = 18 },
+    text = styled("⌃ ⌥ ⇧ ⌘", SIZE_MODS, DIM, { align = "right" }),
+    frame = { x = O + PAD, y = O + PAD - 6, w = cardW - PAD * 2, h = 20 },
   }
   card[#card + 1] = {
     type = "segments", action = "stroke",
     coordinates = {
-      { x = O + PAD, y = O + HEADER_H - 10 },
-      { x = O + cardW - PAD, y = O + HEADER_H - 10 },
+      { x = O + PAD, y = O + HEADER_H - 14 },
+      { x = O + cardW - PAD, y = O + HEADER_H - 14 },
     },
     strokeColor = RULE, strokeWidth = 1,
   }
 
+  -- Element indices are recorded per row rather than derived from a base, so a
+  -- new element anywhere above can't silently point the key flash at the wrong
+  -- thing.
+  rowElements = {}
   for i, row in ipairs(rows) do
     local col = math.floor((i - 1) / perCol)
     local x   = O + PAD + col * (colW + COL_GAP)
     local y   = O + HEADER_H + ((i - 1) % perCol) * ROW_H
     local keyY = y + (ROW_H - KEY_H) / 2
     local keyFrame = { x = x, y = keyY, w = keyW, h = KEY_H }
-    local keyRadii = { xRadius = 6, yRadius = 6 }  -- shadcn kbd, rounded-md
+    local keyRadii = { xRadius = KEY_RADIUS, yRadius = KEY_RADIUS }
 
     card[#card + 1] = {
       type = "rectangle", action = "fill",
       frame = keyFrame, roundedRectRadii = keyRadii,
       fillColor = KEY_BG,
     }
+    local fillIdx = #card
     card[#card + 1] = {
       type = "rectangle", action = "stroke",
       frame = keyFrame, roundedRectRadii = keyRadii,
       strokeColor = KEY_EDGE, strokeWidth = 1,
     }
+    local strokeIdx = #card
     card[#card + 1] = {
       type = "text", text = row.glyph,
-      frame = { x = x, y = keyY + (KEY_H - 16) / 2, w = keyW, h = 18 },
+      frame = { x = x, y = keyY + (KEY_H - 18) / 2, w = keyW, h = 20 },
     }
+    local glyphIdx = #card
     card[#card + 1] = {
       type = "text", text = row.label,
-      frame = { x = x + keyW + KEY_GAP, y = y + (ROW_H - 16) / 2, w = labelW, h = 18 },
+      frame = { x = x + keyW + KEY_GAP, y = y + (ROW_H - 18) / 2, w = labelW, h = 20 },
+    }
+
+    rowElements[row.key] = {
+      fill = fillIdx, stroke = strokeIdx, glyph = glyphIdx, litGlyph = row.litGlyph,
     }
   end
 
-  card[#card + 1] = {
-    type = "text",
-    text = styled("keep holding to read · press a key to run it", 10.5, DIM, { align = "center" }),
-    frame = { x = O, y = O + cardH - FOOTER_H + 8, w = cardW, h = 16 },
-  }
-
   hyperCard = card
   card:show(FADE)
+
+  local t0 = hs.timer.secondsSinceEpoch()
+  hyperRingTimer = hs.timer.doEvery(FRAME_INTERVAL, function()
+    tickRings(hs.timer.secondsSinceEpoch() - t0)
+  end)
 end
 
 -- Exposed for debugging: `hs -c 'require("hyper").showCard()'` renders the card
--- without having to hold the keys down.
+-- without having to hold the keys down, and `.flashKey("w")` lights a cap
+-- without a keypress — which is the only way to see that state, since a real
+-- press dismisses the card 0.18s later.
 hyper.showCard = showCard
 hyper.hideCard = hideCard
+hyper.flashKey = flashKey
 
 local function isHyperHeld(f)
   return f.cmd and f.alt and f.ctrl and f.shift
@@ -306,8 +435,29 @@ hyperTap = hs.eventtap.new(
   { hs.eventtap.event.types.flagsChanged, hs.eventtap.event.types.keyDown },
   function(e)
     if e:getType() == hs.eventtap.event.types.keyDown then
-      -- A real keypress means Hyper was a prefix, not a gesture. This is what
-      -- keeps Hyper+W from flashing the card on its way to launching Wispr.
+      -- With the card up, a keypress is you using it: light that key's cap for
+      -- a moment so you see which binding you just fired, then let the card go.
+      -- Matched on the keycode rather than the event's characters, because with
+      -- all four modifiers down the characters are whatever the layout makes of
+      -- Hyper+W, not "w".
+      if hyperCard and not flashing then
+        local key = hs.keycodes.map[e:getKeyCode()]
+        if type(key) == "string" and flashKey(key) then
+          -- Rings stop so the lit key is what moves. The flash timer owns the
+          -- teardown from here; cancelHold defers to it.
+          stopRings()
+          flashing = true
+          hyperFlashTimer = hs.timer.doAfter(FLASH_HOLD, function()
+            hyperFlashTimer = nil
+            flashing = false
+            hideCard()
+          end)
+          return false
+        end
+      end
+      -- Otherwise a real keypress means Hyper was a prefix, not a gesture. This
+      -- is what keeps Hyper+W from flashing the card on its way to launching
+      -- Wispr during the hold countdown.
       cancelHold()
       return false
     end

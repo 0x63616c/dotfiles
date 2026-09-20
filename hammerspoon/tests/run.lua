@@ -45,6 +45,7 @@ end
 
 local geometry = require("lib.geometry")
 local Chord = require("lib.chord")
+local sonar = require("lib.sonar")
 
 -- Chord state machine --------------------------------------------------------
 
@@ -295,6 +296,72 @@ test("sliding card keeps its top above the screen edge", function()
   local _, miny, _, maxy = bounds(segs)
   near(miny, -60, "top tracks the slide")
   near(maxy, 28, "bottom tracks the slide")
+end)
+
+-- sonar --------------------------------------------------------------------
+
+local CADENCE = { count = 3, period = 1.5, width = 5, fade = 1.5, distance = 30 }
+
+test("a ring is born at its spawn edge, full width, fully visible", function()
+  local r = sonar.ring(0, 1, CADENCE)
+  near(r.t, 0, "phase")
+  near(r.offset, 0, "has not travelled")
+  near(r.width, 5, "full stroke")
+  near(r.alpha, 1, "fully visible")
+end)
+
+test("a ring travels, thins and fades over its period", function()
+  local a = sonar.ring(0.375, 1, CADENCE)   -- a quarter of the way through
+  local b = sonar.ring(0.75, 1, CADENCE)    -- halfway
+  check(b.offset > a.offset, "keeps travelling")
+  check(b.width < a.width, "keeps thinning")
+  check(b.alpha < a.alpha, "keeps fading")
+  near(b.offset, 15, "halfway is half the distance")
+end)
+
+test("the fade outruns the travel, so a ring pulses rather than smears", function()
+  -- The bug this guards: a linear fade leaves a ring faintly visible for its
+  -- whole trip, which reads as a smear. Alpha must lead the phase.
+  local r = sonar.ring(0.75, 1, CADENCE)
+  check(r.alpha < 0.5, "halfway through, less than half visible")
+end)
+
+test("rings are staggered, never in step", function()
+  local seen = {}
+  for k = 1, CADENCE.count do
+    local t = sonar.phase(0, k, CADENCE)
+    for _, other in ipairs(seen) do
+      check(math.abs(t - other) > 0.1, "ring phases must not coincide")
+    end
+    seen[#seen + 1] = t
+  end
+  eq(#seen, 3, "all three placed")
+end)
+
+test("phase wraps into 0..1 and never goes negative", function()
+  for _, elapsed in ipairs({ 0, 0.7, 1.5, 4.25, 97.3 }) do
+    for k = 1, 3 do
+      local t = sonar.phase(elapsed, k, CADENCE)
+      check(t >= 0 and t < 1, "phase in range at " .. elapsed .. " ring " .. k)
+    end
+  end
+end)
+
+test("a ring's life repeats exactly one period later", function()
+  local a = sonar.ring(0.4, 2, CADENCE)
+  local b = sonar.ring(0.4 + CADENCE.period, 2, CADENCE)
+  near(b.offset, a.offset, "same travel")
+  near(b.alpha, a.alpha, "same alpha")
+end)
+
+test("distance is the caller's, so inward and outward share one cadence", function()
+  -- dictation.lua sweeps inward a few points; hyper.lua radiates outward 30.
+  -- Same phase, different distance: that is the whole shape of the sharing.
+  local near_ = { count = 3, period = 1.5, width = 5, fade = 1.5, distance = 8 }
+  local far   = { count = 3, period = 1.5, width = 5, fade = 1.5, distance = 80 }
+  near(sonar.phase(0.5, 1, near_), sonar.phase(0.5, 1, far), "identical phase")
+  near(sonar.ring(0.75, 1, near_).offset, 4, "scales to its own distance")
+  near(sonar.ring(0.75, 1, far).offset, 40, "and so does the other")
 end)
 
 -- ----------------------------------------------------------------------------

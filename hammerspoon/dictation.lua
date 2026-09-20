@@ -65,6 +65,9 @@ end
 -- canvases, timers and watchers) stays here.
 
 local geometry = require("lib.geometry")
+-- The ring cadence is shared with the Hyper cheatsheet card (hyper.lua), so the
+-- two overlays pulse as one gesture. Direction, colour and path stay here.
+local sonar = require("lib.sonar")
 
 local BORDER_MAGENTA = { red = 1.0, green = 0.0, blue = 1.0 }
 local BORDER_WIDTH   = 28    -- static edge glow thickness, points
@@ -103,6 +106,14 @@ local RING_OPTS = {
   screenRadius = SCREEN_RADIUS,
   notchRadius = NOTCH_RADIUS,
   joinRadius = NOTCH_JOIN_R,
+}
+
+-- `distance` is filled in per canvas: it's measured off that screen's shorter
+-- side, so a ring on a wide display doesn't collapse its height to zero before
+-- it has gone anywhere.
+local RING_CADENCE = {
+  count = RING_COUNT, period = RING_PERIOD,
+  width = RING_WIDTH, fade = RING_FADE,
 }
 
 -- Retained deliberately: an unreferenced canvas or timer is garbage-collected
@@ -254,19 +265,16 @@ local function tickBorder(elapsed)
 
   for _, c in ipairs(borderCanvases) do
     local f = c:frame()
-    -- Travel is measured off the shorter side, so a ring on a wide display
-    -- doesn't collapse its height to zero before it has gone anywhere.
-    local maxInset = (math.min(f.w, f.h) / 2) * RING_TRAVEL
+    RING_CADENCE.distance = (math.min(f.w, f.h) / 2) * RING_TRAVEL
     -- Only the notch's own screen gets the detour.
     local notch = (c == borderNotchCanvas) and notchRect or nil
     for k = 1, RING_COUNT do
-      local t = ((elapsed / RING_PERIOD) + (k - 1) / RING_COUNT) % 1
-      local inset = t * maxInset
+      local r = sonar.ring(elapsed, k, RING_CADENCE)
       local el = c[RING_BASE + k]
       el.action = "stroke"
-      el.strokeWidth = RING_WIDTH * (1 - t * 0.6)
-      el.strokeColor = magentaAlpha((1 - t) ^ RING_FADE)
-      el.coordinates = geometry.ringPath(f.w, f.h, inset, notch, RING_OPTS)
+      el.strokeWidth = r.width
+      el.strokeColor = magentaAlpha(r.alpha)
+      el.coordinates = geometry.ringPath(f.w, f.h, r.offset, notch, RING_OPTS)
     end
   end
 

@@ -27,3 +27,6 @@ hammerspoon/Spoons/EmmyLua.spoon/annotations/
 # where it parks deleted ones — both are its state, not dotfiles.
 claude/skills/synced/
 claude/skills/.trash/
+
+# JetBrains project files (appear when the repo is opened in an IDE)
+.idea/
