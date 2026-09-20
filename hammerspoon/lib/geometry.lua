@@ -149,4 +149,46 @@ function M.subtitle(artist, elapsed, duration)
   return table.concat(parts, "  ·  ")
 end
 
+-- The notch card's silhouette.
+--
+-- Not a rounded rectangle: where the card meets the top of the screen its sides
+-- flare *outward* on a concave fillet, so it grows out of the screen edge
+-- instead of butting into it at 90 degrees. Same radius as the convex bottom
+-- corners, which is what makes the two ends read as one shape.
+--
+--   screen top ──────╮         ╭────── screen top
+--                    │         │          (concave, flaring out)
+--                    ╰─────────╯          (convex, bottom corners)
+--
+-- `top` may be above the screen (negative) while the card is sliding down; the
+-- flare is simply off-screen until it settles at top = 0.
+--
+-- The radius is clamped to half the card's height and a quarter of its width,
+-- so a short or narrow card degrades to something still convex rather than a
+-- path that folds through itself.
+function M.notchPath(left, right, top, bottom, radius)
+  local h = bottom - top
+  local w = right - left
+  local r = math.min(radius, h / 2, w / 4)
+  if r <= 0 then
+    return { { x = left, y = top }, { x = right, y = top },
+             { x = right, y = bottom }, { x = left, y = bottom } }
+  end
+
+  local segs = {}
+  local lineTo, arcTo = M.lineTo, M.arcTo
+
+  -- Start out on the screen edge, left of the card, and curve down into it.
+  lineTo(segs, left - r, top)
+  arcTo(segs, left - r, top, left, top + r, left, top)          -- flare, left
+  lineTo(segs, left, bottom - r)
+  arcTo(segs, left, bottom - r, left + r, bottom, left, bottom) -- bottom-left
+  lineTo(segs, right - r, bottom)
+  arcTo(segs, right - r, bottom, right, bottom - r, right, bottom) -- bottom-right
+  lineTo(segs, right, top + r)
+  arcTo(segs, right, top + r, right + r, top, right, top)       -- flare, right
+  -- Closing the path runs back along the screen edge.
+  return segs
+end
+
 return M

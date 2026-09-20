@@ -227,6 +227,76 @@ test("rounded join produces curves, not right angles", function()
   eq(curves, 8, "every corner should be a bezier")
 end)
 
+
+-- notchPath ------------------------------------------------------------------
+
+test("notch flares outward at the top, wider than the card itself", function()
+  local segs = geometry.notchPath(400, 600, 0, 88, 18)
+  local minx, _, maxx, _ = bounds(segs)
+  near(minx, 382, "left flare reaches radius beyond the card")
+  near(maxx, 618, "right flare reaches radius beyond the card")
+end)
+
+test("notch is exactly card-width at its widest point below the flare", function()
+  local segs = geometry.notchPath(400, 600, 0, 88, 18)
+  local atSides = 0
+  for _, p in ipairs(segs) do
+    if math.abs(p.x - 400) < 0.001 or math.abs(p.x - 600) < 0.001 then
+      atSides = atSides + 1
+    end
+  end
+  check(atSides >= 4, "sides should run straight at the card's own width")
+end)
+
+test("notch never extends past its own bottom", function()
+  local _, _, _, maxy = bounds(geometry.notchPath(400, 600, 0, 88, 18))
+  check(maxy <= 88.001, "got " .. tostring(maxy))
+end)
+
+test("notch has four curves: two flares, two bottom corners", function()
+  local curves = 0
+  for _, p in ipairs(geometry.notchPath(400, 600, 0, 88, 18)) do
+    if p.c1x then curves = curves + 1 end
+  end
+  eq(curves, 4, "two concave flares + two convex bottom corners")
+end)
+
+test("flare and bottom corners share a radius", function()
+  -- The left flare spans `r` horizontally; so does the bottom-left corner.
+  local segs = geometry.notchPath(400, 600, 0, 88, 18)
+  local minx = math.huge
+  for _, p in ipairs(segs) do minx = math.min(minx, p.x) end
+  near(400 - minx, 18, "flare inset equals the radius")
+end)
+
+test("radius clamps on a short card rather than folding through itself", function()
+  -- Mid-slide the card is only a few points tall.
+  local segs = geometry.notchPath(400, 600, 0, 10, 18)
+  local _, miny, _, maxy = bounds(segs)
+  check(miny >= -0.001, "must not reach above its own top")
+  check(maxy <= 10.001, "must not reach below its own bottom")
+end)
+
+test("radius clamps on a narrow card", function()
+  local segs = geometry.notchPath(400, 420, 0, 88, 18)
+  local minx, _, maxx, _ = bounds(segs)
+  check(maxx - minx <= 20 + 2 * 5 + 0.001, "flares can't exceed a quarter-width each")
+end)
+
+test("zero-height card degrades to a plain quad", function()
+  local segs = geometry.notchPath(400, 600, 0, 0, 18)
+  eq(#segs, 4, "no curves possible")
+  for _, p in ipairs(segs) do check(p.c1x == nil, "should have no control points") end
+end)
+
+test("sliding card keeps its top above the screen edge", function()
+  -- top is negative while it slides down out of the edge.
+  local segs = geometry.notchPath(400, 600, -60, 28, 18)
+  local _, miny, _, maxy = bounds(segs)
+  near(miny, -60, "top tracks the slide")
+  near(maxy, 28, "bottom tracks the slide")
+end)
+
 -- ----------------------------------------------------------------------------
 
 io.write(string.format("\n%d passed, %d failed\n", passed, failed))

@@ -89,8 +89,9 @@ local NOTCH_H        = 88
 local NOTCH_OVERHANG = 24    -- extra height above the screen edge, so the top
                              -- corners' rounding is never visible
 local NOTCH_RADIUS   = 18
-local NOTCH_JOIN_R   = 12    -- rounding where the ring's top edge turns down to
-                             -- meet the notch; without it those are hard 90s
+local NOTCH_JOIN_R   = 18    -- rounding where the ring's top edge turns down to
+                             -- meet the notch; matches NOTCH_RADIUS so the ring
+                             -- and the card's own flare share a silhouette
 local NOTCH_SLIDE    = 0.28  -- seconds for the slide-down
 local NOTCH_PAD      = 16    -- horizontal inset for the marquee window
 local NOTCH_PAD_TOP  = 18    -- gap above the first line; the rest of the
@@ -177,12 +178,13 @@ local function buildBorderCanvas(screen, withNotch)
   local nx = (f.w - NOTCH_W) / 2
   local act = withNotch and "fill" or "skip"
   c[NOTCH_BG] = {
-    type = "rectangle",
+    type = "segments",
     action = act,
+    closed = true,
     fillColor = magentaAlpha(0.95),
-    frame = { x = nx, y = -(NOTCH_H + NOTCH_OVERHANG),
-              w = NOTCH_W, h = NOTCH_H + NOTCH_OVERHANG },
-    roundedRectRadii = { xRadius = NOTCH_RADIUS, yRadius = NOTCH_RADIUS },
+    coordinates = geometry.notchPath(nx, nx + NOTCH_W,
+                                     -NOTCH_H - NOTCH_OVERHANG, -NOTCH_OVERHANG,
+                                     NOTCH_RADIUS),
   }
   c[NOTCH_LINE1] = {
     type = "text",
@@ -282,8 +284,8 @@ local function tickBorder(elapsed)
   local top = e * NOTCH_H - NOTCH_H + NOTCH_PAD_TOP
   local windowW = NOTCH_W - NOTCH_PAD * 2
 
-  c[NOTCH_BG].frame = { x = nx, y = e * NOTCH_H - NOTCH_H - NOTCH_OVERHANG,
-                        w = NOTCH_W, h = NOTCH_H + NOTCH_OVERHANG }
+  c[NOTCH_BG].coordinates = geometry.notchPath(
+    nx, nx + NOTCH_W, e * NOTCH_H - NOTCH_H, e * NOTCH_H, NOTCH_RADIUS)
   c[NOTCH_LINE1].frame = { x = nx, y = top, w = NOTCH_W, h = 20 }
   c[NOTCH_CLIP].frame = { x = nx + NOTCH_PAD, y = top + 21, w = windowW, h = 22 }
   c[NOTCH_LINE2].frame = {
