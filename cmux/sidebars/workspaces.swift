@@ -1,8 +1,9 @@
-// Workspace sidebar that shows the working directory's last path segment
-// (e.g. "dotfiles") above the git branch, instead of cmux's default full
-// path (e.g. "code/github.com/0x63616c/dotfiles" below "main"). The name's
-// text color is a stable hash of the directory basename, so each repo gets
-// a consistent, distinguishable color across sessions.
+// Workspace sidebar matching cmux's native row layout (title, status message,
+// agent status, branch · directory) but with the bottom line's directory
+// shortened to its last path segment (e.g. "dotfiles") instead of the full
+// path (e.g. "~/code/github.com/0x63616c/dotfiles"). The title's text color
+// is a stable hash of the directory basename, so each repo stays visually
+// distinguishable across sessions.
 //
 // Select it: right-click the sidebar toggle button -> "workspaces"
 // Preview as a pane without switching the left sidebar: `cmux sidebar open workspaces`
@@ -39,22 +40,40 @@ func colorForName(_ name: String) -> String {
 
 VStack(alignment: .leading, spacing: 2) {
     ForEach(workspaces) { w in
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(basename(w.directory))
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                if w.unread > 0 {
+                    ZStack {
+                        Circle().fill("orange").frame(width: 16, height: 16)
+                        Text("\(w.unread)").font(.caption2).bold().foregroundColor(.white)
+                    }
+                }
+                Text(w.title)
                     .font(.system(size: 13))
+                    .fontWeight(.semibold)
                     .lineLimit(1)
                     .foregroundColor(colorForName(basename(w.directory)))
-                if let b = w.branch {
-                    HStack(spacing: 4) {
-                        Text(b).font(.caption).foregroundColor(.secondary)
-                        if w.dirty {
-                            Text("*").font(.caption).foregroundColor(.secondary)
-                        }
+            }
+            if let msg = w.latestMessage {
+                Text(msg).font(.caption).lineLimit(1).foregroundColor(.secondary)
+            }
+            if let agents = w.agents {
+                if agents.count > 0 {
+                    let status = agents[0].status
+                    if status == "working" {
+                        Text("Running").font(.caption2).foregroundColor(.blue)
+                    } else if status == "needs_input" {
+                        Text("Needs input").font(.caption2).foregroundColor(.orange)
                     }
                 }
             }
-            Spacer()
+            if let b = w.branch {
+                Text("\(b)\(w.dirty ? "*" : "") · \(basename(w.directory))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            } else {
+                Text(basename(w.directory)).font(.caption2).foregroundColor(.secondary)
+            }
         }
         .padding(6)
         .frame(maxWidth: .infinity, alignment: .leading)
