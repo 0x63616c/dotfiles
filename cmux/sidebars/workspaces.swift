@@ -101,6 +101,14 @@ func row(_ w) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             // Line 1: title + trailing counters.
             HStack(spacing: 6) {
+                // Pinned marker: sits at the head of the title line and nudges
+                // the title along, rather than floating in the card corner.
+                if w.pinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(tint)
+                        .rotationEffect(.degrees(45))
+                }
                 Text(w.title)
                     .font(.system(size: 16))
                     .fontWeight(w.selected ? .semibold : .medium)
@@ -164,6 +172,11 @@ func row(_ w) -> some View {
     }
     .contentShape(Rectangle())
     .onTapGesture { cmux("workspace.select", workspace_id: w.id) }
+    // Gutter between cards. Reorderable ignores a `spacing:` argument and the
+    // enclosing VStack's spacing doesn't reach its rows, so the gap has to be
+    // outer padding on the row itself — after .background, so it stays
+    // transparent, and after .contentShape, so it isn't part of the hit area.
+    .padding(3)
     // A custom sidebar replaces the built-in row wholesale, including its
     // right-click menu, so the verbs have to be re-declared here.
     .contextMenu {
