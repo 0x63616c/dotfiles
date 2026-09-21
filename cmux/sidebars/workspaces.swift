@@ -1,13 +1,13 @@
 // Workspace sidebar: a cleaner take on cmux's native row.
 //
-//   ┃ Title                  ● Running   <- title; Running while Claude spins
+//   ┃ Title                  ● Running   <- title; Running/Needs you from cmux
 //   ┃ dotfiles                    main*   <- repo basename (hash-tinted) · branch
 //
 // The left accent bar and the repo name share a colour that is a stable hash
 // of the directory basename, so each repo stays recognisable across sessions.
 // The bar is bright on the selected row and dim otherwise; the selected row
-// also gets a soft rounded wash behind it, and a row with unread notifications
-// gets that wash in its repo colour.
+// also gets a soft rounded wash behind it, and a row whose agent is waiting on
+// you gets that wash in its repo colour.
 //
 // Rows use `.onTapGesture` rather than `Button` so the whole row is a hit
 // target (the interpreter's `Button` only hit-tests non-transparent content).
@@ -51,12 +51,33 @@ func colorForName(_ name: String) -> String {
     return palette[index]
 }
 
-// This cmux build (0.64.22) gives the sidebar no agent status, so it is read
-// off two things it does give us. Claude Code spins ◐◓◑◒ at the front of the
-// terminal title while it works and rests on ✳ when idle, so a spinner glyph
-// in the title means "running". And cmux counts a notification as unread on
-// any workspace you are not looking at, and Claude fires one when it finishes
-// or stops for input, so unread > 0 means "waiting on you".
+// Agent status comes straight from cmux: `w.agents` (0.64.23+) is the list of
+// coding-agent sessions the workspace hosts, each with a real
+// idle|working|needs_input|ended status. needs_input wins over working, so a
+// workspace where one agent is asking and another is grinding reads as the one
+// that wants you.
+//
+// Note the interpreter quirk: `w.agents != nil` is FALSE even when the field is
+// there. Optional fields must be unwrapped with `if let`, never compared to nil.
+func agentState(_ w) -> String {
+    var any = false
+    var working = false
+    var needs = false
+    if let ags = w.agents {
+        for a in ags {
+            any = true
+            if a.status == "working" { working = true }
+            if a.status == "needs_input" { needs = true }
+        }
+    }
+    if needs { return "needs_input" }
+    if working { return "working" }
+    if any { return "idle" }
+    return "none"
+}
+
+// Fallback for a workspace cmux registers no agent session for: Claude Code
+// spins ◐◓◑◒ at the front of the terminal title while it works.
 func isWorking(_ title: String) -> Bool {
     return title.contains("◐") || title.contains("◓") || title.contains("◑") || title.contains("◒")
 }
@@ -64,8 +85,11 @@ func isWorking(_ title: String) -> Bool {
 func row(_ w) -> some View {
     let repo = basename(w.directory)
     let tint = colorForName(repo)
-    let working = isWorking(w.title)
-    let waiting = w.unread > 0
+    let state = agentState(w)
+    let working = state == "working" || (state == "none" && isWorking(w.title))
+    // "Waiting on you" is an agent that stopped for input; with no agent
+    // session to ask, fall back to cmux's unread count.
+    let waiting = state == "needs_input" || (state == "none" && w.unread > 0)
 
     HStack(alignment: .top, spacing: 10) {
         // Accent bar: repo colour, bright when selected.
@@ -84,6 +108,12 @@ func row(_ w) -> some View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
+                if waiting {
+                    HStack(spacing: 4) {
+                        Circle().fill("#E0AF68").frame(width: 7, height: 7)
+                        Text("Needs you").font(.system(size: 13)).foregroundColor("#E0AF68")
+                    }
+                }
                 if working {
                     // Blinks: the sidebar re-renders about once a second, so
                     // the dot dims on odd seconds and comes back on even ones.
@@ -125,8 +155,8 @@ func row(_ w) -> some View {
     }
     .padding(9)
     .frame(maxWidth: .infinity, alignment: .leading)
-    // Wash: neutral on the selected row; the repo tint on any row with unread
-    // notifications, i.e. an agent finished or stopped while you were elsewhere.
+    // Wash: neutral on the selected row; the repo tint on any row whose agent
+    // stopped for input, so "it wants you" reads from across the screen.
     .background {
         RoundedRectangle(cornerRadius: 8)
             .fill(waiting ? tint : "#FFFFFF")
