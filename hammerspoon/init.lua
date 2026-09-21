@@ -8,6 +8,9 @@
 --   doubleshift.lua both Shifts held -> toggle real Caps Lock
 --   hyper.lua      Hyper-key shortcuts and their registry
 --   reload.lua     reload this config when any .lua here is saved
+--   screenshots.lua screenshots -> clipboard, and the Hyper+X library
+--   sonos.lua      Hyper+S Sonos panel: volumes, group-to-Desk, TV mode
+--   ui.lua         the canvas component library the overlays share
 --
 -- hs.ipc comes first, before anything that can fail. A module that throws while
 -- loading must not be able to take the `hs` CLI down with it: the CLI is the

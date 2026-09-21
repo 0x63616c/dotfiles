@@ -47,6 +47,7 @@ local geometry = require("lib.geometry")
 local Chord = require("lib.chord")
 local sonar = require("lib.sonar")
 local theme = require("lib.theme")
+local sonos = require("lib.sonos")
 
 -- Chord state machine --------------------------------------------------------
 
@@ -414,6 +415,106 @@ test("distance is the caller's, so inward and outward share one cadence", functi
   near(sonar.phase(0.5, 1, near_), sonar.phase(0.5, 1, far), "identical phase")
   near(sonar.ring(0.75, 1, near_).offset, 4, "scales to its own distance")
   near(sonar.ring(0.75, 1, far).offset, 40, "and so does the other")
+end)
+
+-- Sonos -----------------------------------------------------------------------
+
+-- A GetZoneGroupState response, shaped like the real thing: the topology is an
+-- XML document escaped into a text node, with a stereo pair's second speaker
+-- marked Invisible and one room grouped under another.
+local TOPOLOGY = table.concat({
+  '<s:Envelope><s:Body><u:GetZoneGroupStateResponse><ZoneGroupState>',
+  '&lt;ZoneGroupState&gt;&lt;ZoneGroups&gt;',
+  '&lt;ZoneGroup Coordinator=&quot;RINCON_DESK&quot; ID=&quot;RINCON_DESK:1&quot;&gt;',
+  '&lt;ZoneGroupMember UUID=&quot;RINCON_DESK&quot; Location=&quot;http://192.168.0.152:1400/xml/device_description.xml&quot; ZoneName=&quot;Desk&quot; Icon=&quot;&quot; Configuration=&quot;1&quot; BootSeq=&quot;48&quot;/&gt;',
+  '&lt;ZoneGroupMember UUID=&quot;RINCON_DESK2&quot; Location=&quot;http://192.168.0.161:1400/xml/device_description.xml&quot; ZoneName=&quot;Desk&quot; Invisible=&quot;1&quot;/&gt;',
+  '&lt;ZoneGroupMember UUID=&quot;RINCON_BED&quot; Location=&quot;http://192.168.0.63:1400/xml/device_description.xml&quot; ZoneName=&quot;Bedroom&quot;/&gt;',
+  '&lt;/ZoneGroup&gt;',
+  '&lt;ZoneGroup Coordinator=&quot;RINCON_BEAM&quot; ID=&quot;RINCON_BEAM:7&quot;&gt;',
+  '&lt;ZoneGroupMember UUID=&quot;RINCON_BEAM&quot; Location=&quot;http://192.168.0.193:1400/xml/device_description.xml&quot; ZoneName=&quot;Living Room&quot; HTSatChanMapSet=&quot;x&quot;&gt;',
+  '&lt;Satellite UUID=&quot;RINCON_SUB&quot; Location=&quot;http://192.168.0.5:1400/xml/device_description.xml&quot; ZoneName=&quot;Living Room&quot; Invisible=&quot;1&quot;/&gt;',
+  '&lt;/ZoneGroupMember&gt;&lt;/ZoneGroup&gt;',
+  '&lt;/ZoneGroups&gt;&lt;VanishedDevices&gt;&lt;/VanishedDevices&gt;&lt;/ZoneGroupState&gt;',
+  '</ZoneGroupState></u:GetZoneGroupStateResponse></s:Body></s:Envelope>',
+})
+
+test("topology drops the invisible half of a stereo pair and any satellites", function()
+  local rooms = sonos.parseTopology(TOPOLOGY)
+  eq(#rooms, 3, "visible rooms")
+  for _, r in ipairs(rooms) do
+    check(r.uuid ~= "RINCON_DESK2" and r.uuid ~= "RINCON_SUB", "hidden " .. r.uuid)
+  end
+end)
+
+test("topology orders coordinators first, members after, groups by name", function()
+  local rooms = sonos.parseTopology(TOPOLOGY)
+  eq(rooms[1].name, "Desk", "Desk group sorts before Living Room")
+  eq(rooms[1].isCoordinator, true, "coordinator leads its group")
+  eq(rooms[2].name, "Bedroom", "member follows its coordinator")
+  eq(rooms[2].coordinator, "RINCON_DESK", "member knows its coordinator")
+  eq(rooms[2].isCoordinator, false, "member is not a coordinator")
+  eq(rooms[3].name, "Living Room", "lone room is its own group")
+  eq(rooms[3].ip, "192.168.0.193", "ip parsed out of Location")
+end)
+
+test("topology survives an empty or garbage response", function()
+  eq(#sonos.parseTopology(""), 0, "empty")
+  eq(#sonos.parseTopology(nil), 0, "nil")
+  eq(#sonos.parseTopology("<html>500</html>"), 0, "not soap")
+end)
+
+test("fingerprint changes when grouping changes, not when volume does", function()
+  local a = sonos.parseTopology(TOPOLOGY)
+  local b = sonos.parseTopology(TOPOLOGY)
+  eq(sonos.fingerprint(a), sonos.fingerprint(b), "stable across polls")
+  b[2].coordinator = "RINCON_BED"
+  check(sonos.fingerprint(a) ~= sonos.fingerprint(b), "regrouping changes it")
+end)
+
+test("request builds a UPnP envelope with ordered, escaped arguments", function()
+  local r = sonos.request("AVTransport", "SetAVTransportURI", {
+    { "CurrentURI", "x-rincon:RINCON_DESK" }, { "CurrentURIMetaData", "<a&b>" },
+  })
+  eq(r.path, "/MediaRenderer/AVTransport/Control", "control path")
+  eq(r.headers.SOAPACTION, '"urn:schemas-upnp-org:service:AVTransport:1#SetAVTransportURI"', "soapaction")
+  check(r.body:find("<InstanceID>0</InstanceID><CurrentURI>x-rincon:RINCON_DESK</CurrentURI><CurrentURIMetaData>", 1, true), "arguments in order after InstanceID")
+  check(r.body:find("&lt;a&amp;b&gt;", 1, true), "argument escaped")
+  check(not r.body:find("<a&b>", 1, true), "raw argument never leaks into the XML")
+end)
+
+test("request refuses a service it doesn't know", function()
+  check(not pcall(sonos.request, "Nope", "X", {}), "unknown service throws")
+end)
+
+test("value reads one tag out of a response", function()
+  eq(sonos.value("<a><CurrentVolume>31</CurrentVolume></a>", "CurrentVolume"), "31", "found")
+  eq(sonos.value("<a></a>", "CurrentVolume"), nil, "missing")
+  eq(sonos.value(nil, "CurrentVolume"), nil, "no body")
+end)
+
+test("source labels: TV and line-in are named, streaming is generic, empty is idle", function()
+  eq(sonos.sourceLabel("x-sonos-htastream:RINCON_BEAM:spdif"), "TV", "tv")
+  eq(sonos.sourceLabel("x-rincon-stream:RINCON_DESK:0"), "Line-in", "line-in")
+  eq(sonos.sourceLabel("x-sonos-spotify:spotify%3atrack%3a1?sid=12"), "Spotify", "spotify")
+  eq(sonos.sourceLabel("x-rincon:RINCON_DESK"), "Grouped", "member")
+  eq(sonos.sourceLabel(""), "", "idle")
+  eq(sonos.sourceLabel(nil), "", "nil")
+  eq(sonos.sourceLabel("something-new://x"), "Playing", "unknown scheme still reads as playing")
+end)
+
+test("transport URIs match the verified recipes", function()
+  eq(sonos.groupUri("RINCON_DESK"), "x-rincon:RINCON_DESK", "group")
+  eq(sonos.lineInUri("RINCON_DESK"), "x-rincon-stream:RINCON_DESK:0", "line-in")
+  eq(sonos.tvUri("RINCON_BEAM"), "x-sonos-htastream:RINCON_BEAM:spdif", "tv")
+end)
+
+test("slider maps x to 0..100 and pins past either end", function()
+  eq(sonos.volumeFromX(100, 100, 200), 0, "left edge")
+  eq(sonos.volumeFromX(300, 100, 200), 100, "right edge")
+  eq(sonos.volumeFromX(200, 100, 200), 50, "middle")
+  eq(sonos.volumeFromX(-50, 100, 200), 0, "dragged past the left")
+  eq(sonos.volumeFromX(999, 100, 200), 100, "dragged past the right")
+  eq(sonos.volumeFromX(150, 100, 0), 0, "degenerate track")
 end)
 
 -- ----------------------------------------------------------------------------
