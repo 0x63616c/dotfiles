@@ -43,11 +43,18 @@ enum custom_keycodes {
 #define BOOTBLU_MS        1000 // total delay before jumping to bootloader
 #define BOOTBLU_PURPLE_MS 800  // switch blue -> purple at this point (last 200ms)
 
-// Hyper = the four left mods the Caps/Hyper key holds down (Ctrl+Shift+Alt+Gui).
+// Hyper used to be the four left mods the Caps key held down in hardware; the
+// Caps key now sends plain KC_CAPS, which macOS remaps to F18 (hidutil, via a
+// LaunchAgent in dotfiles/hammerspoon/launchagents) and Hammerspoon's
+// capslock.lua turns into Hyper while held — the same path every other
+// keyboard takes. Nothing in firmware sets these bits anymore. The macros
+// below key off caps_held directly rather than this, but the #define and
+// send_hyper_string are left in place as generic helpers around whatever real
+// modifiers happen to be held (e.g. an actual Shift) while a password sends.
 #define HYPER_MODS (MOD_BIT(KC_LCTL) | MOD_BIT(KC_LSFT) | MOD_BIT(KC_LALT) | MOD_BIT(KC_LGUI))
 
-// Type `str` cleanly even though the Hyper mods are physically held: drop them,
-// send, then restore so the held key keeps working afterward.
+// Type `str` cleanly even if modifiers are physically held: drop them, send,
+// then restore so the held key keeps working afterward.
 static void send_hyper_string(const char *str) {
     uint8_t saved = get_mods();
     clear_mods();
@@ -55,11 +62,15 @@ static void send_hyper_string(const char *str) {
     set_mods(saved);
 }
 
-// Both shifts held at once toggles Caps Lock (Caps key itself is now Hyper).
-// Tracked by held state, NOT a combo — so any gap works: hold left, wait, then
-// add right and it still fires. Combos would require pressing both within COMBO_TERM.
-static bool lsft_held = false;
-static bool rsft_held = false;
+// Physical Caps key held — tracked directly (not via HYPER_MODS, which this
+// key no longer asserts) so Hyper+Esc/Hello/F13-F15 below still mean "hold
+// Caps and press X", exactly as before the key started sending plain KC_CAPS.
+// The board sees the physical key regardless of what macOS remaps it to.
+//
+// The both-shifts Caps Lock chord that used to live here moved to
+// Hammerspoon (doubleshift.lua): a firmware tap_code(KC_CAPS) would now be
+// remapped to F18 by the OS and read as a Hyper tap, not Caps Lock.
+static bool caps_held = false;
 
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
@@ -67,7 +78,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_ESC,   KC_BRID,  KC_BRIU,  KC_MCTRL, KC_LNPAD, RGB_VAD,  RGB_VAI,  KC_MPRV,  KC_MPLY,  KC_MNXT,  KC_MUTE,  KC_VOLD,  KC_VOLU,    KC_MUTE,    KC_SNAP,  KC_SIRI,  RGB_MOD,  KC_F13,   KC_F14,   KC_F15,   KC_HELLO,
         KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,     KC_BSPC,    KC_INS,   KC_HOME,  KC_PGUP,  KC_NUM,   KC_PSLS,  KC_PAST,  KC_PMNS,
         KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,    KC_BSLS,    KC_DEL,   KC_END,   KC_PGDN,  KC_P7,    KC_P8,    KC_P9,
-        KC_HYPR,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,              KC_ENT,                                   KC_P4,    KC_P5,    KC_P6,    KC_PPLS,
+        KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,              KC_ENT,                                   KC_P4,    KC_P5,    KC_P6,    KC_PPLS,
         KC_LSFT,            KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,              KC_RSFT,              KC_UP,              KC_P1,    KC_P2,    KC_P3,
         KC_LCTL,  KC_LOPTN, KC_LCMMD,                               KC_SPC,                                 KC_RCMMD, KC_ROPTN, MO(MAC_FN), KC_RCTL,    KC_LEFT,  KC_DOWN,  KC_RGHT,  KC_P0,              KC_PDOT,  KC_PENT),
     [MAC_FN] = LAYOUT_109_ansi(
@@ -81,7 +92,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_ESC,   KC_F1,    KC_F2,    KC_F3,    KC_F4,    KC_F5,    KC_F6,    KC_F7,    KC_F8,    KC_F9,    KC_F10,   KC_F11,   KC_F12,     KC_MUTE,    KC_PSCR,  KC_CTANA, RGB_MOD,  _______,  _______,  _______,  _______,
         KC_GRV,   KC_1,     KC_2,     KC_3,     KC_4,     KC_5,     KC_6,     KC_7,     KC_8,     KC_9,     KC_0,     KC_MINS,  KC_EQL,     KC_BSPC,    KC_INS,   KC_HOME,  KC_PGUP,  KC_NUM,   KC_PSLS,  KC_PAST,  KC_PMNS,
         KC_TAB,   KC_Q,     KC_W,     KC_E,     KC_R,     KC_T,     KC_Y,     KC_U,     KC_I,     KC_O,     KC_P,     KC_LBRC,  KC_RBRC,    KC_BSLS,    KC_DEL,   KC_END,   KC_PGDN,  KC_P7,    KC_P8,    KC_P9,
-        KC_HYPR,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,              KC_ENT,                                   KC_P4,    KC_P5,    KC_P6,    KC_PPLS,
+        KC_CAPS,  KC_A,     KC_S,     KC_D,     KC_F,     KC_G,     KC_H,     KC_J,     KC_K,     KC_L,     KC_SCLN,  KC_QUOT,              KC_ENT,                                   KC_P4,    KC_P5,    KC_P6,    KC_PPLS,
         KC_LSFT,            KC_Z,     KC_X,     KC_C,     KC_V,     KC_B,     KC_N,     KC_M,     KC_COMM,  KC_DOT,   KC_SLSH,              KC_RSFT,              KC_UP,              KC_P1,    KC_P2,    KC_P3,
         KC_LCTL,  KC_LWIN,  KC_LALT,                                KC_SPC,                                 KC_RALT,  KC_RWIN,  MO(WIN_FN), KC_RCTL,    KC_LEFT,  KC_DOWN,  KC_RGHT,  KC_P0,              KC_PDOT,  KC_PENT),
     [WIN_FN] = LAYOUT_109_ansi(
@@ -110,8 +121,11 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         return false;
     }
     switch (keycode) {
-        case KC_ESC: // Hyper + Esc -> arm the blue->purple bootloader flash (plain Esc otherwise)
-            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+        case KC_CAPS: // track Caps held, in addition to letting it send normally
+            caps_held = record->event.pressed;
+            return true;
+        case KC_ESC: // Caps + Esc -> arm the blue->purple bootloader flash (plain Esc otherwise)
+            if (record->event.pressed && caps_held) {
                 bootblu_timer = timer_read32();
                 if (bootblu_timer == 0) { // avoid the idle sentinel on the rare exact-zero read
                     bootblu_timer = 1;
@@ -119,8 +133,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 return false;
             }
             return true;
-        case KC_HELLO: // corner (F16): Hyper -> password 4 (plain press does nothing)
-            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+        case KC_HELLO: // corner (F16): Caps -> password 4 (plain press does nothing)
+            if (record->event.pressed && caps_held) {
                 send_hyper_string(SECRET_PW4);
             }
             return false;
@@ -132,34 +146,22 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 }
             }
             return false;
-        case KC_F13: // Hyper + F13 -> password 1 (plain F13 otherwise)
-            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+        case KC_F13: // Caps + F13 -> password 1 (plain F13 otherwise)
+            if (record->event.pressed && caps_held) {
                 send_hyper_string(SECRET_PW1);
                 return false;
             }
             return true;
-        case KC_F14: // Hyper + F14 -> password 2 (plain F14 otherwise)
-            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+        case KC_F14: // Caps + F14 -> password 2 (plain F14 otherwise)
+            if (record->event.pressed && caps_held) {
                 send_hyper_string(SECRET_PW2);
                 return false;
             }
             return true;
-        case KC_F15: // Hyper + F15 -> password 3 (plain F15 otherwise)
-            if (record->event.pressed && (get_mods() & HYPER_MODS) == HYPER_MODS) {
+        case KC_F15: // Caps + F15 -> password 3 (plain F15 otherwise)
+            if (record->event.pressed && caps_held) {
                 send_hyper_string(SECRET_PW3);
                 return false;
-            }
-            return true;
-        case KC_LSFT: // both shifts held (any gap) -> toggle Caps Lock; shift still works
-            lsft_held = record->event.pressed;
-            if (record->event.pressed && rsft_held) {
-                tap_code(KC_CAPS);
-            }
-            return true;
-        case KC_RSFT:
-            rsft_held = record->event.pressed;
-            if (record->event.pressed && lsft_held) {
-                tap_code(KC_CAPS);
             }
             return true;
     }
@@ -201,8 +203,8 @@ bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
         }
         return false; // boot flash overrides everything else
     }
-    if ((get_mods() & HYPER_MODS) == HYPER_MODS) {
-        // Rainbow that scrolls left -> right, looping, for as long as Hyper is held.
+    if (caps_held) {
+        // Rainbow that scrolls left -> right, looping, for as long as Caps is held.
         uint8_t val   = rgb_matrix_get_val();          // respect current brightness
         uint8_t phase = (uint8_t)(timer_read32() / 2); // grows fast over time -> band races right (max-ish speed)
         for (uint8_t i = led_min; i < led_max; i++) {

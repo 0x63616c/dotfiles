@@ -343,8 +343,6 @@ cask "gcc-arm-embedded"
 cask "go-task/tap/go-task", trusted: true
 # Desktop automation application
 cask "hammerspoon"
-# Convert your caps lock key or any of your modifier keys to the hyper key
-cask "hyperkey"
 # Menu bar manager
 cask "jordanbaird-ice"
 # Reverse proxy, secure introspectable tunnels to localhost

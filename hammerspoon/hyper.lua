@@ -1,11 +1,10 @@
 -- Hyper shortcuts -------------------------------------------------------------
 --
--- Hyper is Ctrl+Shift+Alt+Gui. On the QMK board that's held by the Caps key in
--- hardware (qmk/0x63616c/keymap.c, pending a reflash); on any other keyboard
--- it's capslock.lua turning a held literal Caps Lock into the same four flags
--- in software, replacing the old Hyperkey app. Either way macOS sees four real
--- modifier flags, not a distinct keycode, so these are ordinary hs.hotkey
--- binds — no Karabiner F18 indirection.
+-- Hyper is Ctrl+Shift+Alt+Gui, held by the Caps key on every keyboard: hidutil
+-- remaps Caps Lock to F18 at login and capslock.lua turns a held F18 into the
+-- four flags, replacing the old Hyperkey app (and the QMK board's old
+-- hardware Hyper). By the time a keypress gets here macOS sees four real
+-- modifier flags, so these are ordinary hs.hotkey binds.
 --
 -- Bindings go through hyper.bind rather than hs.hotkey.bind directly so each one
 -- records what it does. hs.hotkey's own `message` argument can't serve that
@@ -298,6 +297,11 @@ hyperTap = hs.eventtap.new(
   { hs.eventtap.event.types.flagsChanged, hs.eventtap.event.types.keyDown },
   function(e)
     if e:getType() == hs.eventtap.event.types.keyDown then
+      -- F18 is the Caps key itself (capslock.lua swallows it, but eventtaps run
+      -- newest-first so this one can see it on the way through, and it
+      -- autorepeats for as long as Caps is held). It's the modifier, not a
+      -- keypress, so it must neither cancel the countdown nor flash a cap.
+      if e:getKeyCode() == hs.keycodes.map.f18 then return false end
       -- With the card up, a keypress is you using it: light that key's cap for
       -- a moment so you see which binding you just fired, then let the card go.
       -- Matched on the keycode rather than the event's characters, because with

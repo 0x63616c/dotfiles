@@ -26,7 +26,7 @@ and creates `secrets.h` from the template. `just doctor` shows what's set up.
 
 Passwords are compiled into the firmware, not stored as VIA macros:
 
-- `0x63616c/keymap.c` types `SECRET_PW1`..`PW4` on Hyper+F13 / F14 / F15 / F16 (top-right keys).
+- `0x63616c/keymap.c` types `SECRET_PW1`..`PW4` on Caps+F13 / F14 / F15 / F16 (top-right keys). The Caps key sends plain Caps Lock; macOS remaps it to F18 and Hammerspoon (`hammerspoon/capslock.lua`) makes a hold Hyper. The both-shifts Caps Lock chord lives in `hammerspoon/doubleshift.lua`, not here.
 - Real values live in `0x63616c/secrets.h` (gitignored). Missing/incomplete = hard build error.
 - VIA/WebHID cannot read them (not in EEPROM). A physical flash dump still can —
   keyboard secrets are not a substitute for a password manager.

@@ -3,7 +3,9 @@
 -- file — there is no list here to keep in sync.
 --
 -- What lives where:
+--   capslock.lua   Caps Lock (remapped to F18) -> Hyper, replacing Hyperkey
 --   dictation.lua  auto pause/resume media + the on-screen dictation indicator
+--   doubleshift.lua both Shifts held -> toggle real Caps Lock
 --   hyper.lua      Hyper-key shortcuts and their registry
 --   reload.lua     reload this config when any .lua here is saved
 --
