@@ -187,38 +187,6 @@ test("plain ring stays within the screen, inset on all sides", function()
   check(maxy <= 790 + 0.001, "bottom edge respects inset")
 end)
 
-test("overshoot pushes the ring outside the screen and fills the corner", function()
-  local opts = { screenRadius = 28, overshoot = 28 * (math.sqrt(2) - 1) }
-  local segs = geometry.ringPath(1000, 800, 0, nil, opts)
-  local minx, miny, maxx, maxy = bounds(segs)
-  local o = 28 * (math.sqrt(2) - 1)
-  check(minx <= -o + 0.001, "left edge sits outside the screen")
-  check(miny <= -o + 0.001, "top edge sits outside the screen")
-  check(maxx >= 1000 + o - 0.001, "right edge sits outside the screen")
-  check(maxy >= 800 + o - 0.001, "bottom edge sits outside the screen")
-  -- The corner arc is centred on (screenRadius, screenRadius) whatever the
-  -- overshoot, so the screen's square corner is covered exactly when the
-  -- radius reaches screenRadius * sqrt(2).
-  check(math.abs((28 + o) - 28 * math.sqrt(2)) < 0.001,
-        "radius just reaches the display corner")
-end)
-
-test("overshoot leaves the notch detour where the notch is", function()
-  local notch = { left = 400, right = 600, bottom = 68 }
-  local plain = geometry.ringPath(1000, 800, 0, notch, { screenRadius = 28 })
-  local over = geometry.ringPath(1000, 800, 0, notch,
-                                 { screenRadius = 28,
-                                   overshoot = 28 * (math.sqrt(2) - 1) })
-  local function nearNotch(segs)
-    local n = 0
-    for _, p in ipairs(segs) do
-      if p.x >= 380 and p.x <= 620 and p.y <= 120 then n = n + 1 end
-    end
-    return n
-  end
-  check(nearNotch(over) == nearNotch(plain), "detour is unchanged by overshoot")
-end)
-
 test("notch detour adds points and reaches below the notch", function()
   local notch = { left = 400, right = 600, bottom = 68 }
   local plain = geometry.ringPath(1000, 800, 0, nil)

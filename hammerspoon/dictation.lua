@@ -112,19 +112,6 @@ local BORDER_FALLOFF = 1.7   -- >1 concentrates brightness at the outer edge,
                              -- which is what reads as a glow rather than a frame
 local BORDER_BASE    = 0.55  -- static glow alpha (the rings supply the motion)
 local SCREEN_RADIUS  = 28    -- corner rounding of the display itself
--- How far outside the screen edge the outermost arc sits. Flush (0) leaves the
--- display's square corners unpainted: a rounded path along the edge cuts the
--- corner off and you see dark exactly where the glow should be densest. The
--- corner arc is centred on (SCREEN_RADIUS, SCREEN_RADIUS) whatever the
--- overshoot, so it reaches the corner once its radius passes
--- SCREEN_RADIUS * sqrt(2) — that is, at this overshoot and no more. Taking the
--- minimum keeps the glow where it already looked right; only the corner
--- changes, and the sliver beyond the edge is clipped by the screen anyway.
-local BORDER_OVERSHOOT = SCREEN_RADIUS * (math.sqrt(2) - 1)
--- Extra bands laid outward to cover the overshoot, so widening the glow outward
--- doesn't pull its inner edge out with it.
-local BORDER_BAND_W  = BORDER_WIDTH / BORDER_BANDS
-local BORDER_EXTRA   = math.ceil(BORDER_OVERSHOOT / BORDER_BAND_W)
 
 local RING_COUNT     = 3     -- rings in flight at once
 local RING_PERIOD    = 1.5   -- seconds for one ring: edge -> faded out
@@ -153,7 +140,6 @@ local MARQUEE = { speed = 38, hold = 1.4 }   -- points/sec, seconds at each end
 
 local RING_OPTS = {
   screenRadius = SCREEN_RADIUS,
-  overshoot = BORDER_OVERSHOOT,
   notchRadius = NOTCH_RADIUS,
   joinRadius = NOTCH_JOIN_R,
 }
@@ -187,7 +173,7 @@ local function magentaAlpha(alpha)
 end
 
 -- Element indices are fixed so rings and the notch can be addressed by index.
-local RING_BASE    = BORDER_EXTRA + BORDER_BANDS
+local RING_BASE    = BORDER_BANDS
 local NOTCH_BG     = RING_BASE + RING_COUNT + 1
 local NOTCH_LINE1  = RING_BASE + RING_COUNT + 2
 local NOTCH_CLIP   = RING_BASE + RING_COUNT + 3
@@ -206,25 +192,19 @@ local function buildBorderCanvas(screen, withNotch)
   c:clickActivating(false)
   c:canvasMouseEvents(false, false, false, false)
 
-  -- Static edge glow. Bands 1..BORDER_EXTRA sit outside the screen edge and
-  -- carry full brightness; the falloff is measured from the edge inward, as
-  -- before, so the glow reads exactly as it did.
-  local band = BORDER_BAND_W
-  for i = 1, BORDER_EXTRA + BORDER_BANDS do
-    local step = i - 1 - BORDER_EXTRA          -- 0 = flush with the edge
-    local inset = step * band
-    -- Radius tracks the inset (same rule as ringPath), so every band is
-    -- concentric with the display's own rounding rather than parallel to it.
-    local radius = math.max(2, SCREEN_RADIUS - inset)
-    local fade = math.max(0, step) / BORDER_BANDS
+  -- Static edge glow.
+  local band = BORDER_WIDTH / BORDER_BANDS
+  for i = 1, BORDER_BANDS do
+    local inset = (i - 1) * band
     c[i] = {
       type = "rectangle",
       action = "stroke",
       strokeWidth = band * 2,
-      strokeColor = magentaAlpha(BORDER_BASE * ((1 - fade) ^ BORDER_FALLOFF)),
+      strokeColor = magentaAlpha(BORDER_BASE
+        * ((1 - (i - 1) / BORDER_BANDS) ^ BORDER_FALLOFF)),
       frame = { x = inset, y = inset,
                 w = f.w - inset * 2, h = f.h - inset * 2 },
-      roundedRectRadii = { xRadius = radius, yRadius = radius },
+      roundedRectRadii = { xRadius = SCREEN_RADIUS, yRadius = SCREEN_RADIUS },
     }
   end
 
