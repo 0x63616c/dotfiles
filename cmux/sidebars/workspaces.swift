@@ -85,8 +85,11 @@ func row(_ w) -> some View {
                     .truncationMode(.tail)
                 Spacer()
                 if working {
+                    // Blinks: the sidebar re-renders about once a second, so
+                    // the dot dims on odd seconds and comes back on even ones.
                     HStack(spacing: 4) {
                         Circle().fill("#7AA2F7").frame(width: 7, height: 7)
+                            .opacity(clock.second % 2 == 0 ? 1.0 : 0.25)
                         Text("Running").font(.system(size: 13)).foregroundColor("#7AA2F7")
                     }
                 }
