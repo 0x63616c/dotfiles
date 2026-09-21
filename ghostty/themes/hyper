@@ -1,0 +1,25 @@
+# Hyper.js default theme for Ghostty
+# Ported from https://github.com/vercel/hyper
+
+background = #000000
+foreground = #ffffff
+
+# Normal colors
+palette = 0=#000000
+palette = 1=#C51E14
+palette = 2=#1DC121
+palette = 3=#C7C329
+palette = 4=#0A2FC4
+palette = 5=#C839C5
+palette = 6=#20C5C6
+palette = 7=#C7C7C7
+
+# Bright colors
+palette = 8=#686868
+palette = 9=#FD6F6B
+palette = 10=#67F86F
+palette = 11=#FFFA72
+palette = 12=#6A76FB
+palette = 13=#FD7CFC
+palette = 14=#68FDFE
+palette = 15=#FFFFFF
