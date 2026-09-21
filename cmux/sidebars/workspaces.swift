@@ -130,7 +130,7 @@ func row(_ w) -> some View {
             }
         }
     }
-    .padding(10)
+    .padding(8)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background {
         RoundedRectangle(cornerRadius: 8)
@@ -146,4 +146,4 @@ VStack(alignment: .leading, spacing: 4) {
         row(w)
     }
 }
-.padding(6)
+.padding(2)
