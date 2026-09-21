@@ -67,10 +67,10 @@ func row(_ w) -> some View {
         // Accent bar: repo colour, bright when selected.
         RoundedRectangle(cornerRadius: 1.5)
             .fill(tint)
-            .frame(width: 3, height: 38)
+            .frame(width: 3, height: 45)
             .opacity(w.selected ? 1.0 : 0.35)
 
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 7) {
             // Line 1: title + trailing counters.
             HStack(spacing: 6) {
                 Text(w.title)
@@ -130,7 +130,7 @@ func row(_ w) -> some View {
             }
         }
     }
-    .padding(8)
+    .padding(9)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background {
         RoundedRectangle(cornerRadius: 8)
