@@ -188,7 +188,10 @@ func row(_ w) -> some View {
 VStack(alignment: .leading, spacing: 4) {
     // Breathing room under the traffic lights; .padding(n) can't do top-only.
     Rectangle().fill("#00000000").frame(height: 10)
-    ForEach(workspaces) { w in
+    // Reorderable, not ForEach: rows become draggable and a drop runs
+    // `workspace.reorder`, which both moves the row and persists the order
+    // (cmux remembers it). Do not reach for List/.onMove/.draggable.
+    Reorderable(workspaces, move: "workspace.reorder") { w in
         row(w)
     }
 }
