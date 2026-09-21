@@ -1,6 +1,6 @@
 // Workspace sidebar: a cleaner take on cmux's native row.
 //
-//   ┃ Title                          2   <- title, tab count / unread badge
+//   ┃ Title                          2   <- title, tab count when > 1
 //   ┃ dotfiles  main*                    <- repo basename (hash-tinted) · branch
 //   ┃ ● Running                          <- agent status, only when an agent is live
 //
@@ -80,16 +80,7 @@ func row(_ w) -> some View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
-                if w.unread > 0 {
-                    // Spaces, not .padding(.horizontal): the interpreter reads
-                    // that as padding on every edge (see the header).
-                    Text(" \(w.unread) ")
-                        .font(.system(size: 13, design: .monospaced))
-                        .bold()
-                        .foregroundColor("#1A1A22")
-                        .padding(4)
-                        .background { Capsule().fill("#E0AF68") }
-                } else if w.tabCount > 1 {
+                if w.tabCount > 1 {
                     Text("\(w.tabCount)")
                         .font(.system(size: 13, design: .monospaced))
                         .foregroundColor(.tertiary)
