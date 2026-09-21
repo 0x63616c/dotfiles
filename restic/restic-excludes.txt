@@ -103,8 +103,30 @@
 # for network storage.
 #
 # ~/Library/Mobile Documents (iCloud Drive) is deliberately NOT excluded — it is
-# fully materialised locally (zero dataless files) and is real data. It is slow
-# to read (File Provider IPC per file), which --read-concurrency compensates for.
+# real data. It is slow to read (File Provider IPC per file), which
+# --read-concurrency compensates for.
+#
+# !! KNOWN GAP, measured 2026-09-21. The line above used to read "fully
+# !! materialised locally (zero dataless files)". That is no longer true:
+# !!
+# !!     51,328 of 52,897 files in com~apple~CloudDocs carry the `dataless`
+# !!     flag — 27 GB, i.e. 97% of iCloud Drive is evicted and lives only on
+# !!     Apple's servers.
+# !!
+# !! Modern File Provider does not leave .icloud stub files, so a `find -name
+# !! '*.icloud'` check finds nothing and the eviction is invisible. Only
+# !! `find -flags +dataless` sees it.
+# !!
+# !! restic materialises some on read and gets EDEADLK on the rest — ~11,800
+# !! per run — which is what the rc=3 warnings actually are. Those files are
+# !! NOT in any snapshot. They are deliberately left un-excluded so the warning
+# !! keeps firing: excluding them would turn a visible gap into a silent one.
+# !!
+# !! Fix is to materialise them and keep them materialised:
+# !!     brctl download ~/Library/Mobile\ Documents/com~apple~CloudDocs
+# !! then System Settings → Apple ID → iCloud → iCloud Drive → turn OFF
+# !! "Optimise Mac Storage", or they get evicted again the next time the disk
+# !! fills. Costs 27 GB of local disk.
 /Users/calum/Library/CloudStorage
 
 # ── Scratch ───────────────────────────────────────────────────────────────────
@@ -129,6 +151,28 @@
 # 93M
 /Users/calum/Library/Messages/NickNameCache
 
+# ── Live databases and on-device telemetry ───────────────────────────────────
+# Not size — these are the "resource deadlock avoided" (EDEADLK) sources that
+# make an otherwise-good run exit 3. They are files macOS is holding open and
+# rewriting as restic reads them: SQLite WALs, sentry queues, File Provider
+# tombstones. All are derived state, none is recoverable data, and each one
+# turns a green backup into "completed with unreadable files", which trains you
+# to ignore the one warning that matters.
+#
+# NOTE this only silences ~150 of the ~12,000 errors per run. The other ~11,800
+# are evicted iCloud Drive files and are NOT excluded — see the section below.
+# 1.2G — on-device behavioural streams, rebuilt continuously
+/Users/calum/Library/Biome
+# 296M — Siri/Spotlight app-prediction models
+/Users/calum/Library/DuetExpertCenter
+# 103M — File Provider sync bookkeeping, incl. wharf/tombstone
+/Users/calum/Library/Application Support/FileProvider
+# 26M — Logitech crash-reporter queue, open and being written
+/Users/calum/Library/Application Support/LogiOptionsPlus/sentry_db_logioptionsplus_updater
+# milod's SQLite db + WAL/SHM, always mid-write
+**/Daemon Containers/*/Data/com.apple.milod
+**/group.com.apple.secure-control-center-preferences
+
 # ── Recovery sheet ────────────────────────────────────────────────────────────
 # Holds both repo passwords in plaintext. Backing it up would put the keys to
 # the repo inside the repo. Must never be captured.
@@ -136,6 +180,13 @@
 
 # ── Pattern-based ─────────────────────────────────────────────────────────────
 **/node_modules
+# Cargo/Rust build output. Was NOT excluded, and it is why snapshots grew from
+# 92 GiB (Sep 6) to 142 GiB (Sep 20): ~/code and ~/agentinc targets alone held
+# 39 GB. ~/.worktrees was already excluded wholesale, which hid the problem.
+# Cargo drops a CACHEDIR.TAG in target/, so --exclude-caches catches most of
+# them, but not all (tarpaulin, custom CARGO_TARGET_DIR, older toolchains) —
+# this makes it unconditional.
+**/target
 **/.venv
 **/__pycache__
 **/.DS_Store
