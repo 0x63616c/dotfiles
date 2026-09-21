@@ -21,8 +21,44 @@ micState = {
   dictating = false,
   userToggled = false,
   mcPaused = false,   -- we paused a MediaRemote app
+  appPaused = nil,    -- or we paused a scriptable one directly; see below
   session = 0,
 }
+
+-- Now-playing clients that aren't playing anything on this Mac.
+--
+-- The Sonos menu bar controller registers with MediaRemote on behalf of the
+-- *speakers*, and it outranks a browser tab the moment the Sonos system changes
+-- state — a volume nudge from the Hyper+S panel is enough. From then on
+-- `media-control get` answers "Line-In" and `media-control pause` pauses the
+-- house rather than the YouTube tab that is actually talking over dictation.
+-- Neither is wanted, so these are never treated as the thing to pause.
+local IGNORED_PLAYERS = {
+  ["com.app-lane.mbc"] = "Menu Bar Controller for Sonos",
+}
+
+-- MediaRemote commands only ever reach the top client, so when that client is
+-- one of the above there is no way to reach a browser. The players that take
+-- AppleScript directly can still be paused by name, which covers Spotify and
+-- Music; a browser tab in that state is simply left alone.
+local SCRIPTABLE = {
+  { name = "Spotify", app = hs.spotify },
+  { name = "Music",   app = hs.itunes },
+}
+
+local function pauseScriptablePlayer()
+  for _, p in ipairs(SCRIPTABLE) do
+    local ok, playing = pcall(function() return p.app.isRunning() and p.app.isPlaying() end)
+    if ok and playing then
+      p.app.pause()
+      local title = select(2, pcall(p.app.getCurrentTrack))
+      local artist = select(2, pcall(p.app.getCurrentArtist))
+      return p, { title = type(title) == "string" and title or p.name,
+                  artist = type(artist) == "string" and artist or p.name }
+    end
+  end
+  return nil, nil
+end
 
 -- MediaRemote source (Spotify etc.) -----------------------------------------
 
@@ -75,7 +111,20 @@ local BORDER_BANDS   = 12    -- nested strokes faking the glow's falloff
 local BORDER_FALLOFF = 1.7   -- >1 concentrates brightness at the outer edge,
                              -- which is what reads as a glow rather than a frame
 local BORDER_BASE    = 0.55  -- static glow alpha (the rings supply the motion)
-local SCREEN_RADIUS  = 14    -- corner rounding of the display itself
+local SCREEN_RADIUS  = 28    -- corner rounding of the display itself
+-- How far outside the screen edge the outermost arc sits. Flush (0) leaves the
+-- display's square corners unpainted: a rounded path along the edge cuts the
+-- corner off and you see dark exactly where the glow should be densest. The
+-- corner arc is centred on (SCREEN_RADIUS, SCREEN_RADIUS) whatever the
+-- overshoot, so it reaches the corner once its radius passes
+-- SCREEN_RADIUS * sqrt(2) — that is, at this overshoot and no more. Taking the
+-- minimum keeps the glow where it already looked right; only the corner
+-- changes, and the sliver beyond the edge is clipped by the screen anyway.
+local BORDER_OVERSHOOT = SCREEN_RADIUS * (math.sqrt(2) - 1)
+-- Extra bands laid outward to cover the overshoot, so widening the glow outward
+-- doesn't pull its inner edge out with it.
+local BORDER_BAND_W  = BORDER_WIDTH / BORDER_BANDS
+local BORDER_EXTRA   = math.ceil(BORDER_OVERSHOOT / BORDER_BAND_W)
 
 local RING_COUNT     = 3     -- rings in flight at once
 local RING_PERIOD    = 1.5   -- seconds for one ring: edge -> faded out
@@ -104,6 +153,7 @@ local MARQUEE = { speed = 38, hold = 1.4 }   -- points/sec, seconds at each end
 
 local RING_OPTS = {
   screenRadius = SCREEN_RADIUS,
+  overshoot = BORDER_OVERSHOOT,
   notchRadius = NOTCH_RADIUS,
   joinRadius = NOTCH_JOIN_R,
 }
@@ -137,7 +187,7 @@ local function magentaAlpha(alpha)
 end
 
 -- Element indices are fixed so rings and the notch can be addressed by index.
-local RING_BASE    = BORDER_BANDS
+local RING_BASE    = BORDER_EXTRA + BORDER_BANDS
 local NOTCH_BG     = RING_BASE + RING_COUNT + 1
 local NOTCH_LINE1  = RING_BASE + RING_COUNT + 2
 local NOTCH_CLIP   = RING_BASE + RING_COUNT + 3
@@ -156,19 +206,25 @@ local function buildBorderCanvas(screen, withNotch)
   c:clickActivating(false)
   c:canvasMouseEvents(false, false, false, false)
 
-  -- Static edge glow.
-  local band = BORDER_WIDTH / BORDER_BANDS
-  for i = 1, BORDER_BANDS do
-    local inset = (i - 1) * band
+  -- Static edge glow. Bands 1..BORDER_EXTRA sit outside the screen edge and
+  -- carry full brightness; the falloff is measured from the edge inward, as
+  -- before, so the glow reads exactly as it did.
+  local band = BORDER_BAND_W
+  for i = 1, BORDER_EXTRA + BORDER_BANDS do
+    local step = i - 1 - BORDER_EXTRA          -- 0 = flush with the edge
+    local inset = step * band
+    -- Radius tracks the inset (same rule as ringPath), so every band is
+    -- concentric with the display's own rounding rather than parallel to it.
+    local radius = math.max(2, SCREEN_RADIUS - inset)
+    local fade = math.max(0, step) / BORDER_BANDS
     c[i] = {
       type = "rectangle",
       action = "stroke",
       strokeWidth = band * 2,
-      strokeColor = magentaAlpha(BORDER_BASE
-        * ((1 - (i - 1) / BORDER_BANDS) ^ BORDER_FALLOFF)),
+      strokeColor = magentaAlpha(BORDER_BASE * ((1 - fade) ^ BORDER_FALLOFF)),
       frame = { x = inset, y = inset,
                 w = f.w - inset * 2, h = f.h - inset * 2 },
-      roundedRectRadii = { xRadius = 14, yRadius = 14 },
+      roundedRectRadii = { xRadius = radius, yRadius = radius },
     }
   end
 
@@ -403,10 +459,25 @@ function onMicGrabbed()
   local session = micState.session
   micState.userToggled = false
   micState.mcPaused = false
+  micState.appPaused = nil
   borderShow()
   mcIsPlaying(function(playing, info)
-    if playing and micState.dictating and not micState.userToggled
-      and session == micState.session then
+    if not (micState.dictating and not micState.userToggled
+            and session == micState.session) then return end
+
+    local bundle = type(info) == "table" and info.bundleIdentifier or nil
+    if bundle and IGNORED_PLAYERS[bundle] then
+      log.df("now-playing is %s (not local) -> trying scriptable players",
+             IGNORED_PLAYERS[bundle])
+      local player, meta = pauseScriptablePlayer()
+      if player then
+        micState.appPaused = player
+        borderMarkPaused(meta)
+      end
+      return
+    end
+
+    if playing then
       log.d("MediaRemote app playing -> pause")
       mcCommand("pause")
       micState.mcPaused = true
@@ -422,9 +493,13 @@ function onMicReleased()
     if micState.mcPaused then
       log.d("resuming MediaRemote app")
       mcCommand("play")
+    elseif micState.appPaused then
+      log.df("resuming %s", micState.appPaused.name)
+      micState.appPaused.app.play()
     end
   end
   micState.mcPaused = false
+  micState.appPaused = nil
   borderHide()
 end
 

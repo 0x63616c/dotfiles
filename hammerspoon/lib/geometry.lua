@@ -32,7 +32,12 @@ end
 -- detouring around a notch on the top edge.
 --
 --   notch = { left = , right = , bottom = }  (screen coords) or nil
---   opts  = { screenRadius = , notchRadius = , joinRadius = }
+--   opts  = { screenRadius = , notchRadius = , joinRadius = , overshoot = }
+--
+-- `overshoot` pushes the rounded rect that far outside the screen edge before
+-- `inset` is applied, so a ring born at inset 0 still covers the display's
+-- square corners instead of cutting them off. The notch detour deliberately
+-- ignores it: the detour tracks the card, not the edge.
 --
 -- The detour sits `inset` clear of the notch on every side, so it expands
 -- outward in step with the ring itself — that is what makes the ripple appear
@@ -47,8 +52,9 @@ function M.ringPath(w, h, inset, notch, opts)
   local notchR  = opts.notchRadius or 18
   local joinR   = opts.joinRadius or 12
 
-  local L, T, R, B = inset, inset, w - inset, h - inset
-  local r = math.max(2, screenR - inset)
+  local edge = inset - (opts.overshoot or 0)
+  local L, T, R, B = edge, edge, w - edge, h - edge
+  local r = math.max(2, screenR - edge)
   local segs = {}
   local lineTo, arcTo = M.lineTo, M.arcTo
 

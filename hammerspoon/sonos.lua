@@ -266,12 +266,15 @@ sonosPanelTimer  = nil
 sonosPanelPoll   = nil
 sonosPanelKeys   = nil
 sonosFlashTimer  = nil
+sonosDragTap     = nil   -- eventtap driving a slider drag; see startDrag
+sonosDragTimer   = nil   -- coalesces drag repaints down to frame rate
 
 local panelRings = nil
 local ringsT0    = nil          -- kept across rebuilds so the pulse doesn't restart
 local fingerprint = nil         -- of the rooms currently drawn
 local rowLayout   = {}          -- per row: track x, y, for the drag maths
 local dragging    = nil         -- row index while the mouse is down on a slider
+local stopDrag                  -- forward declaration: closePanel tears a drag down
 local screenFrame = nil
 
 local BUTTONS = {
@@ -299,7 +302,8 @@ local function closePanel()
   if sonosPanelKeys then
     for _, k in ipairs(sonosPanelKeys) do k:disable() end
   end
-  panelRings, fingerprint, dragging = nil, nil, nil
+  stopDrag()
+  panelRings, fingerprint = nil, nil
   rowLayout = {}
   if sonosPanelCanvas then
     sonosPanelCanvas:delete()
@@ -311,27 +315,88 @@ local function fillWidth(volume)
   return math.max(0, math.min(SLIDER_W, SLIDER_W * volume / 100))
 end
 
--- Paint one row's numbers into existing elements.
-local function paintRow(c, i, r)
+-- The three elements a volume change moves. Split out from paintRow because a
+-- drag repaints at frame rate and the source label can't change mid-drag —
+-- restyling it every frame is a styledtext build and a canvas redraw for text
+-- that is already correct.
+local function paintSlider(c, i, r)
   local L = rowLayout[i]
-  if not L then return end
+  if not (c and r and L) then return end
   local w = fillWidth(r.volume)
   c["fill:" .. i].frame = { x = L.trackX, y = L.trackY, w = w, h = TRACK_H }
   c["knob:" .. i].center = { x = L.trackX + w, y = L.trackY + TRACK_H / 2 }
   c["num:" .. i].text = ui.styled(tostring(r.volume), theme.text.body, ui.fg, { align = "right" })
+end
+
+-- Paint one row's numbers into existing elements.
+local function paintRow(c, i, r)
+  if not rowLayout[i] then return end
+  paintSlider(c, i, r)
   c["src:" .. i].text = ui.styled(sourceText(r), theme.text.caption, ui.muted)
 end
 
+-- Reading the pointer and moving the knob are deliberately separate.
+--
+-- A canvas only hears the mouse through its own tracking areas: every move is
+-- hit-tested against every element and the leftovers are coalesced, so a quick
+-- drag arrives as a handful of widely spaced positions — the knob lands on 59,
+-- then 74, and never the points between. A drag therefore runs off an eventtap
+-- (startDrag), which sees every move the mouse actually makes.
+--
+-- That leaves the opposite problem: mouse moves outrun the display, and each
+-- element assignment redraws a canvas the size of the screen. So dragTo only
+-- moves the model and marks it dirty; a frame-rate timer does the painting.
+local dragDirty = false
+
 local function dragTo(i)
-  local c = sonosPanelCanvas
   local r, L = rooms[i], rowLayout[i]
-  if not (c and r and L) then return end
+  if not (sonosPanelCanvas and r and L) then return end
   local x = hs.mouse.absolutePosition().x - screenFrame.x
   local v = sonos.volumeFromX(x, L.trackX, SLIDER_W)
   if v == r.volume then return end
   r.volume = v
-  paintRow(c, i, r)
+  dragDirty = true
   setVolume(r, v)
+end
+
+function stopDrag()
+  if sonosDragTap then sonosDragTap:stop(); sonosDragTap = nil end
+  if sonosDragTimer then sonosDragTimer:stop(); sonosDragTimer = nil end
+  dragging, dragDirty = nil, false
+end
+
+local function endDrag()
+  local i = dragging
+  stopDrag()
+  if i and sonosPanelCanvas and rooms[i] then
+    dragTo(i)                                   -- take the release position
+    paintSlider(sonosPanelCanvas, i, rooms[i])  -- and land on it
+  end
+end
+
+local function startDrag(i)
+  stopDrag()
+  dragging = i
+  dragTo(i)
+  sonosDragTimer = hs.timer.doEvery(ui.FRAME_INTERVAL, function()
+    if dragDirty and dragging and sonosPanelCanvas and rooms[dragging] then
+      dragDirty = false
+      paintSlider(sonosPanelCanvas, dragging, rooms[dragging])
+    end
+  end)
+  local types = hs.eventtap.event.types
+  sonosDragTap = hs.eventtap.new({ types.leftMouseDragged, types.leftMouseUp }, function(e)
+    if not dragging then return false end
+    if e:getType() == types.leftMouseUp then
+      local j = dragging
+      dragTo(j)
+      stopDrag()
+      if sonosPanelCanvas and rooms[j] then paintSlider(sonosPanelCanvas, j, rooms[j]) end
+    else
+      dragTo(dragging)
+    end
+    return false   -- never swallow a real click
+  end):start()
 end
 
 local function buttonLabel(id)
@@ -378,20 +443,19 @@ local function onMouse(c, event, id)
 
   if event == "mouseDown" then
     if volRow then
-      dragging = volRow
-      dragTo(volRow)
+      startDrag(volRow)
     elseif btn then
       runButton(btn)
     elseif id == "backdrop" and not dragging then
       closePanel()
     end
   elseif event == "mouseMove" then
-    if dragging then dragTo(dragging) end
-  elseif event == "mouseUp" then
     if dragging then
       dragTo(dragging)
-      dragging = nil
+      if not sonosDragTap then paintSlider(c, dragging, rooms[dragging]) end
     end
+  elseif event == "mouseUp" then
+    if dragging then endDrag() end
   elseif event == "mouseEnter" and btn then
     c["btnedge:" .. btn].strokeColor = ui.accent
   elseif event == "mouseExit" and btn then
@@ -409,7 +473,7 @@ local function build(list)
   end
   panelRings = nil
   rowLayout = {}
-  dragging = nil
+  stopDrag()
 
   -- Measure the name column from the longest name, like the cheatsheet does
   -- for its labels; the other columns are fixed.
