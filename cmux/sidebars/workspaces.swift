@@ -134,6 +134,25 @@ func row(_ w) -> some View {
     }
     .contentShape(Rectangle())
     .onTapGesture { cmux("workspace.select", workspace_id: w.id) }
+    // A custom sidebar replaces the built-in row wholesale, including its
+    // right-click menu, so the verbs have to be re-declared here.
+    .contextMenu {
+        Button(w.pinned ? "Unpin" : "Pin") {
+            cmux("workspace.action", action: w.pinned ? "unpin" : "pin", workspace_id: w.id)
+        }
+        Button(w.unread > 0 ? "Mark as Read" : "Mark as Unread") {
+            cmux("workspace.action", action: w.unread > 0 ? "mark_read" : "mark_unread", workspace_id: w.id)
+        }
+        Divider()
+        Menu("Move") {
+            Button("Move Up") { cmux("workspace.action", action: "move_up", workspace_id: w.id) }
+            Button("Move Down") { cmux("workspace.action", action: "move_down", workspace_id: w.id) }
+            Button("Move to Top") { cmux("workspace.action", action: "move_top", workspace_id: w.id) }
+        }
+        Divider()
+        Button("Close Others") { cmux("workspace.action", action: "close_others", workspace_id: w.id) }
+        Button("Close") { cmux("workspace.close", workspace_id: w.id) }
+    }
 }
 
 VStack(alignment: .leading, spacing: 4) {
