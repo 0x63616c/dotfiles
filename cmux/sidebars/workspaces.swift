@@ -7,7 +7,8 @@
 // The left accent bar and the repo name share a colour that is a stable hash
 // of the directory basename, so each repo stays recognisable across sessions.
 // The bar is bright on the selected row and dim otherwise; the selected row
-// also gets a soft rounded wash behind it.
+// also gets a soft rounded wash behind it, and a row whose agent needs input
+// gets that wash in its repo colour.
 //
 // Rows use `.onTapGesture` rather than `Button` so the whole row is a hit
 // target (the interpreter's `Button` only hit-tests non-transparent content).
@@ -62,6 +63,7 @@ func row(_ w) -> some View {
     let repo = basename(w.directory)
     let tint = colorForName(repo)
     let status = agentStatus(w)
+    let waiting = status == "needs_input"
 
     HStack(alignment: .top, spacing: 10) {
         // Accent bar: repo colour, bright when selected.
@@ -123,10 +125,12 @@ func row(_ w) -> some View {
     }
     .padding(9)
     .frame(maxWidth: .infinity, alignment: .leading)
+    // Wash: neutral on the selected row; the repo tint on any row whose agent
+    // is waiting on you, so a blocked workspace is visible from across the room.
     .background {
         RoundedRectangle(cornerRadius: 8)
-            .fill(w.selected ? "#FFFFFF" : "#00000000")
-            .opacity(w.selected ? 0.09 : 0.0)
+            .fill(waiting ? tint : "#FFFFFF")
+            .opacity(waiting ? (w.selected ? 0.22 : 0.14) : (w.selected ? 0.09 : 0.0))
     }
     .contentShape(Rectangle())
     .onTapGesture { cmux("workspace.select", workspace_id: w.id) }
