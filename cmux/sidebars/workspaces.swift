@@ -1,7 +1,8 @@
 // Workspace sidebar: a cleaner take on cmux's native row.
 //
 //   ┃ Title                  ● Running   <- title; Running/Needs you from cmux
-//   ┃ dotfiles                    main*   <- repo basename (hash-tinted) · branch
+//   ┃ dotfiles                    main    <- repo basename (hash-tinted) · branch
+//                                 ────      (branch underlined when dirty)
 //
 // The left accent bar and the repo name share a colour that is a stable hash
 // of the directory basename, so each repo stays recognisable across sessions.
@@ -138,7 +139,7 @@ func row(_ w) -> some View {
                 }
             }
 
-            // Line 2: repo on the left, branch (with dirty marker) on the right.
+            // Line 2: repo on the left, branch (underlined when dirty) on the right.
             HStack(spacing: 5) {
                 Text(repo)
                     .font(.system(size: 16))
@@ -147,15 +148,24 @@ func row(_ w) -> some View {
                     .lineLimit(1)
                 Spacer()
                 if let b = w.branch {
-                    Text(b)
-                        .font(.system(size: 16, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    // A dirty tree underlines the branch name rather than
+                    // hanging a marker off it. Spelled as two whole Texts
+                    // because the interpreter drops arguments often enough
+                    // that `.underline(w.dirty)` risks reading as a bare
+                    // `.underline()` and underlining every row.
                     if w.dirty {
-                        Circle()
-                            .fill("#E0AF68")
-                            .frame(width: 6, height: 6)
+                        Text(b)
+                            .font(.system(size: 16, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .underline()
+                    } else {
+                        Text(b)
+                            .font(.system(size: 16, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
             }
