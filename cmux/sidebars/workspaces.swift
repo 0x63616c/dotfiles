@@ -100,7 +100,7 @@ func row(_ w) -> some View {
             .opacity(w.selected ? 1.0 : 0.35)
 
         VStack(alignment: .leading, spacing: 7) {
-            // Line 1: title + trailing counters.
+            // Line 1: title + agent status.
             HStack(spacing: 6) {
                 // Pinned marker: sits at the head of the title line and nudges
                 // the title along, rather than floating in the card corner.
@@ -120,7 +120,7 @@ func row(_ w) -> some View {
                 if waiting {
                     HStack(spacing: 4) {
                         Circle().fill("#E0AF68").frame(width: 7, height: 7)
-                        Text("Needs you").font(.system(size: 13)).foregroundColor("#E0AF68")
+                        Text("Needs you").font(.system(size: 16)).foregroundColor("#E0AF68")
                     }
                 }
                 if working {
@@ -129,13 +129,8 @@ func row(_ w) -> some View {
                     HStack(spacing: 4) {
                         Circle().fill("#7AA2F7").frame(width: 7, height: 7)
                             .opacity(clock.second % 2 == 0 ? 1.0 : 0.25)
-                        Text("Running").font(.system(size: 13)).foregroundColor("#7AA2F7")
+                        Text("Running").font(.system(size: 16)).foregroundColor("#7AA2F7")
                     }
-                }
-                if w.tabCount > 1 {
-                    Text("\(w.tabCount)")
-                        .font(.system(size: 13, design: .monospaced))
-                        .foregroundColor(.tertiary)
                 }
             }
 
