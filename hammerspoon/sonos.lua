@@ -121,6 +121,17 @@ local function discover(cb)
   end)
 end
 
+-- Per-room calibration baselines: uuid -> raw volume (1-100) at the moment
+-- Calibrate was pressed. Persisted so a Hammerspoon restart doesn't lose
+-- them; keyed by uuid like sendLatest/sendTimers below, since room name
+-- isn't stable (and a stereo pair's hidden half doesn't get one at all).
+local BASELINES_KEY = "sonosCalibrationBaselines"
+local baselines = hs.settings.get(BASELINES_KEY) or {}
+
+local function saveBaselines()
+  hs.settings.set(BASELINES_KEY, baselines)
+end
+
 -- Rooms as last read: lib/sonos.lua's records with volume, uri, state and a
 -- source label added.
 local rooms = {}
@@ -149,7 +160,8 @@ local function refresh()
       r.volume, r.uri, r.state, r.source = 0, "", "", ""
       pending = pending + 1
       call(r.ip, "RenderingControl", "GetVolume", { { "Channel", "Master" } }, function(body)
-        r.volume = tonumber(sonos.value(body, "CurrentVolume")) or 0
+        local raw = tonumber(sonos.value(body, "CurrentVolume")) or 0
+        r.volume = sonos.displayVolume(raw, baselines[r.uuid])
         done()
       end)
       if r.isCoordinator then
@@ -212,6 +224,29 @@ local function setVolume(room, v)
     sendTimers[room.uuid] = hs.timer.doAfter(SEND_THROTTLE, flush)
   end
   flush()
+end
+
+-- Reads a fresh raw volume from every room currently in the panel (never the
+-- painted number, which could be stale or already normalized) and stores it
+-- as that room's new calibration baseline, so the room reads 100% from here
+-- on. A room read as 0 (muted) keeps whatever baseline it already had rather
+-- than storing an unusable zero one.
+local function calibrateRooms()
+  local list = rooms
+  local pending = #list
+  if pending == 0 then return end
+  for _, r in ipairs(list) do
+    local uuid = r.uuid
+    call(r.ip, "RenderingControl", "GetVolume", { { "Channel", "Master" } }, function(body)
+      local raw = tonumber(sonos.value(body, "CurrentVolume")) or 0
+      if raw > 0 then baselines[uuid] = raw end
+      pending = pending - 1
+      if pending == 0 then
+        saveBaselines()
+        refresh()
+      end
+    end)
+  end
 end
 
 -- The two moves --------------------------------------------------------------
@@ -292,8 +327,9 @@ local stopDrag                  -- forward declaration: closePanel tears a drag 
 local screenFrame = nil
 
 local BUTTONS = {
-  { id = "group", key = "g", label = "Group all → " .. DESK_ROOM, fn = groupAllToDesk },
-  { id = "tv",    key = "t", label = "TV mode",                    fn = tvMode },
+  { id = "group",     key = "g", label = "Group all → " .. DESK_ROOM, fn = groupAllToDesk },
+  { id = "tv",        key = "t", label = "TV mode",                    fn = tvMode },
+  { id = "calibrate", key = "c", label = "Calibrate",                  fn = calibrateRooms },
 }
 
 local function sourceText(r)
@@ -370,7 +406,7 @@ local function dragTo(i)
   if v == r.volume then return end
   r.volume = v
   dragDirty = true
-  setVolume(r, v)
+  setVolume(r, sonos.rawVolume(v, baselines[r.uuid]))
 end
 
 function stopDrag()
@@ -534,7 +570,7 @@ local function build(list)
   c[#c + 1] = ui.text(ui.title("SONOS"),
     { x = cx + PAD, y = cy + PAD - 4, w = cardW - PAD * 2, h = 18 })
   c[#c + 1] = ui.text(
-    ui.styled("g group  ·  t tv  ·  esc to close", theme.text.caption, ui.muted, { align = "right" }),
+    ui.styled("g group  ·  t tv  ·  c calibrate  ·  esc to close", theme.text.caption, ui.muted, { align = "right" }),
     { x = cx + PAD, y = cy + PAD - 2, w = cardW - PAD * 2, h = 16 })
   c[#c + 1] = ui.rule(cx + PAD, cy + HEADER_H - 14, cardW - PAD * 2)
 

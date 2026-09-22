@@ -538,6 +538,40 @@ test("slider maps x to 0..100 and pins past either end", function()
   eq(sonos.volumeFromX(150, 100, 0), 0, "degenerate track")
 end)
 
+-- Calibration -------------------------------------------------------------
+
+test("calibrated room: raw at baseline reads 100%", function()
+  eq(sonos.displayVolume(18, 18), 100, "own baseline is 100%")
+  eq(sonos.displayVolume(9, 18), 50, "half the baseline is 50%")
+  eq(sonos.displayVolume(0, 18), 0, "silent stays 0%")
+end)
+
+test("calibrated room past its ceiling reads over 100%, not clamped", function()
+  eq(sonos.displayVolume(90, 50), 180, "louder than calibration signals past-ceiling")
+end)
+
+test("an uncalibrated room passes raw straight through both ways", function()
+  eq(sonos.displayVolume(42, nil), 42, "no baseline: display is raw")
+  eq(sonos.rawVolume(42, nil), 42, "no baseline: raw is display")
+  eq(sonos.rawVolume(150, nil), 100, "still clamped to Sonos' range")
+  eq(sonos.rawVolume(-10, nil), 0, "still clamped to Sonos' range")
+end)
+
+test("a zero baseline is guarded, not divided by", function()
+  eq(sonos.displayVolume(42, 0), 42, "treated as uncalibrated, not NaN/inf")
+  eq(sonos.rawVolume(42, 0), 42, "treated as uncalibrated, not NaN/inf")
+end)
+
+test("raw <-> display round-trips at and below the baseline", function()
+  eq(sonos.rawVolume(sonos.displayVolume(50, 100), 100), 50, "50 at baseline 100")
+  eq(sonos.rawVolume(sonos.displayVolume(18, 18), 18), 18, "own baseline round-trips to itself")
+end)
+
+test("display past 100% clamps back to a real raw volume, not an invalid one", function()
+  eq(sonos.rawVolume(180, 50), 90, "180% of a 50 baseline is a valid 90 raw")
+  eq(sonos.rawVolume(300, 50), 100, "a display that implies raw > 100 clamps to 100")
+end)
+
 -- ----------------------------------------------------------------------------
 
 io.write(string.format("\n%d passed, %d failed\n", passed, failed))
