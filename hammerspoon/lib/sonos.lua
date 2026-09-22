@@ -215,14 +215,26 @@ end
 
 -- What calibrateRooms stores as a room's new baseline, given the raw volume
 -- it read at the moment of calibration: double it, so that moment reads back
--- as 50% and there's headroom to go louder, but never past 100 — raw*2 only
--- clears 100 when raw itself was already past 50, and rawVolume already
--- clamps what gets SENT to a speaker at 100. If the stored baseline weren't
--- clamped too, that same sent raw would redisplay via displayVolume against
--- the uncapped baseline as something under 100%, snapping the slider visibly
--- backward even though the speaker is genuinely at max.
+-- as exactly 50%, unconditionally — including when raw is already >= 50,
+-- which is the common case (calibrating at a normal listening volume, not a
+-- quiet one). Deliberately uncapped: clamping the baseline to 100 here used
+-- to make calibration a no-op whenever raw was already past half (baseline
+-- clamped straight back to raw, so displayVolume(raw, baseline) == raw
+-- instead of 50).
+--
+-- The tradeoff: when raw >= 50, the baseline this produces is itself > 100.
+-- Dragging the slider to its visual top right after calibrating sends
+-- raw=100 (rawVolume's own clamp, above), which is genuinely the speaker's
+-- max — but the very next poll redisplays that raw=100 against the >100
+-- baseline as something under 100%, so the slider can visibly settle back
+-- from where it was dropped. That's accepted, expected behavior, not a bug:
+-- it's the same past-ceiling signal this file already embraces elsewhere
+-- (see displayVolume above) — a display value under/over 100% is an honest
+-- reflection of raw's position relative to the calibration reference, never
+-- hidden by a clamp. Do not reintroduce a clamp here to hide it; that was
+-- tried and it broke calibration for every room already above half volume.
 function M.calibratedBaseline(raw)
-  return math.min(raw * 2, 100)
+  return raw * 2
 end
 
 return M
