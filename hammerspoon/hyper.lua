@@ -57,6 +57,11 @@ hyper.bind("m", "Open Messages", function()
   hs.application.launchOrFocusByBundleID("com.apple.MobileSMS")
 end)
 
+-- Hammerspoon's own Console: the log/error window itself, not an app.
+hyper.bind("h", "Open Hammerspoon Console", function()
+  hs.openConsole()
+end)
+
 -- Hold-to-reveal cheatsheet ---------------------------------------------------
 --
 -- Hold Hyper for half a second without pressing anything and a card listing every
