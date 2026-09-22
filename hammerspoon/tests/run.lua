@@ -114,6 +114,27 @@ test("holding past maxHold does not fire", function()
   eq(c:flagsChanged(NONE, 5.0), false, "a long rest must not toggle")
 end)
 
+-- Regression: a keystroke typed with no modifiers held used to set `dirty`,
+-- and nothing clears `dirty` until the flags next reach empty — so the first
+-- chord after any typing silently did nothing.
+test("typing with no modifiers does not eat the next chord", function()
+  local c = Chord.new()
+  c:keyDown()                                            -- just typing
+  eq(feed(c, { SHIFT, SHIFT_CTRL, NONE }), 1, "chord should still fire")
+end)
+
+-- Regression: mouse input leaves no keyDown, so Ctrl+Shift+click looked like a
+-- bare chord on release and toggled playback.
+test("ctrl+shift+click does not fire", function()
+  local c = Chord.new()
+  local fires = 0
+  if c:flagsChanged(SHIFT, 0.05) then fires = fires + 1 end
+  if c:flagsChanged(SHIFT_CTRL, 0.10) then fires = fires + 1 end
+  c:keyDown()  -- the tap feeds clicks and scrolls through here too
+  if c:flagsChanged(NONE, 0.15) then fires = fires + 1 end
+  eq(fires, 0, "a click disqualifies the chord")
+end)
+
 test("chord recovers after a dirty press", function()
   local c = Chord.new()
   feed(c, { SHIFT, SHIFT_CTRL, HYPER, NONE })          -- dirty, no fire

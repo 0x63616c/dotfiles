@@ -471,8 +471,20 @@ function onMicReleased()
     log.d("user toggled during dictation -> leaving playback as-is")
   else
     if micState.mcPaused then
-      log.d("resuming MediaRemote app")
-      mcCommand("play")
+      -- Guarded for the same reason the pause path is: the top MediaRemote
+      -- client can change while the mic is live (any Sonos state change
+      -- promotes the menu bar controller), and an unguarded "play" would then
+      -- start the house instead of resuming the tab we actually paused.
+      mcIsPlaying(function(_, info)
+        local bundle = type(info) == "table" and info.bundleIdentifier or nil
+        if bundle and IGNORED_PLAYERS[bundle] then
+          log.wf("skipping resume: now-playing is %s, not the app we paused",
+                 IGNORED_PLAYERS[bundle])
+          return
+        end
+        log.d("resuming MediaRemote app")
+        mcCommand("play")
+      end)
     elseif micState.appPaused then
       log.df("resuming %s", micState.appPaused.name)
       micState.appPaused.app.play()
@@ -541,10 +553,29 @@ local Chord = require("lib.chord")
 
 local mediaChord = Chord.new({ maxHold = 0.6 })
 
-mediaChordTap = hs.eventtap.new(
-  { hs.eventtap.event.types.flagsChanged, hs.eventtap.event.types.keyDown },
+-- Clicks and scrolls are real input too, and this is the gap that made the
+-- speakers "cut out on their own": Ctrl+Shift+click (open a link in a new tab,
+-- extend a selection) and Ctrl+Shift+scroll (zoom) leave no keyDown at all, so
+-- the chord saw a clean shift+ctrl press and release and fired
+-- toggle-play-pause. With the Sonos carrying this Mac's line-in, pausing the
+-- browser tab is indistinguishable from the speakers dropping out.
+--
+-- Cheap to add: the callback is a couple of comparisons and always returns
+-- false, and lib/chord.lua ignores input unless a modifier is actually held.
+local CHORD_INPUT = {
+  hs.eventtap.event.types.keyDown,
+  hs.eventtap.event.types.leftMouseDown,
+  hs.eventtap.event.types.rightMouseDown,
+  hs.eventtap.event.types.otherMouseDown,
+  hs.eventtap.event.types.scrollWheel,
+}
+
+local chordTapTypes = { hs.eventtap.event.types.flagsChanged }
+for _, t in ipairs(CHORD_INPUT) do chordTapTypes[#chordTapTypes + 1] = t end
+
+mediaChordTap = hs.eventtap.new(chordTapTypes,
   function(e)
-    if e:getType() == hs.eventtap.event.types.keyDown then
+    if e:getType() ~= hs.eventtap.event.types.flagsChanged then
       mediaChord:keyDown()
       return false
     end

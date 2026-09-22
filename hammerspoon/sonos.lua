@@ -235,14 +235,28 @@ local function groupAllToDesk()
   hs.timer.doAfter(SETTLE_DELAY, refresh)
 end
 
--- The Beam back on its TV input. Setting a transport URI on a grouped member
--- also pulls it out of the group, which is what you want: the TV should play
--- in the living room and nowhere else.
+-- The Beam back on its TV input: the TV should play in the living room and
+-- nowhere else.
+--
+-- Setting a transport URI on a grouped *member* pulls it out of the group,
+-- which is what this used to rely on. On a group *coordinator* the same call
+-- does the opposite — it repoints the entire group at the new source. The Beam
+-- is the coordinator more often than not (Sonos hands a home theatre the
+-- coordinator role whenever the TV wakes it, and it keeps it while the rest of
+-- the house is grouped onto the living room), and in that state this pushed the
+-- TV's SPDIF feed onto every room at once: the Desk stopped carrying line-in
+-- and went quiet with its transport still reading PLAYING. So evict the other
+-- members explicitly first rather than assuming which role the Beam is in.
 local function tvMode()
   local tv = sonos.findRoom(rooms, TV_ROOM)
   if not tv then
     hs.alert.show("No room called " .. TV_ROOM)
     return
+  end
+  for _, r in ipairs(rooms) do
+    if r.coordinator == tv.coordinator and r.uuid ~= tv.uuid then
+      call(r.ip, "AVTransport", "BecomeCoordinatorOfStandaloneGroup", {})
+    end
   end
   call(tv.ip, "AVTransport", "SetAVTransportURI",
     { { "CurrentURI", sonos.tvUri(tv.uuid) }, { "CurrentURIMetaData", "" } },

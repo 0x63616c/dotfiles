@@ -28,6 +28,7 @@ function M.new(opts)
     maxHold = opts.maxHold or 0.6,
     armed = false,
     dirty = false,
+    held = false,
     since = 0,
   }, M)
 end
@@ -40,13 +41,23 @@ local function isExactlyShiftCtrl(f)
   return f.shift and f.ctrl and not f.cmd and not f.alt and not f.fn
 end
 
--- A real keypress means the chord was a modifier for that key, not a command.
+-- A real keypress or click means the modifiers were held *for* that input, not
+-- pressed as a command of their own, so it disqualifies the chord.
+--
+-- Only while a modifier is actually down. Input with no modifiers held has
+-- nothing to do with any chord, and dirtying on it silently ate the *next*
+-- chord: nothing clears `dirty` until the flags reach empty, and a bare
+-- keystroke never changes the flags at all. So typing a word and then reaching
+-- for shift+ctrl did nothing the first time and worked the second.
 function M:keyDown()
-  self.dirty = true
+  if self.held then self.dirty = true end
 end
 
 -- Returns true exactly once: on the release that completes a clean chord.
 function M:flagsChanged(flags, now)
+  -- Whether any modifier is down right now; keyDown() is only meaningful then.
+  self.held = not isEmpty(flags)
+
   if isEmpty(flags) then
     local fire = self.armed
              and not self.dirty

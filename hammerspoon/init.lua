@@ -21,6 +21,14 @@
 require("hs.ipc")
 hs.ipc.cliInstall("/opt/homebrew")
 
+-- Keep the last N log lines in memory. hs.logger's history defaults to *off*
+-- (size 0), which means `hs.logger.history()` is empty and an intermittent
+-- fault — a chord that fired when nothing was touched, a media command that
+-- went to the wrong player — leaves no trace to read afterwards. Cheap
+-- insurance: it is a ring buffer of strings, and it is the only way these
+-- modules can be debugged after the fact rather than by reproducing.
+hs.logger.historySize(1000)
+
 local log = hs.logger.new("init", "info")
 
 -- Alphabetical, so load order is deterministic rather than whatever order the
