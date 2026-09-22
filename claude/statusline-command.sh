@@ -7,6 +7,8 @@ model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // ""')
 used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 tokens=$(echo "$input" | jq -r '((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0)) | if . > 0 then . else empty end')
+cache_read=$(echo "$input" | jq -r '.context_window.current_usage.cache_read_input_tokens // empty')
+cache_pct=$(echo "$input" | jq -r '(.context_window.current_usage.cache_read_input_tokens // empty) as $r | (.context_window.total_input_tokens // 0) as $t | if $t > 0 then (($r * 100) / $t | floor) else empty end')
 five_h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 seven_d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 
@@ -70,6 +72,19 @@ pct_color() {
   fi
 }
 
+# Same shape as pct_color, thresholds inverted: for a cache hit rate high is GOOD
+cache_color() {
+  local pct_int=${1%.*}
+  pct_int=${pct_int:-0}
+  if [ "$pct_int" -ge 80 ]; then
+    echo -en "$CYAN"
+  elif [ "$pct_int" -ge 50 ]; then
+    echo -en "$YELLOW"
+  else
+    echo -en "$RED"
+  fi
+}
+
 # Format a raw token count as e.g. 950, 12.3k, 1.2m
 fmt_tokens() {
   local n="$1"
@@ -83,7 +98,7 @@ fmt_tokens() {
 }
 
 ctx_segment=""
-if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
+if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$cache_pct" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
   ctx_segment=" ${FG}·${RESET} ${FG}[${RESET}"
   first=1
   if [ -n "$used" ]; then
@@ -95,6 +110,12 @@ if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; 
     [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     tok_fmt=$(fmt_tokens "$tokens")
     ctx_segment="${ctx_segment}${FG}Tkns: ${RESET}${CYAN}${tok_fmt}${RESET}"
+    first=0
+  fi
+  if [ -n "$cache_pct" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
+    if [ "${cache_read:-0}" -gt 0 ]; then cache_mark="✓"; else cache_mark="✗"; fi
+    ctx_segment="${ctx_segment}${FG}Cache: ${RESET}$(cache_color "$cache_pct")${cache_mark}${cache_pct}%%${RESET}"
     first=0
   fi
   if { [ -n "$five_h" ] || [ -n "$seven_d" ]; } && [ "$first" -eq 0 ]; then
