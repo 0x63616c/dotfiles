@@ -249,6 +249,17 @@ local function calibrateRooms()
   end
 end
 
+-- Undoes calibrateRooms: drops every currently-visible room's baseline
+-- entirely (not zeroing it) so lib/sonos.lua's display logic treats it as
+-- never calibrated and falls back to showing raw volume.
+local function clearCalibration()
+  for _, r in ipairs(rooms) do
+    baselines[r.uuid] = nil
+  end
+  saveBaselines()
+  refresh()
+end
+
 -- The two moves --------------------------------------------------------------
 
 -- Every room joins the Desk pair's group. Joining is a member pointing its
@@ -330,6 +341,7 @@ local BUTTONS = {
   { id = "group",     key = "g", label = "Group all → " .. DESK_ROOM, fn = groupAllToDesk },
   { id = "tv",        key = "t", label = "TV mode",                    fn = tvMode },
   { id = "calibrate", key = "c", label = "Calibrate",                  fn = calibrateRooms },
+  { id = "clearCalibration", key = "x", label = "Clear Calibration",   fn = clearCalibration },
 }
 
 local function sourceText(r)
@@ -570,7 +582,7 @@ local function build(list)
   c[#c + 1] = ui.text(ui.title("SONOS"),
     { x = cx + PAD, y = cy + PAD - 4, w = cardW - PAD * 2, h = 18 })
   c[#c + 1] = ui.text(
-    ui.styled("g group  ·  t tv  ·  c calibrate  ·  esc to close", theme.text.caption, ui.muted, { align = "right" }),
+    ui.styled("g group  ·  t tv  ·  c calibrate  ·  x clear calibration  ·  esc to close", theme.text.caption, ui.muted, { align = "right" }),
     { x = cx + PAD, y = cy + PAD - 2, w = cardW - PAD * 2, h = 16 })
   c[#c + 1] = ui.rule(cx + PAD, cy + HEADER_H - 14, cardW - PAD * 2)
 
