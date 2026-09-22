@@ -38,8 +38,8 @@ doubleShiftTap = hs.eventtap.new({ hs.eventtap.event.types.flagsChanged }, funct
 
   local raw = e:getRawEventData()
   local flags = raw and raw.CGEventData and raw.CGEventData.flags or 0
-  local left  = bit.band(flags, LSHIFT_MASK) ~= 0
-  local right = bit.band(flags, RSHIFT_MASK) ~= 0
+  local left  = (flags & LSHIFT_MASK) ~= 0
+  local right = (flags & RSHIFT_MASK) ~= 0
   local now = left and right
 
   if now and not bothDown then
