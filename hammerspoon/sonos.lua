@@ -141,6 +141,13 @@ local generation = 0
 
 local apply  -- forward: paints a finished room list, defined with the canvas
 
+-- Whether every visible room's slider is locked to move together; see
+-- setLocked, defined with the rest of the panel below (it also repaints the
+-- Lock button). Forward-declared here since clearCalibration, above the
+-- panel section, needs to drop the lock.
+local locked = false
+local setLocked
+
 -- Read topology from the first speaker that answers, then fan out for volumes
 -- and what each coordinator is playing. Every branch counts itself in and out
 -- so the paint happens once, after the last response.
@@ -227,10 +234,12 @@ local function setVolume(room, v)
 end
 
 -- Reads a fresh raw volume from every room currently in the panel (never the
--- painted number, which could be stale or already normalized) and stores it
--- as that room's new calibration baseline, so the room reads 100% from here
--- on. A room read as 0 (muted) keeps whatever baseline it already had rather
--- than storing an unusable zero one.
+-- painted number, which could be stale or already normalized) and stores
+-- sonos.calibratedBaseline(raw) as that room's new calibration baseline, so
+-- the room reads 50% from here on rather than 100% — leaving headroom to go
+-- louder instead of pinning the raw volume at the moment of calibration as a
+-- hard ceiling. A room read as 0 (muted) keeps whatever baseline it already
+-- had rather than storing an unusable zero one.
 local function calibrateRooms()
   local list = rooms
   local pending = #list
@@ -239,7 +248,7 @@ local function calibrateRooms()
     local uuid = r.uuid
     call(r.ip, "RenderingControl", "GetVolume", { { "Channel", "Master" } }, function(body)
       local raw = tonumber(sonos.value(body, "CurrentVolume")) or 0
-      if raw > 0 then baselines[uuid] = raw end
+      if raw > 0 then baselines[uuid] = sonos.calibratedBaseline(raw) end
       pending = pending - 1
       if pending == 0 then
         saveBaselines()
@@ -251,12 +260,15 @@ end
 
 -- Undoes calibrateRooms: drops every currently-visible room's baseline
 -- entirely (not zeroing it) so lib/sonos.lua's display logic treats it as
--- never calibrated and falls back to showing raw volume.
+-- never calibrated and falls back to showing raw volume. Also drops the lock
+-- (see `locked` above) — matching percentages stops meaning anything once
+-- there's no calibration behind them.
 local function clearCalibration()
   for _, r in ipairs(rooms) do
     baselines[r.uuid] = nil
   end
   saveBaselines()
+  setLocked(false)
   refresh()
 end
 
@@ -342,6 +354,7 @@ local BUTTONS = {
   { id = "tv",        key = "t", label = "TV mode",                    fn = tvMode },
   { id = "calibrate", key = "c", label = "Calibrate",                  fn = calibrateRooms },
   { id = "clearCalibration", key = "x", label = "Clear Calibration",   fn = clearCalibration },
+  { id = "lock",      key = "l", label = "Lock",                       fn = function() setLocked(not locked) end },
 }
 
 local function sourceText(r)
@@ -410,6 +423,20 @@ end
 -- moves the model and marks it dirty; a frame-rate timer does the painting.
 local dragDirty = false
 
+-- Paints whatever a drag last touched: just the dragged row normally, or
+-- every currently-painted room when locked, since dragTo below moved all of
+-- them together.
+local function paintDragged(i)
+  if not sonosPanelCanvas then return end
+  if locked then
+    for j, o in ipairs(rooms) do
+      if rowLayout[j] then paintSlider(sonosPanelCanvas, j, o) end
+    end
+  elseif rooms[i] then
+    paintSlider(sonosPanelCanvas, i, rooms[i])
+  end
+end
+
 local function dragTo(i)
   local r, L = rooms[i], rowLayout[i]
   if not (sonosPanelCanvas and r and L) then return end
@@ -419,6 +446,16 @@ local function dragTo(i)
   r.volume = v
   dragDirty = true
   setVolume(r, sonos.rawVolume(v, baselines[r.uuid]))
+  if locked then
+    -- Every other visible room snaps to the same displayed percentage,
+    -- through its own baseline — matching percentage is the whole point.
+    for j, o in ipairs(rooms) do
+      if j ~= i and rowLayout[j] and o.volume ~= v then
+        o.volume = v
+        setVolume(o, sonos.rawVolume(v, baselines[o.uuid]))
+      end
+    end
+  end
 end
 
 function stopDrag()
@@ -431,8 +468,8 @@ local function endDrag()
   local i = dragging
   stopDrag()
   if i and sonosPanelCanvas and rooms[i] then
-    dragTo(i)                                   -- take the release position
-    paintSlider(sonosPanelCanvas, i, rooms[i])  -- and land on it
+    dragTo(i)          -- take the release position
+    paintDragged(i)    -- and land on it (every locked room, or just this one)
   end
 end
 
@@ -443,17 +480,14 @@ local function startDrag(i)
   sonosDragTimer = hs.timer.doEvery(ui.FRAME_INTERVAL, function()
     if dragDirty and dragging and sonosPanelCanvas and rooms[dragging] then
       dragDirty = false
-      paintSlider(sonosPanelCanvas, dragging, rooms[dragging])
+      paintDragged(dragging)
     end
   end)
   local types = hs.eventtap.event.types
   sonosDragTap = hs.eventtap.new({ types.leftMouseDragged, types.leftMouseUp }, function(e)
     if not dragging then return false end
     if e:getType() == types.leftMouseUp then
-      local j = dragging
-      dragTo(j)
-      stopDrag()
-      if sonosPanelCanvas and rooms[j] then paintSlider(sonosPanelCanvas, j, rooms[j]) end
+      endDrag()
     else
       dragTo(dragging)
     end
@@ -468,20 +502,34 @@ local function buttonLabel(id)
   return ""
 end
 
+local function buttonLabelStyle(id, color)
+  return ui.styled(buttonLabel(id), theme.text.body, color, { font = theme.font.semibold, align = "center" })
+end
+
+-- Only the Lock button has a persistent on/off state; everything else settles
+-- back to the plain chip look once its press-flash ends.
+local function buttonActive(id)
+  return id == "lock" and locked
+end
+
+-- Paints a button's resting look — accent-filled while "on" (same look
+-- flashButton uses for a press, just held), the recessed chip otherwise.
+local function paintButtonState(c, id)
+  local on = buttonActive(id)
+  c["btnfill:" .. id].fillColor = on and ui.accent or ui.chipColor
+  c["btnedge:" .. id].strokeColor = on and ui.accent or ui.chipEdge
+  c["btntext:" .. id].text = buttonLabelStyle(id, on and ui.onAccent or ui.fg)
+end
+
 local function flashButton(c, id, fn)
-  local function label(color)
-    return ui.styled(buttonLabel(id), theme.text.body, color, { font = theme.font.semibold, align = "center" })
-  end
   c["btnfill:" .. id].fillColor = ui.accent
   c["btnedge:" .. id].strokeColor = ui.accent
-  c["btntext:" .. id].text = label(ui.onAccent)
+  c["btntext:" .. id].text = buttonLabelStyle(id, ui.onAccent)
   if sonosFlashTimer then sonosFlashTimer:stop() end
   sonosFlashTimer = hs.timer.doAfter(FLASH_HOLD, function()
     sonosFlashTimer = nil
     if sonosPanelCanvas ~= c then return end
-    c["btnfill:" .. id].fillColor = ui.chipColor
-    c["btnedge:" .. id].strokeColor = ui.chipEdge
-    c["btntext:" .. id].text = label(ui.fg)
+    paintButtonState(c, id)
   end)
   fn()
 end
@@ -492,6 +540,16 @@ local function runButton(id)
       flashButton(sonosPanelCanvas, id, b.fn)
     end
   end
+end
+
+-- Flips the lock and repaints the button to match. fn() in BUTTONS runs
+-- inside flashButton's press-flash, so the button lands on this resting
+-- state the moment the flash ends; setting it here too covers the paths that
+-- don't go through a button press (clearCalibration, and openPanel resetting
+-- it on close/reopen).
+setLocked = function(v)
+  locked = v
+  if sonosPanelCanvas then paintButtonState(sonosPanelCanvas, "lock") end
 end
 
 -- The one mouse handler. Element ids are stable, so everything mutates
@@ -582,7 +640,7 @@ local function build(list)
   c[#c + 1] = ui.text(ui.title("SONOS"),
     { x = cx + PAD, y = cy + PAD - 4, w = cardW - PAD * 2, h = 18 })
   c[#c + 1] = ui.text(
-    ui.styled("g group  ·  t tv  ·  c calibrate  ·  x clear calibration  ·  esc to close", theme.text.caption, ui.muted, { align = "right" }),
+    ui.styled("g group  ·  t tv  ·  c calibrate  ·  x clear calibration  ·  l lock  ·  esc to close", theme.text.caption, ui.muted, { align = "right" }),
     { x = cx + PAD, y = cy + PAD - 2, w = cardW - PAD * 2, h = 16 })
   c[#c + 1] = ui.rule(cx + PAD, cy + HEADER_H - 14, cardW - PAD * 2)
 
@@ -639,6 +697,7 @@ local function build(list)
                   trackMouseDown = true, trackMouseEnterExit = true, frame = frame }
     bx = bx + btnW[b.id] + BTN_GAP
   end
+  paintButtonState(c, "lock")   -- built with the resting look above; fix it up if locked
 
   c:mouseCallback(onMouse)
 
@@ -673,6 +732,7 @@ local function openPanel()
   closePanel()
   ringsT0 = nil
   rooms = {}
+  locked = false   -- never silently on for a freshly opened panel; see `locked` above
   build({})
   if not sonosPanelKeys then
     sonosPanelKeys = { hs.hotkey.new({}, "escape", closePanel) }
