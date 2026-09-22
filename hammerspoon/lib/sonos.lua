@@ -178,4 +178,37 @@ function M.volumeFromX(x, trackX, trackW)
   return math.floor(v + 0.5)
 end
 
+-- Calibration -------------------------------------------------------------
+--
+-- Raw Sonos volume (0-100) doesn't mean the same loudness on every speaker
+-- model, so a room can be calibrated: its baseline is the raw volume it was
+-- at the moment "equally loud" was declared, and from then on the panel
+-- shows/drives a percentage of that baseline instead of the raw number.
+--
+-- A missing or zero baseline means "not calibrated" and both directions
+-- pass the value straight through (clamped, for the raw direction) — zero
+-- would otherwise be a divide-by-zero, which is why callers must never
+-- store one (a room calibrated while muted keeps its previous baseline, or
+-- none).
+
+-- Raw -> the percentage to display. Deliberately uncapped above 100: a room
+-- that's gotten louder than its calibration (someone bumped it from the
+-- Sonos app) reads as ">100%", which *is* the signal that it's past its
+-- calibrated ceiling, rather than a clamp hiding it.
+function M.displayVolume(raw, baseline)
+  if not baseline or baseline == 0 then return raw end
+  return math.floor(raw / baseline * 100 + 0.5)
+end
+
+-- The inverse: a displayed/dragged percentage -> the raw value to actually
+-- send. Always clamped to Sonos' real 0-100 range, since a calibrated room
+-- showing >100% (or a drag pinned at the slider's 100 end) would otherwise
+-- ask for a raw volume above what a speaker accepts.
+function M.rawVolume(display, baseline)
+  local raw = (not baseline or baseline == 0) and display or (display * baseline / 100)
+  raw = math.floor(raw + 0.5)
+  if raw < 0 then raw = 0 elseif raw > 100 then raw = 100 end
+  return raw
+end
+
 return M
