@@ -605,13 +605,17 @@ local function build(list)
   end
 
   local btnText, btnW = {}, {}
-  for _, b in ipairs(BUTTONS) do
+  local btnRowW = 0
+  for i, b in ipairs(BUTTONS) do
     btnText[b.id] = ui.styled(b.label, theme.text.body, ui.fg, { font = theme.font.semibold, align = "center" })
     btnW[b.id] = ui.width(btnText[b.id]) + BTN_PAD * 2
+    btnRowW = btnRowW + btnW[b.id] + (i > 1 and BTN_GAP or 0)
   end
+  btnRowW = PAD * 2 + btnRowW
 
   local nRows = math.max(#list, 1)
-  local cardW = PAD * 2 + nameW + GAP + SRC_W + GAP + SLIDER_W + GAP + NUM_W
+  local rowW = PAD * 2 + nameW + GAP + SRC_W + GAP + SLIDER_W + GAP + NUM_W
+  local cardW = math.max(rowW, btnRowW)
   local cardH = HEADER_H + nRows * ROW_H + FOOTER_H
 
   screenFrame = hs.screen.mainScreen():frame()
