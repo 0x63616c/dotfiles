@@ -181,8 +181,10 @@ end
 -- Calibration -------------------------------------------------------------
 --
 -- Raw Sonos volume (0-100) doesn't mean the same loudness on every speaker
--- model, so a room can be calibrated: its baseline is the raw volume it was
--- at the moment "equally loud" was declared, and from then on the panel
+-- model, so a room can be calibrated: its baseline is double the raw volume
+-- it was at the moment "equally loud" was declared (M.calibratedBaseline),
+-- so that moment reads as 50% rather than pinning the slider's ceiling at
+-- however loud the room happened to be, and from then on the panel
 -- shows/drives a percentage of that baseline instead of the raw number.
 --
 -- A missing or zero baseline means "not calibrated" and both directions
@@ -209,6 +211,18 @@ function M.rawVolume(display, baseline)
   raw = math.floor(raw + 0.5)
   if raw < 0 then raw = 0 elseif raw > 100 then raw = 100 end
   return raw
+end
+
+-- What calibrateRooms stores as a room's new baseline, given the raw volume
+-- it read at the moment of calibration: double it, so that moment reads back
+-- as 50% and there's headroom to go louder, but never past 100 — raw*2 only
+-- clears 100 when raw itself was already past 50, and rawVolume already
+-- clamps what gets SENT to a speaker at 100. If the stored baseline weren't
+-- clamped too, that same sent raw would redisplay via displayVolume against
+-- the uncapped baseline as something under 100%, snapping the slider visibly
+-- backward even though the speaker is genuinely at max.
+function M.calibratedBaseline(raw)
+  return math.min(raw * 2, 100)
 end
 
 return M

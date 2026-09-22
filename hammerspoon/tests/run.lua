@@ -572,6 +572,49 @@ test("display past 100% clamps back to a real raw volume, not an invalid one", f
   eq(sonos.rawVolume(300, 50), 100, "a display that implies raw > 100 clamps to 100")
 end)
 
+test("calibratedBaseline doubles a quiet raw, giving headroom", function()
+  eq(sonos.calibratedBaseline(18), 36, "captured quiet reads back at 50%")
+  eq(sonos.displayVolume(18, sonos.calibratedBaseline(18)), 50, "50%, not 100%, at the moment of calibration")
+end)
+
+test("calibratedBaseline clamps at 100 so a loud calibration can't overshoot", function()
+  eq(sonos.calibratedBaseline(50), 100, "raw*2 lands exactly on the ceiling")
+  eq(sonos.calibratedBaseline(70), 100, "raw*2 (140) would overshoot; clamped to 100")
+end)
+
+test("a loud calibration doesn't snap the slider back below 100%", function()
+  -- Without the clamp, baseline would be 140: dragging to 100% sends a raw of
+  -- 100 (rawVolume already clamps the SEND), but the next poll would redisplay
+  -- that same raw against the un-clamped 140 baseline as 71%, snapping the
+  -- knob backward under a speaker that is genuinely at max.
+  local baseline = sonos.calibratedBaseline(70)
+  local sentRaw = sonos.rawVolume(100, baseline)
+  eq(sentRaw, 100, "dragging to 100% sends the speaker's real max")
+  eq(sonos.displayVolume(sentRaw, baseline), 100, "redisplaying that raw stays at 100%, no snap-back")
+end)
+
+test("repeated calibrate/drag-to-max cycles converge on the true ceiling without drifting or snapping back", function()
+  -- Each cycle: calibrate at the current raw, then drag the slider to 100%.
+  -- Below the clamp (raw <= 50) doubling gives a clean 50% at the moment of
+  -- calibration; once the baseline clamps at 100 (raw > 50) that moment reads
+  -- higher than 50% — less headroom left near the ceiling, not a bug — but it
+  -- must never DECREASE cycle over cycle (no drift) and dragging to 100% must
+  -- never redisplay under 100% (no snap-back).
+  local raw = 20 -- calibrated while quiet
+  local expectedBaselines = { 40, 80, 100 }
+  local prevDisplay = 0
+  for _, expected in ipairs(expectedBaselines) do
+    local baseline = sonos.calibratedBaseline(raw)
+    eq(baseline, expected, "baseline after calibrating at raw " .. raw)
+    local displayAtCalibration = sonos.displayVolume(raw, baseline)
+    check(displayAtCalibration >= prevDisplay, "calibration point doesn't drift downward cycle over cycle")
+    prevDisplay = displayAtCalibration
+    raw = sonos.rawVolume(100, baseline) -- drag the slider to max
+    eq(sonos.displayVolume(raw, baseline), 100, "dragging to max reads 100%, no snap-back")
+  end
+  eq(raw, 100, "the cycle converges on the speaker's real 100 ceiling")
+end)
+
 -- ----------------------------------------------------------------------------
 
 io.write(string.format("\n%d passed, %d failed\n", passed, failed))
