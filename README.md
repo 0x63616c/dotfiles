@@ -75,7 +75,7 @@ from the pinned `lazy-lock.json`.
 | Path | What it does |
 |---|---|
 | `herdr/herdr-plugin.toml` | Local Herdr plugin manifest: opens a docked plan-usage split at server startup and provides an Open or refresh action. Link this directory with `herdr plugin link "$PWD/herdr"`. |
-| `herdr/sidebar.py` | Calls `quota-axi` every 45 seconds and shows each Claude/Codex quota window, remaining percent, and local reset time in a roughly 30-column left pane. Press `r` to refresh; Claude Keychain approval is shown as an inline instruction until granted. Run `python3 herdr/sidebar.py --check` for its small parser/state check. |
+| `herdr/sidebar.py` | Calls `quota-axi` every 45 seconds and shows each Claude/Codex quota window, remaining percent, and local reset time in a roughly 30-column left pane. Provider names are bright, labels and reset times are dim, remaining percentages use green/yellow/red thresholds, and unavailable or stale data is yellow. Press `r` to refresh; Claude Keychain approval is shown as an inline instruction until granted. Run `python3 herdr/sidebar.py --check` for its small parser/state check. |
 
 #### Herdr plugin
 
