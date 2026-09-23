@@ -79,7 +79,7 @@ def render(data):
         p = providers.get(key)
         if lines:
             lines.append("")
-        lines.append(styled("1;97", title) + (styled("2", f" · {p['plan']}") if p and p.get("plan") else ""))
+        lines.append(styled("1;97", f" {title}") + (styled("2", f" · {p['plan']}") if p and p.get("plan") else ""))
         if not p:
             lines.append(styled("33", "  Unavailable"))
             continue
@@ -101,7 +101,9 @@ def render(data):
             color = "33"
             if isinstance(remaining, (int, float)):
                 color = "32" if remaining > 50 else "33" if remaining >= 20 else "31"
-            lines.extend([styled("2", f"  {label}: ") + styled(color, amount),
+            elapsed = window.get("pace", {}).get("elapsedPercent")
+            through = f" / {elapsed:.0f}% through" if isinstance(elapsed, (int, float)) else ""
+            lines.extend([styled("2", f"  {label}: ") + styled(color, amount) + styled("2", through),
                           styled("2", f"  {reset_text(window.get('resetsAt'))}")])
     lines.extend(["", styled("2", f"Updated {dt.datetime.now():%H:%M} · r refresh")])
     return "\n".join(lines)
@@ -110,7 +112,7 @@ def render(data):
 def fetch():
     try:
         result = subprocess.run(
-            ["quota-axi", "--provider", "claude,codex", "--json"],
+            ["quota-axi", "--provider", "claude,codex", "--json", "--full"],
             capture_output=True, text=True, check=True, timeout=15,
         )
         return render(json.loads(result.stdout))
@@ -122,17 +124,20 @@ def self_test():
     output = render({"providers": [
         {"provider": "claude", "windows": [], "state": {"status": "auth_required"}},
         {"provider": "codex", "windows": [
-            {"label": "day", "percentRemaining": 42, "resetsAt": "2026-09-26T14:43:59Z"},
+            {"label": "day", "percentRemaining": 42, "resetsAt": "2026-09-26T14:43:59Z",
+             "pace": {"elapsedPercent": 60.4}},
             {"label": "week", "percentRemaining": 90, "resetsAt": None},
             {"label": "low", "percentRemaining": 10, "resetsAt": None},
         ], "state": {"status": "stale"}},
     ]})
     plain = re.sub(r"\033\[[0-9;]*m", "", output)
-    assert plain.startswith("CLAUDE\n") and "PLAN USAGE" not in plain
+    assert plain.startswith(" CLAUDE\n") and "PLAN USAGE" not in plain
     assert "Auth required" in plain and "Stale data" in plain
-    assert "day: 42% left" in plain and "week: 90% left" in plain
+    assert "day: 42% left / 60% through" in plain  # elapsedPercent rounds to nearest whole percent
+    assert "week: 90% left" in plain and "week: 90% left / " not in plain
     assert "reset unknown" in plain
     assert "\033[33m42% left\033[0m" in output
+    assert "60% through" in output
     assert "\033[32m90% left\033[0m" in output
     assert "\033[31m10% left\033[0m" in output
 
