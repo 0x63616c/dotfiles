@@ -1,0 +1,21 @@
+id = "calum.plan-usage"
+name = "Plan usage"
+version = "0.1.0"
+min_herdr_version = "0.7.3"
+description = "Claude and Codex quota in a docked terminal pane"
+platforms = ["macos"]
+
+[[startup]]
+command = ["python3", "sidebar.py", "--open"]
+
+[[actions]]
+id = "open"
+title = "Open or refresh plan usage"
+contexts = ["workspace"]
+command = ["python3", "sidebar.py", "--open"]
+
+[[panes]]
+id = "usage"
+title = "Plan usage"
+placement = "split"
+command = ["python3", "sidebar.py"]
