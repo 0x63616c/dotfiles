@@ -5,6 +5,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import select
 import subprocess
 import sys
@@ -16,6 +17,11 @@ import tty
 PLUGIN_ID = "calum.plan-usage"
 PANE_TITLE = "Plan usage"
 WIDTH = 30
+RESET = "\033[0m"
+
+
+def styled(code, value):
+    return f"\033[{code}m{value}{RESET}"
 
 
 def herdr(*args):
@@ -68,28 +74,36 @@ def reset_text(value):
 
 def render(data):
     providers = {p.get("provider"): p for p in data.get("providers", [])}
-    lines = ["PLAN USAGE", "─" * 24]
+    lines = []
     for key, title in (("claude", "CLAUDE"), ("codex", "CODEX")):
         p = providers.get(key)
-        lines.extend(["", title + (f" · {p['plan']}" if p and p.get("plan") else "")])
+        if lines:
+            lines.append("")
+        lines.append(styled("1;97", title) + (styled("2", f" · {p['plan']}") if p and p.get("plan") else ""))
         if not p:
-            lines.append("  Unavailable")
+            lines.append(styled("33", "  Unavailable"))
             continue
         status = p.get("state", {}).get("status", "unknown")
         if status == "auth_required":
-            lines.extend(["  Auth required", "  run: quota-axi", "    --allow-keychain-prompt"])
+            lines.extend([styled("33", "  Auth required"), styled("2", "  run: quota-axi"),
+                          styled("2", "    --allow-keychain-prompt")])
             continue
         windows = p.get("windows") or []
         if status != "fresh":
-            lines.append(f"  {status.replace('_', ' ').title()} data")
+            lines.append(styled("33", f"  {status.replace('_', ' ').title()} data"))
         if not windows:
-            lines.append("  No quota windows" if status == "fresh" else "  Quota unavailable")
+            lines.append(styled("33", "  No quota windows" if status == "fresh" else "  Quota unavailable"))
         for window in windows:
             label = str(window.get("label") or window.get("id") or "quota")[:10]
             remaining = window.get("percentRemaining")
             amount = f"{remaining:g}% left" if isinstance(remaining, (int, float)) else "unknown"
-            lines.extend([f"  {label}: {amount}", f"  {reset_text(window.get('resetsAt'))}"])
-    lines.extend(["", f"Updated {dt.datetime.now():%H:%M} · r refresh"])
+            # Above 50% is comfortable; 20-50% cautions; below 20% warns.
+            color = "33"
+            if isinstance(remaining, (int, float)):
+                color = "32" if remaining > 50 else "33" if remaining >= 20 else "31"
+            lines.extend([styled("2", f"  {label}: ") + styled(color, amount),
+                          styled("2", f"  {reset_text(window.get('resetsAt'))}")])
+    lines.extend(["", styled("2", f"Updated {dt.datetime.now():%H:%M} · r refresh")])
     return "\n".join(lines)
 
 
@@ -101,7 +115,7 @@ def fetch():
         )
         return render(json.loads(result.stdout))
     except (OSError, subprocess.SubprocessError, ValueError):
-        return "PLAN USAGE\n\nquota-axi unavailable\nCheck installation or login"
+        return styled("33", "quota-axi unavailable") + "\n" + styled("2", "Check installation or login")
 
 
 def self_test():
@@ -110,11 +124,17 @@ def self_test():
         {"provider": "codex", "windows": [
             {"label": "day", "percentRemaining": 42, "resetsAt": "2026-09-26T14:43:59Z"},
             {"label": "week", "percentRemaining": 90, "resetsAt": None},
+            {"label": "low", "percentRemaining": 10, "resetsAt": None},
         ], "state": {"status": "stale"}},
     ]})
-    assert "Auth required" in output
-    assert "Stale data" in output and "day: 42% left" in output
-    assert "week: 90% left" in output and "reset unknown" in output
+    plain = re.sub(r"\033\[[0-9;]*m", "", output)
+    assert plain.startswith("CLAUDE\n") and "PLAN USAGE" not in plain
+    assert "Auth required" in plain and "Stale data" in plain
+    assert "day: 42% left" in plain and "week: 90% left" in plain
+    assert "reset unknown" in plain
+    assert "\033[33m42% left\033[0m" in output
+    assert "\033[32m90% left\033[0m" in output
+    assert "\033[31m10% left\033[0m" in output
 
 
 def main():
