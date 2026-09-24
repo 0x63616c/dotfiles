@@ -5,8 +5,10 @@
 -- What lives where:
 --   capslock.lua   Caps Lock (remapped to F18) -> Hyper, replacing Hyperkey
 --   dictation.lua  auto pause/resume media + the on-screen dictation indicator
+--   diagnostics.lua Hyper+D local disk history webview
 --   doubleshift.lua both Shifts held -> toggle real Caps Lock
 --   hyper.lua      Hyper-key shortcuts and their registry
+--   jobs.lua       recurring-job registry (diagnostics sampler)
 --   reload.lua     reload this config when any .lua here is saved
 --   screenshots.lua screenshots -> clipboard, and the Hyper+X library
 --   sonos.lua      Hyper+S Sonos panel: volumes, group-to-Desk, TV mode
