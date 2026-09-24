@@ -31,6 +31,7 @@
   .panels { display: grid; gap: 18px; }
   .panel { border-top: 1px solid var(--color-border); padding-top: 18px; }
   .panel-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 12px; }
+  .panel-actions { display: flex; align-items: center; gap: 16px; }
   h2 { font-size: var(--text-label); font-weight: 600; margin: 0 0 4px; }
   .panel-head p { color: var(--color-mutedForeground); margin: 0; font-size: var(--text-caption); }
   .legend { display: flex; gap: 18px; color: var(--color-mutedForeground); font-size: var(--text-caption); white-space: nowrap; padding-top: 2px; }
@@ -39,6 +40,7 @@
   .swatch.write { background: var(--color-mutedForeground); }
   .chart { display: block; width: 100%; height: 175px; overflow: visible; }
   .gridline { stroke: var(--color-border); stroke-width: 1; }
+  .zero-line { stroke: var(--color-mutedForeground); }
   .axis { fill: var(--color-mutedForeground); font-size: var(--text-caption); font-family: var(--font-ui), -apple-system, sans-serif; }
   .line { fill: none; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   .line.used, .line.read { stroke: var(--color-foreground); }
@@ -63,8 +65,8 @@
     <div class="metric"><div class="name">Disk write</div><div class="value" id="write">—</div><div class="detail">Average since previous sample</div></div>
   </section>
   <div class="panels">
-    <section class="panel" id="fullness-panel"><div class="panel-head"><div><h2>Disk fullness</h2><p>Data volume's shared APFS container · fixed 0–100% scale</p></div><div class="legend"><span><i class="swatch used"></i>Used</span></div></div><svg class="chart" id="fullness" role="img" aria-label="Disk fullness over time"></svg><div class="empty">No samples in this range yet.</div></section>
-    <section class="panel" id="activity-panel"><div class="panel-head"><div><h2>Read &amp; write throughput</h2><p>All block devices · average bytes per second</p></div><div class="legend"><span><i class="swatch read"></i>Read</span><span><i class="swatch write"></i>Write</span></div></div><svg class="chart" id="activity" role="img" aria-label="Disk read and write throughput over time"></svg><div class="empty">Throughput appears after the second sample.</div></section>
+    <section class="panel" id="fullness-panel"><div class="panel-head"><div><h2>Disk fullness</h2><p id="scale-subtitle">Data volume's shared APFS container · fitted scale</p></div><div class="panel-actions"><div class="ranges" role="group" aria-label="Disk fullness scale"><button data-scale="fit" class="active" aria-pressed="true">Fit</button><button data-scale="fixed" aria-pressed="false">0–100%</button></div><div class="legend"><span><i class="swatch used"></i>Used</span></div></div></div><svg class="chart" id="fullness" role="img" aria-label="Disk fullness over time"></svg><div class="empty">No samples in this range yet.</div></section>
+    <section class="panel" id="activity-panel"><div class="panel-head"><div><h2>Read &amp; write throughput</h2><p>All block devices · writes above, reads below · shared MB/s scale</p></div><div class="legend"><span><i class="swatch read"></i>Read</span><span><i class="swatch write"></i>Write</span></div></div><svg class="chart" id="activity" role="img" aria-label="Disk read and write throughput over time"></svg><div class="empty">Throughput appears after the second sample.</div></section>
   </div>
   <footer id="foot">Samples run every minute while Hammerspoon is running. Close and reopen with Hyper+D to refresh.</footer>
 </main>
@@ -73,6 +75,7 @@
 const NS = 'http://www.w3.org/2000/svg';
 const duration = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 };
 let range = '24h';
+let diskMode = 'fit';
 const latest = [...DATA['1h'], ...DATA['6h'], ...DATA['24h'], ...DATA['7d'], ...DATA['30d'], ...DATA.All].sort((a,b) => a[0]-b[0]).at(-1);
 const number = n => new Intl.NumberFormat('en', {maximumFractionDigits: 1}).format(n);
 const size = n => n == null ? '—' : number(n / 1e9) + ' GB';
@@ -97,27 +100,37 @@ function niceMax(value) {
   const power = 10 ** Math.floor(Math.log10(value));
   return [1, 2, 5, 10].map(n => n * power).find(n => n >= value) || 10 * power;
 }
+function fittedDiskScale(values) {
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = max-min || 1;
+  const rough = span * 1.2 / 4;
+  const power = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 5, 10].map(n => n * power).find(n => n >= rough);
+  return [Math.floor((min-span*.1)/step)*step, Math.ceil((max+span*.1)/step)*step, step];
+}
 function draw(svg, rows, kind, start, end) {
   svg.replaceChildren();
   const width = Math.max(500, svg.clientWidth), height = 175;
   const left = 55, right = 10, top = 8, bottom = 27, plotW = width-left-right, plotH = height-top-bottom;
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  const values = kind === 'disk' ? rows.map(r => r[1]/r[2]*100) : rows.flatMap(r => [r[3],r[4]]).filter(v => v != null);
-  const ymax = kind === 'disk' ? 100 : niceMax(Math.max(0, ...values));
-  const yLabel = n => kind === 'disk' ? `${n}%` : n >= 1e9 ? number(n/1e9)+' GB/s' : n >= 1e6 ? number(n/1e6)+' MB/s' : number(n/1e3)+' KB/s';
-  for (let i=0; i<=4; i++) {
-    const y = top + plotH * i/4, value = ymax * (1-i/4);
-    svg.append(element('line', {x1:left, y1:y, x2:width-right, y2:y, class:'gridline'}));
+  const values = kind === 'disk' ? rows.map(r => r[1]/r[2]*100).filter(Number.isFinite) : rows.flatMap(r => [r[3],r[4]]).filter(v => v != null);
+  const [ymin, ymax, step] = kind === 'disk' && diskMode === 'fit' && values.length
+    ? fittedDiskScale(values) : [0, kind === 'disk' ? 100 : niceMax(Math.max(0, ...values)), kind === 'disk' ? 25 : null];
+  const yLabel = n => kind === 'disk' ? `${n.toFixed(Math.max(0, -Math.floor(Math.log10(step))))}%` : number(n/1e6)+' MB/s';
+  const ticks = kind === 'disk' ? Math.round((ymax-ymin)/step) : 4;
+  for (let i=0; i<=ticks; i++) {
+    const y = top + plotH * i/ticks, value = kind === 'disk' ? ymin + (ymax-ymin) * (1-i/ticks) : ymax * Math.abs(1-i/2);
+    svg.append(element('line', {x1:left, y1:y, x2:width-right, y2:y, class:kind === 'io' && i === 2 ? 'gridline zero-line' : 'gridline'}));
     svg.append(element('text', {x:left-10, y:y+4, 'text-anchor':'end', class:'axis'}, yLabel(value)));
   }
-  const ticks = 4;
-  for (let i=0; i<=ticks; i++) {
-    const ts = start + (end-start)*i/ticks;
+  const timeTicks = 4;
+  for (let i=0; i<=timeTicks; i++) {
+    const ts = start + (end-start)*i/timeTicks;
     const date = new Date(ts*1000);
     const label = range === '1h' || range === '6h' || range === '24h'
       ? date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})
       : date.toLocaleDateString([], {month:'short', day:'numeric'});
-    svg.append(element('text', {x:left+plotW*i/ticks, y:height-4, 'text-anchor':i===0?'start':i===ticks?'end':'middle', class:'axis'}, label));
+    svg.append(element('text', {x:left+plotW*i/timeTicks, y:height-4, 'text-anchor':i===0?'start':i===timeTicks?'end':'middle', class:'axis'}, label));
   }
   const path = (index, style) => {
     let d = '', prev = null;
@@ -125,7 +138,9 @@ function draw(svg, rows, kind, start, end) {
       const value = kind === 'disk' ? row[1]/row[2]*100 : row[index];
       if (value == null || !Number.isFinite(value)) { prev = null; continue; }
       const x = left + (row[0]-start)/(end-start)*plotW;
-      const y = top + (1-Math.max(0, Math.min(ymax, value))/ymax)*plotH;
+      const magnitude = Math.max(0, Math.min(ymax, value));
+      const y = kind === 'disk' ? top + (1-(magnitude-ymin)/(ymax-ymin))*plotH
+        : top + (.5 + (style === 'read' ? 1 : -1)*magnitude/(2*ymax))*plotH;
       const gap = prev && row[0]-prev > (range==='7d'?1800:range==='30d'?10800:range==='All'?3*86400:240);
       d += `${!prev || gap ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `;
       prev = row[0];
@@ -142,12 +157,21 @@ function render() {
   const end = Math.max(now, start+60);
   document.querySelector('#fullness-panel').classList.toggle('no-data', !rows.length);
   document.querySelector('#activity-panel').classList.toggle('no-data', !rows.some(r => r[3] != null || r[4] != null));
+  document.querySelector('#scale-subtitle').textContent = `Data volume's shared APFS container · ${diskMode === 'fit' ? 'fitted' : 'fixed 0–100%'} scale`;
   draw(document.querySelector('#fullness'), rows, 'disk', start, end);
   draw(document.querySelector('#activity'), rows, 'io', start, end);
 }
 document.querySelectorAll('[data-range]').forEach(button => button.addEventListener('click', () => {
   range = button.dataset.range;
   document.querySelectorAll('[data-range]').forEach(b => b.classList.toggle('active', b===button));
+  render();
+}));
+document.querySelectorAll('[data-scale]').forEach(button => button.addEventListener('click', () => {
+  diskMode = button.dataset.scale;
+  document.querySelectorAll('[data-scale]').forEach(b => {
+    b.classList.toggle('active', b===button);
+    b.setAttribute('aria-pressed', b===button);
+  });
   render();
 }));
 new ResizeObserver(render).observe(document.querySelector('#fullness'));

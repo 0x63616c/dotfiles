@@ -10,13 +10,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 OUT = Path(__file__).resolve().parent
 BASELINE = "7483b17b8cbb71116af42bb98f97cc50ca1714d1"
+FIXED_SCALE = "e6cf2b7cff281f5b48708e314db05b71ff3770cc"
 
 spec = importlib.util.spec_from_file_location("diagnostics", ROOT / "hammerspoon/scripts/diagnostics.py")
 diagnostics = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(diagnostics)
 
 now = int(time.time())
-rows = [[now - 86400 + i * 60, 73_000_000_000 + i * 2_200_000, 100_000_000_000,
+rows = [[now - 86400 + i * 60, 94_000_000_000 + i * 2_200_000, 100_000_000_000,
          2_000_000 + (i % 180) * 15_000 + (i % 13) * 80_000,
          900_000 + (i % 150) * 10_000 + (i % 17) * 40_000] for i in range(1441)]
 series = {key: rows for key in ("1h", "6h", "24h", "7d", "30d", "All")}
@@ -25,6 +26,11 @@ old = subprocess.check_output(["git", "show", f"{BASELINE}:hammerspoon/diagnosti
 new = (ROOT / "hammerspoon/diagnostics.html").read_text()
 (OUT / "before-content.html").write_text(old.replace("/*__DATA__*/", data))
 (OUT / "after-content.html").write_text(new.replace("/*__DATA__*/", data).replace("/*__THEME__*/", diagnostics.theme_css()))
+fixed = subprocess.check_output(["git", "show", f"{FIXED_SCALE}:hammerspoon/diagnostics.html"], cwd=ROOT, text=True)
+for name, template in (("before", fixed), ("after", new)):
+    (OUT / f"disk-fullness-{name}.html").write_text(
+        template.replace("/*__DATA__*/", data).replace("/*__THEME__*/", diagnostics.theme_css())
+    )
 
 reference = """
 <div class="hyper-card">
