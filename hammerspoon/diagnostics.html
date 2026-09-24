@@ -4,53 +4,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Diagnostics</title>
 <style>
-  :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; }
+  /*__THEME__*/
+  :root { color-scheme: dark; font-family: var(--font-ui), -apple-system, BlinkMacSystemFont, sans-serif; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #09090b; color: #fafafa; min-width: 600px; }
-  main { max-width: 1120px; margin: auto; padding: 44px 48px 54px; }
-  .eyebrow { color: #a1a1aa; font-size: 11px; letter-spacing: .16em; font-weight: 700; text-transform: uppercase; }
-  header { display: flex; justify-content: space-between; align-items: start; gap: 24px; margin-bottom: 32px; }
-  h1 { font-size: 36px; font-weight: 650; letter-spacing: -.045em; margin: 10px 0 8px; }
-  .subtitle { margin: 0; color: #a1a1aa; font-size: 14px; }
-  .live { color: #a1a1aa; border: 1px solid #27272a; border-radius: 999px; padding: 8px 12px; font-size: 12px; white-space: nowrap; margin-top: 8px; }
-  .live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #34d399; margin-right: 8px; }
-  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
-  .toolbar .label { font-size: 13px; color: #a1a1aa; }
-  .ranges { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid #27272a; border-radius: 10px; background: #111114; }
-  button { appearance: none; background: none; border: 0; color: #a1a1aa; border-radius: 7px; font: 600 12px -apple-system, sans-serif; padding: 8px 11px; cursor: pointer; }
-  button:hover { color: #fafafa; }
-  button.active { background: #27272a; color: #fafafa; box-shadow: 0 1px 2px #0008; }
-  button:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
-  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
-  .metric, .panel { background: #111114; border: 1px solid #27272a; border-radius: 14px; }
-  .metric { padding: 18px 20px 17px; }
-  .metric .name { font-size: 12px; color: #a1a1aa; margin-bottom: 11px; }
-  .metric .value { font-size: 27px; font-variant-numeric: tabular-nums; letter-spacing: -.04em; font-weight: 620; }
-  .metric .unit { font-size: 13px; color: #a1a1aa; margin-left: 5px; font-weight: 500; letter-spacing: 0; }
-  .metric .detail { color: #71717a; font-size: 12px; margin-top: 7px; }
-  .meter { height: 4px; border-radius: 4px; background: #27272a; overflow: hidden; margin-top: 16px; }
-  .meter > span { display: block; height: 100%; background: #a78bfa; }
-  .panels { display: grid; gap: 14px; }
-  .panel { padding: 24px 26px 22px; }
-  .panel-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 21px; }
-  h2 { font-size: 16px; font-weight: 620; letter-spacing: -.015em; margin: 0 0 5px; }
-  .panel-head p { color: #71717a; margin: 0; font-size: 12px; }
-  .legend { display: flex; gap: 18px; color: #a1a1aa; font-size: 12px; white-space: nowrap; padding-top: 2px; }
+  html, body { min-height: 100%; }
+  body { margin: 0; color: var(--color-foreground); background: color-mix(in srgb, var(--color-backdrop) calc(var(--alpha-backdrop) * 100%), transparent); }
+  main { width: min(1120px, calc(100vw - 64px)); max-height: calc(100vh - 48px); overflow: auto; margin: 24px auto 0; padding: var(--space-pad); background: color-mix(in srgb, var(--color-popover) calc(var(--alpha-surface) * 100%), transparent); border: 1px solid var(--color-border); border-radius: var(--radius-card); box-shadow: 0 var(--shadow-dy) var(--shadow-blur) rgb(0 0 0 / var(--shadow-alpha)); }
+  header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-gap); min-height: 30px; border-bottom: 1px solid var(--color-border); margin-bottom: 20px; padding-bottom: 14px; }
+  h1 { margin: 0; color: var(--color-mutedForeground); font-family: var(--font-semibold), var(--font-ui), -apple-system, sans-serif; font-size: var(--text-title); font-weight: 600; letter-spacing: 1.8px; }
+  .live { color: var(--color-mutedForeground); font-size: var(--text-caption); white-space: nowrap; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+  .toolbar .label { font-size: var(--text-body); color: var(--color-mutedForeground); }
+  .ranges { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--color-muted); border: 1px solid var(--color-mutedEdge); border-radius: var(--radius-control); }
+  button { appearance: none; background: none; border: 0; color: var(--color-mutedForeground); border-radius: var(--radius-control); font: 600 var(--text-title) var(--font-semibold), var(--font-ui), -apple-system, sans-serif; padding: 7px 11px; cursor: pointer; }
+  button:hover { color: var(--color-foreground); }
+  button.active { background: var(--color-accent); color: var(--color-popover); }
+  button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-gap); margin-bottom: 20px; }
+  .metric { background: var(--color-muted); border: 1px solid var(--color-mutedEdge); border-radius: var(--radius-control); padding: 14px 16px; }
+  .metric .name { font-size: var(--text-caption); color: var(--color-mutedForeground); margin-bottom: 8px; }
+  .metric .value { font-size: 23px; font-variant-numeric: tabular-nums; letter-spacing: -.03em; font-weight: 600; }
+  .metric .unit { font-size: var(--text-body); color: var(--color-mutedForeground); margin-left: 5px; font-weight: 500; letter-spacing: 0; }
+  .metric .detail { color: var(--color-mutedForeground); font-size: var(--text-caption); margin-top: 5px; }
+  .meter { height: 4px; border-radius: 4px; background: var(--color-mutedEdge); overflow: hidden; margin-top: 12px; }
+  .meter > span { display: block; height: 100%; background: var(--color-accent); }
+  .panels { display: grid; gap: 18px; }
+  .panel { border-top: 1px solid var(--color-border); padding-top: 18px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 12px; }
+  h2 { font-size: var(--text-label); font-weight: 600; margin: 0 0 4px; }
+  .panel-head p { color: var(--color-mutedForeground); margin: 0; font-size: var(--text-caption); }
+  .legend { display: flex; gap: 18px; color: var(--color-mutedForeground); font-size: var(--text-caption); white-space: nowrap; padding-top: 2px; }
   .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
-  .chart { display: block; width: 100%; height: 208px; overflow: visible; }
-  .gridline { stroke: #27272a; stroke-width: 1; }
-  .axis { fill: #71717a; font-size: 11px; font-family: -apple-system, sans-serif; }
+  .swatch.used, .swatch.read { background: var(--color-foreground); }
+  .swatch.write { background: var(--color-mutedForeground); }
+  .chart { display: block; width: 100%; height: 175px; overflow: visible; }
+  .gridline { stroke: var(--color-border); stroke-width: 1; }
+  .axis { fill: var(--color-mutedForeground); font-size: var(--text-caption); font-family: var(--font-ui), -apple-system, sans-serif; }
   .line { fill: none; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-  .empty { display: none; color: #71717a; font-size: 13px; text-align: center; padding: 75px 0; }
+  .line.used, .line.read { stroke: var(--color-foreground); }
+  .line.write { stroke: var(--color-mutedForeground); stroke-dasharray: 5 4; }
+  .empty { display: none; color: var(--color-mutedForeground); font-size: var(--text-body); text-align: center; padding: 70px 0; }
   .panel.no-data .chart { display: none; }
   .panel.no-data .empty { display: block; }
-  footer { color: #71717a; font-size: 11px; line-height: 1.5; margin-top: 17px; }
-  @media(max-width: 760px) { main { padding: 30px 28px; } .metrics { gap: 8px; } .metric { padding: 16px; } .metric .value { font-size: 23px; } }
+  footer { color: var(--color-mutedForeground); border-top: 1px solid var(--color-border); font-size: var(--text-caption); line-height: 1.5; margin-top: 18px; padding-top: 13px; }
+  @media(max-width: 760px) { main { width: calc(100vw - 24px); } .metrics { gap: 6px; } .metric { padding: 10px; } .metric .value { font-size: 18px; } }
 </style>
 <main>
   <header>
-    <div><div class="eyebrow">System / Storage</div><h1>Diagnostics</h1><p class="subtitle">A clear view of capacity and disk activity over time.</p></div>
-    <div class="live" id="sample-age">Awaiting samples</div>
+    <h1>DIAGNOSTICS</h1>
+    <div class="live"><span id="sample-age">Awaiting samples</span> · esc to close</div>
   </header>
   <div class="toolbar"><div class="label">History</div><div class="ranges" role="group" aria-label="Time range">
     <button data-range="1h">1h</button><button data-range="6h">6h</button><button data-range="24h" class="active">24h</button><button data-range="7d">7d</button><button data-range="30d">30d</button><button data-range="All">All</button>
@@ -61,10 +63,10 @@
     <div class="metric"><div class="name">Disk write</div><div class="value" id="write">—</div><div class="detail">Average since previous sample</div></div>
   </section>
   <div class="panels">
-    <section class="panel" id="fullness-panel"><div class="panel-head"><div><h2>Disk fullness</h2><p>Data volume's shared APFS container · fixed 0–100% scale</p></div><div class="legend"><span><i class="swatch" style="background:#a78bfa"></i>Used</span></div></div><svg class="chart" id="fullness" role="img" aria-label="Disk fullness over time"></svg><div class="empty">No samples in this range yet.</div></section>
-    <section class="panel" id="activity-panel"><div class="panel-head"><div><h2>Read &amp; write throughput</h2><p>All block devices · average bytes per second</p></div><div class="legend"><span><i class="swatch" style="background:#67e8f9"></i>Read</span><span><i class="swatch" style="background:#fb923c"></i>Write</span></div></div><svg class="chart" id="activity" role="img" aria-label="Disk read and write throughput over time"></svg><div class="empty">Throughput appears after the second sample.</div></section>
+    <section class="panel" id="fullness-panel"><div class="panel-head"><div><h2>Disk fullness</h2><p>Data volume's shared APFS container · fixed 0–100% scale</p></div><div class="legend"><span><i class="swatch used"></i>Used</span></div></div><svg class="chart" id="fullness" role="img" aria-label="Disk fullness over time"></svg><div class="empty">No samples in this range yet.</div></section>
+    <section class="panel" id="activity-panel"><div class="panel-head"><div><h2>Read &amp; write throughput</h2><p>All block devices · average bytes per second</p></div><div class="legend"><span><i class="swatch read"></i>Read</span><span><i class="swatch write"></i>Write</span></div></div><svg class="chart" id="activity" role="img" aria-label="Disk read and write throughput over time"></svg><div class="empty">Throughput appears after the second sample.</div></section>
   </div>
-  <footer id="foot">Samples run every minute while Hammerspoon is running. The page is a snapshot; press Hyper+D again to refresh it.</footer>
+  <footer id="foot">Samples run every minute while Hammerspoon is running. Close and reopen with Hyper+D to refresh.</footer>
 </main>
 <script>
 /*__DATA__*/
@@ -97,7 +99,7 @@ function niceMax(value) {
 }
 function draw(svg, rows, kind, start, end) {
   svg.replaceChildren();
-  const width = Math.max(500, svg.clientWidth), height = 208;
+  const width = Math.max(500, svg.clientWidth), height = 175;
   const left = 55, right = 10, top = 8, bottom = 27, plotW = width-left-right, plotH = height-top-bottom;
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   const values = kind === 'disk' ? rows.map(r => r[1]/r[2]*100) : rows.flatMap(r => [r[3],r[4]]).filter(v => v != null);
@@ -117,7 +119,7 @@ function draw(svg, rows, kind, start, end) {
       : date.toLocaleDateString([], {month:'short', day:'numeric'});
     svg.append(element('text', {x:left+plotW*i/ticks, y:height-4, 'text-anchor':i===0?'start':i===ticks?'end':'middle', class:'axis'}, label));
   }
-  const path = (index, color) => {
+  const path = (index, style) => {
     let d = '', prev = null;
     for (const row of rows) {
       const value = kind === 'disk' ? row[1]/row[2]*100 : row[index];
@@ -128,10 +130,10 @@ function draw(svg, rows, kind, start, end) {
       d += `${!prev || gap ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `;
       prev = row[0];
     }
-    svg.append(element('path', {d, stroke:color, class:'line'}));
+    svg.append(element('path', {d, class:'line ' + style}));
   };
-  if (kind === 'disk') path(1, '#a78bfa');
-  else { path(3, '#67e8f9'); path(4, '#fb923c'); }
+  if (kind === 'disk') path(1, 'used');
+  else { path(3, 'read'); path(4, 'write'); }
 }
 function render() {
   const rows = DATA[range];
@@ -149,6 +151,18 @@ document.querySelectorAll('[data-range]').forEach(button => button.addEventListe
   render();
 }));
 new ResizeObserver(render).observe(document.querySelector('#fullness'));
+const card = document.querySelector('main');
+function positionCard() {
+  card.style.marginTop = Math.max(24, Math.floor((innerHeight - card.offsetHeight) * .33)) + 'px';
+}
+new ResizeObserver(positionCard).observe(card);
+addEventListener('resize', positionCard);
+document.addEventListener('pointerdown', event => {
+  if (!card.contains(event.target)) window.location.href = 'diagnostics://close';
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') window.location.href = 'diagnostics://close';
+});
 render();
 </script>
 </html>

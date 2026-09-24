@@ -4,6 +4,7 @@
 import json
 import os
 import plistlib
+import re
 import sqlite3
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from pathlib import Path
 
 DB = Path(os.environ.get("DIAGNOSTICS_DB", Path.home() / "Library/Application Support/Diagnostics/history.sqlite3"))
 TEMPLATE = Path(__file__).resolve().parents[1] / "diagnostics.html"
+THEME = TEMPLATE.parent / "lib/theme.lua"
 HOUR = 3600
 DAY = 86400
 
@@ -88,6 +90,22 @@ def rows(db, table, since, bucket):
     return db.execute(sql, (bucket, bucket, since, bucket)).fetchall()
 
 
+def theme_css():
+    """Read the shared pure-data Lua tokens for this webview's CSS variables."""
+    source = THEME.read_text()
+    declarations = []
+    for section in ("color", "alpha", "radius", "text", "space", "font", "shadow"):
+        body = re.search(rf"M\.{section}\s*=\s*\{{(.*?)\n\}}", source, re.S).group(1)
+        for key, string, number in re.findall(r'(\w+)\s*=\s*(?:"([^"]+)"|([\d.]+))', body):
+            value = string or number
+            if section == "font":
+                value = f'"{value}"'
+            elif section in ("radius", "text", "space") or (section == "shadow" and key in ("blur", "dy")):
+                value += "px"
+            declarations.append(f"--{section}-{key}: {value};")
+    return ":root { " + " ".join(declarations) + " }"
+
+
 def render():
     now = int(time.time())
     with connect() as db:
@@ -103,7 +121,9 @@ def render():
         }
     for key in series:
         series[key] = sorted(series[key], key=lambda row: row[0])
-    html = TEMPLATE.read_text().replace("/*__DATA__*/", "const DATA = " + json.dumps(series, separators=(",", ":")) + ";")
+    html = (TEMPLATE.read_text()
+            .replace("/*__THEME__*/", theme_css())
+            .replace("/*__DATA__*/", "const DATA = " + json.dumps(series, separators=(",", ":")) + ";"))
     output = DB.with_name("diagnostics.html")
     temporary = output.with_suffix(".tmp")
     temporary.write_text(html)
