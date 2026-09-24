@@ -39,7 +39,7 @@ reference = """
   <div class="hyper-row"><kbd>X</kbd>Screenshot library</div>
 </div>"""
 
-for name, title in (("before", "Before · PR #14 Diagnostics"), ("after", "After · themed Diagnostics")):
+for name, title in (("before", "Before · original Diagnostics"), ("after", "After · themed Diagnostics")):
     browser = f"""<!doctype html><meta charset="utf-8"><title>{title} comparison</title>
 <style>{diagnostics.theme_css()}
 * {{box-sizing:border-box}} body {{margin:0;background:#202024;color:var(--color-foreground);font-family:-apple-system,BlinkMacSystemFont,sans-serif}}
