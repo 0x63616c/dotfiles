@@ -42,6 +42,10 @@ end
 
 -- Bindings --------------------------------------------------------------------
 
+hyper.bind("a", "Open AgentInc", function()
+  hs.application.launchOrFocusByBundleID("co.worldwidewebb.agentinc")
+end)
+
 -- Wispr Flow. Launch-or-focus by bundle id rather than by name: the app's
 -- on-disk identifier is com.electron.wispr-flow.accessibility-mac-app while the
 -- process that actually runs is com.electron.wispr-flow, and a name lookup goes
