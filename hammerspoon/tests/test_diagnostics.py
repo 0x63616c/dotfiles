@@ -1,6 +1,7 @@
 """Run with: /usr/bin/python3 -m unittest hammerspoon/tests/test_diagnostics.py"""
 
 import importlib.util
+import re
 import sqlite3
 import tempfile
 import unittest
@@ -47,7 +48,19 @@ class DiagnosticsTests(unittest.TestCase):
                 html = diagnostics.DB.with_name("diagnostics.html").read_text()
                 self.assertIn('"24h":[[43200000,90,100,10.0,20.0]]', html)
                 self.assertNotIn("/*__DATA__*/", html)
+                self.assertNotIn("/*__THEME__*/", html)
+                self.assertIn("--color-popover: #09090b;", html)
                 self.assertNotIn("https://", html)
+
+    def test_theme_changes_reach_rendered_page(self):
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as folder:
+            theme = Path(folder) / "theme.lua"
+            theme.write_text(diagnostics.THEME.read_text().replace("#09090b", "#123456"))
+            with mock.patch.object(diagnostics, "THEME", theme):
+                self.assertIn("--color-popover: #123456;", diagnostics.theme_css())
+        used = set(re.findall(r"var\((--[\w-]+)", diagnostics.TEMPLATE.read_text()))
+        defined = set(re.findall(r"(--[\w-]+):", diagnostics.theme_css()))
+        self.assertFalse(used - defined)
 
 
 if __name__ == "__main__":
