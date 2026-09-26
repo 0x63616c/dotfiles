@@ -27,7 +27,9 @@ hs = {
   webview = { usercontent = { new = function(name)
     assert(name == "popup")
     return { setCallback = function(self, fn) self.callback = fn; messages = self; return self end }
-  end }, new = function(frame, _, controller)
+  end }, new = function(frame, preferences, controller)
+    -- Hammerspoon requires a preferences table when passing user content as arg 3.
+    assert(type(preferences) == "table")
     assert(controller == messages)
     view = { frame = frame, allowTextEntry = fluent("textEntry"),
       windowStyle = fluent("style"), transparent = fluent("transparentValue"),
