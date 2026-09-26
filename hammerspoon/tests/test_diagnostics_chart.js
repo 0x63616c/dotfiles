@@ -22,7 +22,7 @@ function page(percents) {
     append(child) { this.children.push(child); }
     replaceChildren() { this.children = []; }
     addEventListener(name, fn) { this[name] = fn; }
-    contains() { return true; }
+    contains(target) { return target === this; }
   }
   const get = id => nodes.get(id) || (nodes.set(id, new Node()), nodes.get(id));
   const buttons = ['fit', 'fixed'].map(scale => {
@@ -30,35 +30,54 @@ function page(percents) {
     button.dataset.scale = scale;
     return button;
   });
-  const rows = percents.map((percent, i) => [now - 120 + i * 60, percent, 100, 1000000, 500000]);
+  const rows = percents.map((percent, i) => [now - 120 + i * 60, percent * 1e9, 100e9, 1000000, 500000]);
   const data = Object.fromEntries(['1h', '6h', '24h', '7d', '30d', 'All'].map(key => [key, rows]));
+  const posts = [];
+  const listeners = {};
   const context = vm.createContext({
     document: {
       querySelector: get,
       querySelectorAll: selector => selector === '[data-scale]' ? buttons : [],
       createElementNS: () => new Node(),
-      addEventListener() {},
+      addEventListener(name, fn) { listeners[name] = fn; },
+      documentElement: {},
     },
     ResizeObserver: class { observe() {} },
     addEventListener() {},
+    getComputedStyle: () => ({ getPropertyValue: name => name === '--popup-inset' ? '24px' : '0.33' }),
+    webkit: { messageHandlers: { popup: { postMessage: value => posts.push(value) } } },
     innerHeight: 900,
   });
   vm.runInContext(script.replace('/*__DATA__*/', `const DATA = ${JSON.stringify(data)};`), context);
-  return { get, buttons };
+  return { get, buttons, listeners, posts };
 }
 
 function axis(svg) {
   return svg.children.filter(node => node.attributes.class === 'axis').map(node => node.textContent);
 }
 
-const { get, buttons } = page([94, 95, 97]);
+const { get, buttons, listeners, posts } = page([94, 95, 97]);
+assert.equal(get('#used').textContent, '97 GB');
+assert.equal(get('#capacity').textContent, '3 GB free · 100 GB total · 97% used');
+assert.match(html, /data-range="1h" class="active"/);
+assert.match(html, /let range = '1h'/);
+listeners.pointerdown({ target: {} });
+listeners.keydown({ key: 'Escape' });
+assert.deepEqual(posts, ['close', 'close']);
 assert.deepEqual(axis(get('#fullness')).filter(label => label.endsWith('%')), ['98%', '97%', '96%', '95%', '94%', '93%']);
 const activity = get('#activity');
 assert.deepEqual(axis(activity).filter(label => label.endsWith('MB/s')), ['1 MB/s', '0.5 MB/s', '0 MB/s', '0.5 MB/s', '1 MB/s']);
 assert.equal(activity.children.filter(node => node.attributes.class === 'gridline zero-line').length, 1);
+assert.deepEqual(activity.children.filter(node => node.attributes.class?.startsWith('area ')).map(node => node.attributes.class), ['area read', 'area write']);
 const path = style => activity.children.find(node => node.attributes.class === `line ${style}`).attributes.d;
 const y = style => Number(path(style).match(/^M[\d.]+,([\d.]+)/)[1]);
 assert(y('read') > 78 && y('write') < 78);
+assert(activity.children.find(node => node.attributes.class === 'area read').attributes.d.includes('Z'));
+assert(activity.children.find(node => node.attributes.class === 'area write').attributes.d.includes('Z'));
+assert.equal(axis(get('#fullness')).filter(label => label === '100% max').length, 1);
+assert(get('#fullness').children.some(node => node.attributes.class === 'max-line'));
+assert.match(html, /\.area\.read \{ fill: var\(--color-diskRead\)/);
+assert.match(html, /\.area\.write \{ fill: var\(--color-diskWrite\)/);
 const throughput = [path('read'), path('write')];
 buttons[1].click();
 assert.deepEqual(axis(get('#fullness')).filter(label => label.endsWith('%')), ['100%', '75%', '50%', '25%', '0%']);
@@ -75,4 +94,7 @@ for (const percents of [[95], [95, 95]]) {
   assert(labels.length >= 2 && labels.every(label => Number.isFinite(parseFloat(label))));
   assert.match(svg.children.find(node => node.attributes.class === 'line used').attributes.d, /^M[\d.]+,[\d.]+/);
 }
+const capped = page([105]).get('#fullness');
+const topY = Number(capped.children.find(node => node.attributes.class === 'line used').attributes.d.match(/^M[\d.]+,([\d.]+)/)[1]);
+assert(topY >= 28);
 console.log('diagnostics chart interactions passed');

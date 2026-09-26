@@ -9,7 +9,7 @@
   * { box-sizing: border-box; }
   html, body { min-height: 100%; }
   body { margin: 0; color: var(--color-foreground); background: color-mix(in srgb, var(--color-backdrop) calc(var(--alpha-backdrop) * 100%), transparent); }
-  main { width: min(1120px, calc(100vw - 64px)); max-height: calc(100vh - 48px); overflow: auto; margin: 24px auto 0; padding: var(--space-pad); background: color-mix(in srgb, var(--color-popover) calc(var(--alpha-surface) * 100%), transparent); border: 1px solid var(--color-border); border-radius: var(--radius-card); box-shadow: 0 var(--shadow-dy) var(--shadow-blur) rgb(0 0 0 / var(--shadow-alpha)); }
+  main { width: min(1120px, calc(100vw - 64px)); max-height: calc(100vh - 48px); overflow: auto; margin: var(--popup-inset) auto 0; padding: var(--space-pad); background: color-mix(in srgb, var(--color-popover) calc(var(--alpha-surface) * 100%), transparent); border: 1px solid var(--color-border); border-radius: var(--radius-card); box-shadow: 0 var(--shadow-dy) var(--shadow-blur) rgb(0 0 0 / var(--shadow-alpha)); }
   header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-gap); min-height: 30px; border-bottom: 1px solid var(--color-border); margin-bottom: 20px; padding-bottom: 14px; }
   h1 { margin: 0; color: var(--color-mutedForeground); font-family: var(--font-semibold), var(--font-ui), -apple-system, sans-serif; font-size: var(--text-title); font-weight: 600; letter-spacing: 1.8px; }
   .live { color: var(--color-mutedForeground); font-size: var(--text-caption); white-space: nowrap; }
@@ -36,15 +36,20 @@
   .panel-head p { color: var(--color-mutedForeground); margin: 0; font-size: var(--text-caption); }
   .legend { display: flex; gap: 18px; color: var(--color-mutedForeground); font-size: var(--text-caption); white-space: nowrap; padding-top: 2px; }
   .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; }
-  .swatch.used, .swatch.read { background: var(--color-foreground); }
-  .swatch.write { background: var(--color-mutedForeground); }
+  .swatch.used { background: var(--color-foreground); }
+  .swatch.read { background: var(--color-diskRead); }
+  .swatch.write { background: var(--color-diskWrite); }
   .chart { display: block; width: 100%; height: 175px; overflow: visible; }
   .gridline { stroke: var(--color-border); stroke-width: 1; }
   .zero-line { stroke: var(--color-mutedForeground); }
   .axis { fill: var(--color-mutedForeground); font-size: var(--text-caption); font-family: var(--font-ui), -apple-system, sans-serif; }
   .line { fill: none; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-  .line.used, .line.read { stroke: var(--color-foreground); }
-  .line.write { stroke: var(--color-mutedForeground); stroke-dasharray: 5 4; }
+  .line.used { stroke: var(--color-foreground); }
+  .line.read { stroke: var(--color-diskRead); }
+  .line.write { stroke: var(--color-diskWrite); }
+  .area.read { fill: var(--color-diskRead); fill-opacity: .2; }
+  .area.write { fill: var(--color-diskWrite); fill-opacity: .2; }
+  .max-line { stroke: var(--color-mutedForeground); stroke-width: 1; stroke-dasharray: 3 4; }
   .empty { display: none; color: var(--color-mutedForeground); font-size: var(--text-body); text-align: center; padding: 70px 0; }
   .panel.no-data .chart { display: none; }
   .panel.no-data .empty { display: block; }
@@ -57,7 +62,7 @@
     <div class="live"><span id="sample-age">Awaiting samples</span> · esc to close</div>
   </header>
   <div class="toolbar"><div class="label">History</div><div class="ranges" role="group" aria-label="Time range">
-    <button data-range="1h">1h</button><button data-range="6h">6h</button><button data-range="24h" class="active">24h</button><button data-range="7d">7d</button><button data-range="30d">30d</button><button data-range="All">All</button>
+    <button data-range="1h" class="active">1h</button><button data-range="6h">6h</button><button data-range="24h">24h</button><button data-range="7d">7d</button><button data-range="30d">30d</button><button data-range="All">All</button>
   </div></div>
   <section class="metrics" aria-label="Latest readings">
     <div class="metric"><div class="name">Startup disk used</div><div class="value" id="used">—</div><div class="detail" id="capacity">Waiting for first sample</div><div class="meter"><span id="meter" style="width:0"></span></div></div>
@@ -74,7 +79,7 @@
 /*__DATA__*/
 const NS = 'http://www.w3.org/2000/svg';
 const duration = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 };
-let range = '24h';
+let range = '1h';
 let diskMode = 'fit';
 const latest = [...DATA['1h'], ...DATA['6h'], ...DATA['24h'], ...DATA['7d'], ...DATA['30d'], ...DATA.All].sort((a,b) => a[0]-b[0]).at(-1);
 const number = n => new Intl.NumberFormat('en', {maximumFractionDigits: 1}).format(n);
@@ -82,8 +87,8 @@ const size = n => n == null ? '—' : number(n / 1e9) + ' GB';
 const rate = n => n == null ? '—' : n < 1e6 ? number(n / 1e3) + ' KB/s' : number(n / 1e6) + ' MB/s';
 if (latest) {
   const percent = Math.max(0, Math.min(100, latest[1] / latest[2] * 100));
-  document.querySelector('#used').innerHTML = number(percent) + '<span class="unit">%</span>';
-  document.querySelector('#capacity').textContent = `${size(latest[1])} of ${size(latest[2])} used · ${size(latest[2]-latest[1])} free`;
+  document.querySelector('#used').textContent = size(latest[1]);
+  document.querySelector('#capacity').textContent = `${size(Math.max(0, latest[2]-latest[1]))} free · ${size(latest[2])} total · ${number(percent)}% used`;
   document.querySelector('#meter').style.width = percent + '%';
   document.querySelector('#read').textContent = rate(latest[3]);
   document.querySelector('#write').textContent = rate(latest[4]);
@@ -111,11 +116,15 @@ function fittedDiskScale(values) {
 function draw(svg, rows, kind, start, end) {
   svg.replaceChildren();
   const width = Math.max(500, svg.clientWidth), height = 175;
-  const left = 55, right = 10, top = 8, bottom = 27, plotW = width-left-right, plotH = height-top-bottom;
+  const left = 65, right = 10, top = kind === 'disk' ? 28 : 8, bottom = 27, plotW = width-left-right, plotH = height-top-bottom;
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   const values = kind === 'disk' ? rows.map(r => r[1]/r[2]*100).filter(Number.isFinite) : rows.flatMap(r => [r[3],r[4]]).filter(v => v != null);
   const [ymin, ymax, step] = kind === 'disk' && diskMode === 'fit' && values.length
-    ? fittedDiskScale(values) : [0, kind === 'disk' ? 100 : niceMax(Math.max(0, ...values)), kind === 'disk' ? 25 : null];
+    ? fittedDiskScale(values.map(value => Math.max(0, Math.min(100, value)))) : [0, kind === 'disk' ? 100 : niceMax(Math.max(0, ...values)), kind === 'disk' ? 25 : null];
+  if (kind === 'disk') {
+    svg.append(element('line', {x1:left, y1:8, x2:width-right, y2:8, class:'max-line'}));
+    svg.append(element('text', {x:left-10, y:12, 'text-anchor':'end', class:'axis'}, '100% max'));
+  }
   const yLabel = n => kind === 'disk' ? `${n.toFixed(Math.max(0, -Math.floor(Math.log10(step))))}%` : number(n/1e6)+' MB/s';
   const ticks = kind === 'disk' ? Math.round((ymax-ymin)/step) : 4;
   for (let i=0; i<=ticks; i++) {
@@ -133,18 +142,25 @@ function draw(svg, rows, kind, start, end) {
     svg.append(element('text', {x:left+plotW*i/timeTicks, y:height-4, 'text-anchor':i===0?'start':i===timeTicks?'end':'middle', class:'axis'}, label));
   }
   const path = (index, style) => {
-    let d = '', prev = null;
+    let d = '', area = '', prev = null, first = null, last = null;
     for (const row of rows) {
       const value = kind === 'disk' ? row[1]/row[2]*100 : row[index];
       if (value == null || !Number.isFinite(value)) { prev = null; continue; }
       const x = left + (row[0]-start)/(end-start)*plotW;
-      const magnitude = Math.max(0, Math.min(ymax, value));
+      const magnitude = Math.max(0, Math.min(ymax, kind === 'disk' ? Math.min(100, value) : value));
       const y = kind === 'disk' ? top + (1-(magnitude-ymin)/(ymax-ymin))*plotH
         : top + (.5 + (style === 'read' ? 1 : -1)*magnitude/(2*ymax))*plotH;
       const gap = prev && row[0]-prev > (range==='7d'?1800:range==='30d'?10800:range==='All'?3*86400:240);
+      if (kind === 'io' && (!prev || gap) && first !== null) {
+        area += `L${last.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} L${first.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} Z `;
+        first = null;
+      }
       d += `${!prev || gap ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `;
+      if (kind === 'io') { area += `${first === null ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `; if (first === null) first = x; last = x; }
       prev = row[0];
     }
+    if (kind === 'io' && first !== null) area += `L${last.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} L${first.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} Z`;
+    if (kind === 'io') svg.append(element('path', {d:area, class:'area ' + style}));
     svg.append(element('path', {d, class:'line ' + style}));
   };
   if (kind === 'disk') path(1, 'used');
@@ -177,15 +193,15 @@ document.querySelectorAll('[data-scale]').forEach(button => button.addEventListe
 new ResizeObserver(render).observe(document.querySelector('#fullness'));
 const card = document.querySelector('main');
 function positionCard() {
-  card.style.marginTop = Math.max(24, Math.floor((innerHeight - card.offsetHeight) * .33)) + 'px';
+  card.style.marginTop = Math.max(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--popup-inset')), Math.floor((innerHeight - card.offsetHeight) * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--popup-topFraction')))) + 'px';
 }
 new ResizeObserver(positionCard).observe(card);
 addEventListener('resize', positionCard);
 document.addEventListener('pointerdown', event => {
-  if (!card.contains(event.target)) window.location.href = 'diagnostics://close';
+  if (!card.contains(event.target)) webkit.messageHandlers.popup.postMessage('close');
 });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') window.location.href = 'diagnostics://close';
+  if (event.key === 'Escape') webkit.messageHandlers.popup.postMessage('close');
 });
 render();
 </script>

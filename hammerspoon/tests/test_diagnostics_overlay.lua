@@ -1,5 +1,6 @@
 -- Headless interaction check for the webview shell. Never loads live Hammerspoon.
-local toggle, complete, view, escape
+local toggle, complete, view, escape, messages
+package.path = "hammerspoon/?.lua;hammerspoon/?/init.lua;" .. package.path
 package.loaded.hyper = { bind = function(_, _, fn) toggle = fn end }
 
 local function fluent(name)
@@ -23,11 +24,15 @@ hs = {
                disable = function(self) self.enabled = false end }
     return escape
   end },
-  webview = { new = function(frame)
+  webview = { usercontent = { new = function(name)
+    assert(name == "popup")
+    return { setCallback = function(self, fn) self.callback = fn; messages = self; return self end }
+  end }, new = function(frame, _, controller)
+    assert(controller == messages)
     view = { frame = frame, allowTextEntry = fluent("textEntry"),
       windowStyle = fluent("style"), transparent = fluent("transparentValue"),
       shadow = fluent("shadowValue"), level = fluent("levelValue"),
-      behaviorAsLabels = fluent("behavior"), policyCallback = fluent("policy"),
+      behaviorAsLabels = fluent("behavior"),
       windowCallback = fluent("window"), url = fluent("loadedURL"),
       show = fluent("fade"), delete = function(self, _, fade) self.deleted = fade end }
     return view
@@ -35,6 +40,14 @@ hs = {
 }
 
 dofile("hammerspoon/diagnostics.lua")
+local popup = require("popup")
+local frame = popup.frame({ w = 1440, h = 900 }, 600, 400)
+assert(frame.x == 420 and frame.y == 165)
+local dismissed = false
+assert(not popup.backdrop("mouseDown", "content", function() dismissed = true end))
+assert(not popup.backdrop("mouseDown", "backdrop", function() dismissed = true end, true))
+assert(popup.backdrop("mouseDown", "backdrop", function() dismissed = true end))
+assert(dismissed)
 
 toggle()  -- start render
 assert(complete and not view)
@@ -53,7 +66,7 @@ assert(first.deleted == 0.14 and not escape.enabled)
 toggle()
 complete(0, "file:///snapshot.html", "")
 local second = view
-assert(second.policy("navigationAction", second, { request = { URL = "diagnostics://close/" } }) == false)
+messages.callback({ body = "close" })  -- backdrop message from the page
 assert(second.deleted == 0.14 and not escape.enabled)
 
 toggle()
