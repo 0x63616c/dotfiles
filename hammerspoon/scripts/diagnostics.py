@@ -94,13 +94,13 @@ def theme_css():
     """Read the shared pure-data Lua tokens for this webview's CSS variables."""
     source = THEME.read_text()
     declarations = []
-    for section in ("color", "alpha", "radius", "text", "space", "font", "shadow"):
+    for section in ("color", "alpha", "radius", "text", "space", "font", "shadow", "popup"):
         body = re.search(rf"M\.{section}\s*=\s*\{{(.*?)\n\}}", source, re.S).group(1)
         for key, string, number in re.findall(r'(\w+)\s*=\s*(?:"([^"]+)"|([\d.]+))', body):
             value = string or number
             if section == "font":
                 value = f'"{value}"'
-            elif section in ("radius", "text", "space") or (section == "shadow" and key in ("blur", "dy")):
+            elif section in ("radius", "text", "space") or (section == "shadow" and key in ("blur", "dy")) or (section == "popup" and key == "inset"):
                 value += "px"
             declarations.append(f"--{section}-{key}: {value};")
     return ":root { " + " ".join(declarations) + " }"

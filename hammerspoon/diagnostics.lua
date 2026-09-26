@@ -3,8 +3,9 @@
 -- Keep the webview for its interactive charts, but give it the same frameless
 -- modal placement, fade and dismissal as the canvas overlays.
 local hyper = require("hyper")
+local popup = require("popup")
 local log = hs.logger.new("diagnostics", "info")
-local page, renderTask, escapeKey
+local page, renderTask, escapeKey, messages
 local wantedOpen = false
 local FADE = 0.14
 
@@ -33,21 +34,14 @@ local function open()
       return
     end
     local url = stdout:gsub("%s+$", "")
-    page = hs.webview.new(hs.screen.mainScreen():frame())
+    messages = popup.webMessages(close)
+    page = hs.webview.new(hs.screen.mainScreen():frame(), nil, messages)
       :allowTextEntry(true)
       :windowStyle(0)
       :transparent(true)
       :shadow(false)
       :level(hs.canvas.windowLevels.screenSaver)
       :behaviorAsLabels({ "canJoinAllSpaces", "stationary" })
-      :policyCallback(function(action, _, request)
-        if action == "navigationAction" and request.request
-           and tostring(request.request.URL):match("^diagnostics://close/?$") then
-          close()
-          return false
-        end
-        return true
-      end)
       :windowCallback(function(action, view)
         if action == "closing" and page == view then
           page = nil
@@ -57,7 +51,7 @@ local function open()
       end)
       :url(url)
       :show(FADE)
-    if not escapeKey then escapeKey = hs.hotkey.new({}, "escape", close) end
+    if not escapeKey then escapeKey = popup.escape(close) end
     escapeKey:enable()
   end, { script, "render" })
   if not renderTask:start() then

@@ -20,7 +20,12 @@ now = int(time.time())
 rows = [[now - 86400 + i * 60, 94_000_000_000 + i * 2_200_000, 100_000_000_000,
          2_000_000 + (i % 180) * 15_000 + (i % 13) * 80_000,
          900_000 + (i % 150) * 10_000 + (i % 17) * 40_000] for i in range(1441)]
-series = {key: rows for key in ("1h", "6h", "24h", "7d", "30d", "All")}
+series = {
+    key: [row for row in rows if row[0] >= now - seconds]
+    for key, seconds in (("1h", 3600), ("6h", 21600), ("24h", 86400),
+                         ("7d", 604800), ("30d", 2592000))
+}
+series["All"] = rows
 data = "const DATA = " + json.dumps(series, separators=(",", ":")) + ";"
 old = subprocess.check_output(["git", "show", f"{BASELINE}:hammerspoon/diagnostics.html"], cwd=ROOT, text=True)
 new = (ROOT / "hammerspoon/diagnostics.html").read_text()

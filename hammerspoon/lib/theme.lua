@@ -22,6 +22,8 @@ M.color = {
   mutedForeground = "#a1a1aa",  -- zinc-400: secondary text
   accent          = "#fafafa",  -- selection / pressed / hover
   backdrop        = "#000000",  -- dialog overlay, at BACKDROP_ALPHA
+  diskRead        = "#60a5fa",  -- blue, visually distinct from writes
+  diskWrite       = "#fbbf24",  -- amber
 }
 
 M.alpha = {
@@ -50,6 +52,11 @@ M.space = {
   pad = 28,  -- inside a card's edge
   gap = 10,  -- between siblings in a grid
   row = 42,  -- a list row's height
+}
+
+M.popup = {
+  inset = 24,
+  topFraction = 0.33,
 }
 
 -- ".AppleSystemUIFont" is the system UI face (SF on this machine) and

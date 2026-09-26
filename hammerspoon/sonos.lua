@@ -27,6 +27,7 @@
 
 local hyper = require("hyper")
 local ui    = require("ui")
+local popup = require("popup")
 local theme = require("lib.theme")
 local sonos = require("lib.sonos")
 
@@ -566,8 +567,8 @@ local function onMouse(c, event, id)
       startDrag(volRow)
     elseif btn then
       runButton(btn)
-    elseif id == "backdrop" and not dragging then
-      closePanel()
+    else
+      popup.backdrop(event, id, closePanel, dragging)
     end
   elseif event == "mouseMove" then
     if dragging then
@@ -620,8 +621,8 @@ local function build(list)
 
   screenFrame = hs.screen.mainScreen():frame()
   local screen = screenFrame
-  local cx = math.floor((screen.w - cardW) / 2)
-  local cy = math.floor((screen.h - cardH) * 0.33)
+  local cardFrame = popup.frame(screen, cardW, cardH)
+  local cx, cy = cardFrame.x, cardFrame.y
 
   local c = hs.canvas.new(screen)
   c:level(hs.canvas.windowLevels.screenSaver)
@@ -634,7 +635,6 @@ local function build(list)
   backdrop.trackMouseUp = true
   c[#c + 1] = backdrop
 
-  local cardFrame = { x = cx, y = cy, w = cardW, h = cardH }
   panelRings = ui.rings(c, cardFrame)
   c[#c + 1] = ui.surface(cardFrame)
   c[#c + 1] = ui.border(cardFrame)
@@ -739,7 +739,7 @@ local function openPanel()
   locked = false   -- never silently on for a freshly opened panel; see `locked` above
   build({})
   if not sonosPanelKeys then
-    sonosPanelKeys = { hs.hotkey.new({}, "escape", closePanel) }
+    sonosPanelKeys = { popup.escape(closePanel) }
     for _, b in ipairs(BUTTONS) do
       sonosPanelKeys[#sonosPanelKeys + 1] = hs.hotkey.new({}, b.key, function() runButton(b.id) end)
     end
