@@ -35,7 +35,8 @@ local function open()
     end
     local url = stdout:gsub("%s+$", "")
     messages = popup.webMessages(close)
-    page = hs.webview.new(hs.screen.mainScreen():frame(), nil, messages)
+    -- The controller is the third argument; the second must be a preferences table.
+    page = hs.webview.new(hs.screen.mainScreen():frame(), {}, messages)
       :allowTextEntry(true)
       :windowStyle(0)
       :transparent(true)
