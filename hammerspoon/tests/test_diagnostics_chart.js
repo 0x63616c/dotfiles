@@ -74,6 +74,7 @@ const y = style => Number(path(style).match(/^M[\d.]+,([\d.]+)/)[1]);
 assert(y('read') > 78 && y('write') < 78);
 assert(activity.children.find(node => node.attributes.class === 'area read').attributes.d.includes('Z'));
 assert(activity.children.find(node => node.attributes.class === 'area write').attributes.d.includes('Z'));
+for (const style of ['read', 'write']) assert.match(activity.children.find(node => node.attributes.class === `area ${style}`).attributes.d, /,78 L[\d.]+,78 Z/);
 assert(!axis(get('#fullness')).includes('100% max'));
 assert.match(html, /\.area\.read \{ fill: var\(--color-diskRead\)/);
 assert.match(html, /\.area\.write \{ fill: var\(--color-diskWrite\)/);

@@ -148,14 +148,14 @@ function draw(svg, rows, kind, start, end) {
         : top + (.5 + (style === 'read' ? 1 : -1)*magnitude/(2*ymax))*plotH;
       const gap = prev && row[0]-prev > (range==='7d'?1800:range==='30d'?10800:range==='All'?3*86400:240);
       if (kind === 'io' && (!prev || gap) && first !== null) {
-        area += `L${last.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} L${first.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} Z `;
+        area += `L${last.toFixed(1)},${top+plotH/2} L${first.toFixed(1)},${top+plotH/2} Z `;
         first = null;
       }
       d += `${!prev || gap ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `;
       if (kind === 'io') { area += `${first === null ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)} `; if (first === null) first = x; last = x; }
       prev = row[0];
     }
-    if (kind === 'io' && first !== null) area += `L${last.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} L${first.toFixed(1)},${style === 'write' ? top+plotH/2 : top+plotH} Z`;
+    if (kind === 'io' && first !== null) area += `L${last.toFixed(1)},${top+plotH/2} L${first.toFixed(1)},${top+plotH/2} Z`;
     if (kind === 'io') svg.append(element('path', {d:area, class:'area ' + style}));
     svg.append(element('path', {d, class:'line ' + style}));
   };
