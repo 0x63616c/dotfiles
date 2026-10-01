@@ -74,8 +74,7 @@ const y = style => Number(path(style).match(/^M[\d.]+,([\d.]+)/)[1]);
 assert(y('read') > 78 && y('write') < 78);
 assert(activity.children.find(node => node.attributes.class === 'area read').attributes.d.includes('Z'));
 assert(activity.children.find(node => node.attributes.class === 'area write').attributes.d.includes('Z'));
-assert.equal(axis(get('#fullness')).filter(label => label === '100% max').length, 1);
-assert(get('#fullness').children.some(node => node.attributes.class === 'max-line'));
+assert(!axis(get('#fullness')).includes('100% max'));
 assert.match(html, /\.area\.read \{ fill: var\(--color-diskRead\)/);
 assert.match(html, /\.area\.write \{ fill: var\(--color-diskWrite\)/);
 const throughput = [path('read'), path('write')];
@@ -96,5 +95,6 @@ for (const percents of [[95], [95, 95]]) {
 }
 const capped = page([105]).get('#fullness');
 const topY = Number(capped.children.find(node => node.attributes.class === 'line used').attributes.d.match(/^M[\d.]+,([\d.]+)/)[1]);
-assert(topY >= 28);
+assert(topY >= 8);
+assert(axis(capped).filter(label => label.endsWith('%')).every(label => parseFloat(label) <= 100));
 console.log('diagnostics chart interactions passed');

@@ -111,20 +111,16 @@ function fittedDiskScale(values) {
   const rough = span * 1.2 / 4;
   const power = 10 ** Math.floor(Math.log10(rough));
   const step = [1, 2, 5, 10].map(n => n * power).find(n => n >= rough);
-  return [Math.floor((min-span*.1)/step)*step, Math.ceil((max+span*.1)/step)*step, step];
+  return [Math.floor((min-span*.1)/step)*step, Math.min(100, Math.ceil((max+span*.1)/step)*step), step];
 }
 function draw(svg, rows, kind, start, end) {
   svg.replaceChildren();
   const width = Math.max(500, svg.clientWidth), height = 175;
-  const left = 65, right = 10, top = kind === 'disk' ? 28 : 8, bottom = 27, plotW = width-left-right, plotH = height-top-bottom;
+  const left = 65, right = 10, top = 8, bottom = 27, plotW = width-left-right, plotH = height-top-bottom;
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   const values = kind === 'disk' ? rows.map(r => r[1]/r[2]*100).filter(Number.isFinite) : rows.flatMap(r => [r[3],r[4]]).filter(v => v != null);
   const [ymin, ymax, step] = kind === 'disk' && diskMode === 'fit' && values.length
     ? fittedDiskScale(values.map(value => Math.max(0, Math.min(100, value)))) : [0, kind === 'disk' ? 100 : niceMax(Math.max(0, ...values)), kind === 'disk' ? 25 : null];
-  if (kind === 'disk') {
-    svg.append(element('line', {x1:left, y1:8, x2:width-right, y2:8, class:'max-line'}));
-    svg.append(element('text', {x:left-10, y:12, 'text-anchor':'end', class:'axis'}, '100% max'));
-  }
   const yLabel = n => kind === 'disk' ? `${n.toFixed(Math.max(0, -Math.floor(Math.log10(step))))}%` : number(n/1e6)+' MB/s';
   const ticks = kind === 'disk' ? Math.round((ymax-ymin)/step) : 4;
   for (let i=0; i<=ticks; i++) {
