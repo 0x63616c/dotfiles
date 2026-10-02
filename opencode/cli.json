@@ -9,7 +9,8 @@
   },
   "plugins": [
     "/Users/calum/code/github.com/0x63616c/dotfiles/themes",
-    "/Users/calum/.config/opencode/plugins/statusline.tsx"
+    "/Users/calum/.config/opencode/plugins/statusline.tsx",
+    "./plugins/subscription-usage"
   ],
   "diffs": {
     "wrap": "word"
