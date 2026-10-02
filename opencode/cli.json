@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "theme": {
+    "name": "blackout",
+    "mode": "dark"
+  },
+  "keybinds": {
+    "session.background": "<leader>z"
+  },
+  "plugins": [
+    "/Users/calum/code/github.com/0x63616c/dotfiles/themes",
+    "/Users/calum/.config/opencode/plugins/statusline.tsx"
+  ],
+  "diffs": {
+    "wrap": "word"
+  },
+  "session": {
+    "sidebar": "auto",
+    "scrollbar": true,
+    "thinking": "hide",
+    "permissions": "autoaccept"
+  },
+  "tabs": {
+    "mode": "off"
+  },
+  "animations": true
+}
