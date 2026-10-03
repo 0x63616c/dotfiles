@@ -88,7 +88,7 @@ True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cu
 | Path | What it does |
 |---|---|
 | `themes/cursor/` | Cursor & VS Code theme: `palette/palette.json` is the single source of color, `bun run build` regenerates, `scripts/install.sh` links into Cursor + VS Code. Symlink target for `~/.cursor/extensions/blackout-theme` and `~/.vscode/extensions/blackout-theme`. |
-| `themes/opencode/` | OpenCode TUI themes: `blackout.json` + `lucent-orng-plusplus.json` (opaque variant of the built-in `lucent-orng`). Installer links these to `~/.config/opencode/themes/` and preserves the legacy theme-pack declaration through `~/.config/opencode/theme-pack` → `themes/`. Aura is the current selection; the custom themes remain available. |
+| `themes/opencode/` | OpenCode TUI themes: `blackout.json` (true-black main background, subtle gray `#101010` user-message/shared raised-panel backgrounds) + `lucent-orng-plusplus.json` (opaque variant of the built-in `lucent-orng`). Installer links these to `~/.config/opencode/themes/` and preserves the legacy theme-pack declaration through `~/.config/opencode/theme-pack` → `themes/`. Blackout is the current selection. |
 | `themes/antinote/` | Blackout theme for [Antinote](https://antinote.io). Antinote is sandboxed, so `sync.sh` **copies** (not links) `blackout.json` into its container. |
 
 ### `presenterm/`

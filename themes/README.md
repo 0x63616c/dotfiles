@@ -44,7 +44,7 @@ bun run build
 
 ## OpenCode — Blackout (TUI)
 
-A true-black TUI theme for OpenCode. Loaded via the global Opencode plugin config.
+A true-black TUI theme for OpenCode with subtle gray (`#101010`) user-message backgrounds. OpenCode shares this raised-surface color with other panels; the main background stays `#000000`. Installed in `~/.config/opencode/themes/`; select `blackout` with `/themes`.
 
 ## OpenCode — Lucent Orng++ (TUI)
 
