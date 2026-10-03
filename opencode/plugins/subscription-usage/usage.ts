@@ -226,8 +226,7 @@ export function countdown(resetsAt: number | undefined, now: number): string {
 
 export function createMonitor(
   change: (provider: Provider, state: State) => void,
-  load = fetchUsage,
-  now = Date.now,
+  load: (provider: Provider, signal: AbortSignal) => Promise<Snapshot | State>,
 ) {
   const controller = new AbortController()
   const state: Record<Provider, State> = { claude: { loading: true }, codex: { loading: true } }
@@ -237,14 +236,14 @@ export function createMonitor(
   const refreshOne = (provider: Provider): Promise<void> => {
     const inflight = pending.get(provider)
     if (inflight) return inflight
-    if (controller.signal.aborted || (state[provider].retryAt ?? 0) > now()) return Promise.resolve()
+    if (controller.signal.aborted) return Promise.resolve()
     state[provider] = { ...state[provider], loading: true }
     change(provider, state[provider])
     const request = (async () => {
       try {
-        const snapshot = await load(provider, controller.signal)
+        const result = await load(provider, controller.signal)
         if (controller.signal.aborted) return
-        state[provider] = { snapshot, loading: false }
+        state[provider] = "loading" in result ? result : { snapshot: result, loading: false }
       } catch (error) {
         if (controller.signal.aborted) return
         const failure = error instanceof UsageError ? error : new UsageError("Usage unavailable")

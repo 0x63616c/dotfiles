@@ -1,28 +1,41 @@
 {
   "$schema": "https://opencode.ai/v2/cli.json",
   "theme": {
-    "name": "blackout",
-    "mode": "dark"
+    "name": "aura",
+    "mode": "system"
   },
   "keybinds": {
     "session.background": "<leader>z"
   },
   "plugins": [
-    "/Users/calum/code/github.com/0x63616c/dotfiles/themes",
-    "/Users/calum/.config/opencode/plugins/statusline.tsx",
+    "-opencode.sidebar.context",
+    "./theme-pack",
+    "./plugins/statusline.tsx",
     "./plugins/subscription-usage"
   ],
   "diffs": {
-    "wrap": "word"
+    "wrap": "word",
+    "view": "auto",
+    "tree": true,
+    "single": false
   },
   "session": {
     "sidebar": "auto",
     "scrollbar": true,
     "thinking": "hide",
-    "permissions": "autoaccept"
+    "permissions": "autoaccept",
+    "markdown": "rendered",
+    "grouping": "auto",
+    "verbosity": "low",
+    "image_preview": true,
+    "tps": true,
+    "new_location": "launch"
   },
   "tabs": {
-    "mode": "off"
+    "mode": "off",
+    "scope": "cwd",
+    "layout": "horizontal",
+    "indicators": "status"
   },
   "animations": true
 }

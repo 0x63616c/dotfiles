@@ -151,8 +151,7 @@ describe("refresh lifecycle", () => {
     expect(requests.length).toBe(2)
   })
 
-  test("network errors retain stale data, auth errors clear it, and manual refresh honours backoff", async () => {
-    let time = now
+  test("network errors retain stale data and auth errors clear it", async () => {
     let failure: UsageError | undefined
     let calls = 0
     const seen: Partial<Record<Provider, State>> = {}
@@ -160,15 +159,13 @@ describe("refresh lifecycle", () => {
       calls++
       if (failure) throw failure
       return snapshot
-    }, () => time)
+    })
     await monitor.refresh()
     failure = new UsageError("Rate limited", now + 300_000)
     await monitor.refresh()
     expect(seen.claude?.snapshot).toBe(snapshot)
     expect(seen.claude?.error).toBe("Rate limited")
-    await monitor.refresh()
     expect(calls).toBe(4)
-    time += 300_001
     failure = new UsageError("Sign in", undefined, true)
     await monitor.refresh()
     expect(seen.claude?.snapshot).toBeUndefined()
