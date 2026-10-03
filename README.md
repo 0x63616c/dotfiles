@@ -84,6 +84,7 @@ from the pinned `lazy-lock.json`.
 | `skills/using-tu/` | Skill for driving interactive CLIs/TUIs (htop, vim, ncurses) during development or ops. |
 | `skills/remarkable/` | Skill for pushing PDFs/EPUBs to the reMarkable Paper Pro over the cloud API via the [`rmapi`](https://github.com/ddvk/rmapi) CLI (built from source, lands at `~/go/bin/rmapi`). Covers the auth check, re-pairing through the 8-character one-time code (fetched from Calum's logged-in Chrome rather than asking him to type it), and why cloud rather than USB. |
 | `statusline-command.sh` | Tokyo Night statusline for Claude Code: model + effort `(high)`, cwd (OSC-8 link to the GitHub remote), git branch + dirty flag, and trailing `[Ctx: n%, Tkns: n, Cache: ✓n% 58m // 5h: n%, Wk: y%]` (context-window %, session token count, then 5h/weekly rate-limit usage from stdin's `rate_limits`, Pro/Max only — each part, and the whole `//`-prefixed half, omitted when its data is absent; `//` is orange). `Cache` is the last request's hit rate (`cache_read_input_tokens` ÷ `total_input_tokens`, `✓` served from cache, `✗` cold; cyan ≥ 80%, yellow ≥ 50%, red below) followed by a live prompt-cache countdown from stdin's `prompt_cache` (Claude Code ≥ 2.1.251): time to `expires_at` as `1h05m` / `38m` / `4:32` (m:ss under 5 minutes), green above half the TTL (`5m` or `1h`, reported by Claude Code), yellow above 20%, red below, `❄` once cold. Every field comes from a single `jq` call because the script re-runs on a timer. Wire via `statusLine` in `settings.json`: `command` is this path, and **`refreshInterval: 5`** is required — statusline updates are event-driven, so without it the countdown freezes while you sit idle. |
+| `~/.claude/settings.json` setting `syncClaudeAiSkills: false` | Not tracked here (the live file is a plain file, not a symlink — it carries machine-specific hooks). Set by hand: stops claude.ai-synced skills (`pdf`, `docx`, `xlsx`, `pptx`, `morning`, …, listed as `claude.ai sync` in `/skills`) from loading in Claude Code. They stay in the claude.ai account; remove them there (Settings) to delete them for good. |
 | `themes/blackout.json` | Blackout theme for Claude Code (`{name, base, overrides}`) — full Blackout-palette match: true-black surfaces, off-white text, Vercel-blue hero accent, amber/purple/cyan/pink semantic accents. Keys verified against claude-code 2.1.206. Symlink target for `~/.claude/themes/blackout.json`; select it as the theme in `settings.json`. |
 
 ### Herdr
@@ -216,6 +217,9 @@ ln -s "$PWD/claude/statusline-command.sh"                  ~/.claude/statusline-
 # Claude theme (then select "blackout" as the theme in ~/.claude/settings.json)
 mkdir -p ~/.claude/themes
 ln -s "$PWD/claude/themes/blackout.json"                   ~/.claude/themes/blackout.json
+
+# Disable claude.ai skill sync (manual: add `"syncClaudeAiSkills": false` to ~/.claude/settings.json)
+jq '.syncClaudeAiSkills=false' ~/.claude/settings.json > /tmp/s.json && cat /tmp/s.json > ~/.claude/settings.json
 
 # Herdr (terminal workspace manager) + Claude hook
 curl -fsSL https://herdr.dev/install.sh | sh
