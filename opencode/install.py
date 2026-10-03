@@ -47,6 +47,9 @@ def install(repo, config, capture=False):
     if capture:
         capture_cli(repo, config)
     for relative, source in (
+        ("AGENTS.md", "opencode/AGENTS.md"),
+        ("skills/computer-control-jev", "opencode/skills/computer-control-jev"),
+        ("jev-launcher.py", "opencode/jev-launcher.py"),
         ("opencode.json", "opencode/opencode.json"),
         ("cli.json", "opencode/cli.json"),
         ("plugins/subscription-usage", "opencode/plugins/subscription-usage"),
