@@ -3,14 +3,26 @@
 
 input=$(cat)
 
-model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
-cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // ""')
-used=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
-tokens=$(echo "$input" | jq -r '((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0)) | if . > 0 then . else empty end')
-cache_read=$(echo "$input" | jq -r '.context_window.current_usage.cache_read_input_tokens // empty')
-cache_pct=$(echo "$input" | jq -r '(.context_window.current_usage.cache_read_input_tokens // empty) as $r | (.context_window.total_input_tokens // 0) as $t | if $t > 0 then (($r * 100) / $t | floor) else empty end')
-five_h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
-seven_d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+# One jq call for every field (this script re-runs on a timer, see refreshInterval).
+# @sh quotes each value so eval is safe; missing fields become empty strings.
+eval "$(echo "$input" | jq -r '
+  (.context_window.current_usage.cache_read_input_tokens) as $r
+  | (.context_window.total_input_tokens // 0) as $t
+  | ((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0)) as $tok
+  | @sh "model=\(.model.display_name // "Claude")
+         cwd=\(.workspace.current_dir // .cwd // "")
+         used=\(.context_window.used_percentage // "")
+         tokens=\(if $tok > 0 then $tok else "" end)
+         cache_read=\($r // "")
+         cache_pct=\(if $r != null and $t > 0 then (($r * 100) / $t | floor) else "" end)
+         five_h=\(.rate_limits.five_hour.used_percentage // "")
+         seven_d=\(.rate_limits.seven_day.used_percentage // "")
+         effort_level=\(.effort.level // "")
+         pc_observed=\(.prompt_cache.caching_observed // "")
+         pc_warm=\(.prompt_cache.warm // "")
+         pc_ttl=\(.prompt_cache.ttl // "")
+         pc_expires=\(.prompt_cache.expires_at // "")"
+')"
 
 # Shorten model name: "Claude 3.5 Sonnet" -> "Sonnet", "Claude Opus 4.5" -> "Opus", etc.
 short_model=$(echo "$model" | sed -E 's/^Claude //; s/ \(default\)//g; s/\(([0-9]+[KMG]) context\)/[\1]/g')
@@ -97,6 +109,27 @@ fmt_tokens() {
   fi
 }
 
+# Prompt-cache countdown from `prompt_cache` (Claude Code >= 2.1.251). The cache
+# is cold once expires_at passes; the timer only ticks because settings.json sets
+# statusLine.refreshInterval. Green > half the TTL left, yellow > 20%, red below.
+cache_timer() {
+  [ "$pc_observed" = "true" ] || return
+  local left=0 ttl_s=300 mark color
+  [ "$pc_ttl" = "1h" ] && ttl_s=3600
+  [ "$pc_warm" = "true" ] && [ -n "$pc_expires" ] && left=$(( ${pc_expires%.*} - $(date +%s) ))
+  if [ "$left" -le 0 ]; then
+    echo -en "${FG} ❄${RESET}"
+    return
+  fi
+  if [ "$left" -ge 3600 ]; then mark="$((left / 3600))h$(printf '%02d' $((left % 3600 / 60)))m"
+  elif [ "$left" -ge 60 ]; then mark="$((left / 60))m"
+  else mark="${left}s"; fi
+  if [ $((left * 2)) -gt "$ttl_s" ]; then color="$GREEN"
+  elif [ $((left * 5)) -gt "$ttl_s" ]; then color="$YELLOW"
+  else color="$RED"; fi
+  echo -en " ${color}${mark}${RESET}"
+}
+
 ctx_segment=""
 if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$cache_pct" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
   ctx_segment=" ${FG}·${RESET} ${FG}[${RESET}"
@@ -115,7 +148,7 @@ if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$cache_pct" ] || [ -n "$five_h" ]
   if [ -n "$cache_pct" ]; then
     [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
     if [ "${cache_read:-0}" -gt 0 ]; then cache_mark="✓"; else cache_mark="✗"; fi
-    ctx_segment="${ctx_segment}${FG}Cache: ${RESET}$(cache_color "$cache_pct")${cache_mark}${cache_pct}%%${RESET}"
+    ctx_segment="${ctx_segment}${FG}Cache: ${RESET}$(cache_color "$cache_pct")${cache_mark}${cache_pct}%%${RESET}$(cache_timer)"
     first=0
   fi
   if { [ -n "$five_h" ] || [ -n "$seven_d" ]; } && [ "$first" -eq 0 ]; then
@@ -137,7 +170,6 @@ if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$cache_pct" ] || [ -n "$five_h" ]
 fi
 
 # Build effort segment — wrapped in parens, all gray
-effort_level=$(echo "$input" | jq -r '.effort.level // empty')
 effort_segment=""
 if [ -n "$effort_level" ]; then
   effort_segment=" ${FG}(${effort_level})${RESET}"
