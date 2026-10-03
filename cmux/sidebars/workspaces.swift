@@ -1,14 +1,18 @@
 // Workspace sidebar: a cleaner take on cmux's native row.
 //
 //   ┃ Title                  ● Running   <- title; Running/Needs you from cmux
-//   ┃ dotfiles                    main    <- repo basename (hash-tinted) · branch
-//                                 ────      (branch underlined when dirty)
+//   ┃ dotfiles                   *main    <- repo basename (hash-tinted) · branch
+//                                           (* prefix when dirty)
 //
 // The left accent bar and the repo name share a colour that is a stable hash
-// of the directory basename, so each repo stays recognisable across sessions.
+// of the directory basename by default, so each repo stays recognisable across
+// sessions. Right-click > Color changes every workspace at this full directory
+// path. cmux/automations.json + directory-colors.py persist the directory choice
+// and synchronise native workspace colours, including workspaces opened later.
+// Default (repo color) clears the directory override and restores the hash tint.
 // The bar is bright on the selected row and dim otherwise; the selected row
 // also gets a soft rounded wash behind it, and a row whose agent is waiting on
-// you gets that wash in its repo colour.
+// you gets that wash in its workspace colour.
 //
 // Rows use `.onTapGesture` rather than `Button` so the whole row is a hit
 // target (the interpreter's `Button` only hit-tests non-transparent content).
@@ -29,6 +33,23 @@ func basename(_ path: String) -> String {
     return path
 }
 
+func sidebarTitle(_ title: String) -> String {
+    if title.hasPrefix("OC |") {
+        let parts = title.split(separator: "|")
+        return "X" + parts.dropFirst().joined(separator: "|")
+    }
+    return title
+}
+
+func workspacePalette() -> [String] {
+    // Muted, dark-terminal-friendly palette (Tokyo Night-ish). Shared by the
+    // default hash and the Color menu so overrides use exactly the same hues.
+    return [
+        "#F7768E", "#FF9E64", "#E0AF68", "#9ECE6A", "#73DACA",
+        "#7DCFFF", "#7AA2F7", "#BB9AF7", "#FF7AB2", "#C0A36E",
+    ]
+}
+
 func colorForName(_ name: String) -> String {
     let letters = [
         "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
@@ -43,13 +64,17 @@ func colorForName(_ name: String) -> String {
             hash = hash + (i + 1) * (i + 3)
         }
     }
-    // Muted, dark-terminal-friendly palette (Tokyo Night-ish).
-    let palette = [
-        "#F7768E", "#FF9E64", "#E0AF68", "#9ECE6A", "#73DACA",
-        "#7DCFFF", "#7AA2F7", "#BB9AF7", "#FF7AB2", "#C0A36E",
-    ]
+    let palette = workspacePalette()
     let index = hash % palette.count
     return palette[index]
+}
+
+func colorForWorkspace(_ w) -> String {
+    // Optional fields must use if let (see the interpreter caveat below).
+    if let color = w.color {
+        return color
+    }
+    return colorForName(basename(w.directory))
 }
 
 // Agent status comes straight from cmux: `w.agents` (0.64.23+) is the list of
@@ -85,7 +110,8 @@ func isWorking(_ title: String) -> Bool {
 
 func row(_ w) -> some View {
     let repo = basename(w.directory)
-    let tint = colorForName(repo)
+    let tint = colorForWorkspace(w)
+    let palette = workspacePalette()
     let state = agentState(w)
     let working = state == "working" || (state == "none" && isWorking(w.title))
     // "Waiting on you" is an agent that stopped for input; with no agent
@@ -93,7 +119,7 @@ func row(_ w) -> some View {
     let waiting = state == "needs_input" || (state == "none" && w.unread > 0)
 
     HStack(alignment: .top, spacing: 10) {
-        // Accent bar: repo colour, bright when selected.
+        // Accent bar: workspace colour, bright when selected.
         RoundedRectangle(cornerRadius: 1.5)
             .fill(tint)
             .frame(width: 3, height: 45)
@@ -110,7 +136,7 @@ func row(_ w) -> some View {
                         .foregroundColor(tint)
                         .rotationEffect(.degrees(45))
                 }
-                Text(w.title)
+                Text(sidebarTitle(w.title))
                     .font(.system(size: 16))
                     .fontWeight(w.selected ? .semibold : .medium)
                     .foregroundColor(w.selected ? .primary : "#D0D0D0")
@@ -134,7 +160,7 @@ func row(_ w) -> some View {
                 }
             }
 
-            // Line 2: repo on the left, branch (underlined when dirty) on the right.
+            // Line 2: repo on the left, branch (* prefix when dirty) on the right.
             HStack(spacing: 5) {
                 Text(repo)
                     .font(.system(size: 16))
@@ -143,18 +169,12 @@ func row(_ w) -> some View {
                     .lineLimit(1)
                 Spacer()
                 if let b = w.branch {
-                    // A dirty tree underlines the branch name rather than
-                    // hanging a marker off it. Spelled as two whole Texts
-                    // because the interpreter drops arguments often enough
-                    // that `.underline(w.dirty)` risks reading as a bare
-                    // `.underline()` and underlining every row.
                     if w.dirty {
-                        Text(b)
+                        Text("*" + b)
                             .font(.system(size: 16, design: .monospaced))
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .underline()
                     } else {
                         Text(b)
                             .font(.system(size: 16, design: .monospaced))
@@ -168,7 +188,7 @@ func row(_ w) -> some View {
     }
     .padding(9)
     .frame(maxWidth: .infinity, alignment: .leading)
-    // Wash: neutral on the selected row; the repo tint on any row whose agent
+    // Wash: neutral on the selected row; the workspace tint on any row whose agent
     // stopped for input, so "it wants you" reads from across the screen.
     .background {
         RoundedRectangle(cornerRadius: 8)
@@ -196,6 +216,32 @@ func row(_ w) -> some View {
             Button("Move Up") { cmux("workspace.action", action: "move_up", workspace_id: w.id) }
             Button("Move Down") { cmux("workspace.action", action: "move_down", workspace_id: w.id) }
             Button("Move to Top") { cmux("workspace.action", action: "move_top", workspace_id: w.id) }
+        }
+        Menu("Color") {
+            Button(action: {
+                cmux("workspace.action", action: "clear_color", workspace_id: w.id)
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "circle.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundColor(colorForName(repo))
+                    Text("Default (repo color)")
+                }
+            }
+            Divider()
+            let names = ["Red", "Orange", "Amber", "Green", "Teal", "Cyan", "Blue", "Purple", "Pink", "Sand"]
+            ForEach(palette.indices) { i in
+                Button(action: {
+                    cmux("workspace.action", action: "set_color", workspace_id: w.id, color: palette[i])
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "circle.fill")
+                            .symbolRenderingMode(.palette)
+                            .foregroundColor(palette[i])
+                        Text(names[i])
+                    }
+                }
+            }
         }
         Divider()
         Button("Close Others") { cmux("workspace.action", action: "close_others", workspace_id: w.id) }

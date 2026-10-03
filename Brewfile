@@ -329,8 +329,6 @@ cask "basictex"
 cask "blender"
 # Ghostty-based terminal with vertical tabs and notifications for AI coding agents
 cask "cmux"
-# Menu bar usage monitor for Codex and Claude
-cask "codexbar"
 # Offline voice-to-text dictation app with AI enhancement
 cask "fluidvoice"
 cask "font-geist-mono"

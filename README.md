@@ -17,12 +17,20 @@ waiting for a logout.
 ### cmux + OpenCode
 
 cmux file-managed settings, OpenCode configuration, and local OpenCode V2 plugins are tracked here.
+Subscription usage is shown by the OpenCode sidebar plugin; CodexBar and the
+global `ccusage` CLI were uninstalled, and CodexBar is no longer in `Brewfile`.
+The sidebar mimics the built-in Context display with an underlined heading, lists
+Codex above Claude Code under **Subscription Usage**, underlines provider headings,
+right-aligns tiers and italicizes quota labels.
 
 | Path | What it does |
 |---|---|
 | `cmux/cmux.json` | Symlink target for `~/.config/cmux/cmux.json` — cmux's current primary config (shortcuts, sidebars, notifications, terminal). `app.minimalMode` is pinned to `false`: minimal mode hides the workspace title bar above the panes and moves its controls into the sidebar, which also leaves the window with nothing to drag by. cmux mirrors it into the `workspacePresentationMode` app default (`minimal` / `standard`), so if the title bar ever vanishes again, check that default and this key; `cmux reload-config` applies a change without restarting. Keys absent from the file fall back to cmux's schema defaults, so the notification block is intentionally not present (all defaults). cmux can also write `terminal.resumeCommands` here (session-restore entries, machine-specific `cwd` + agent session IDs) — only OpenCode panes register them, so it stays quiet with Claude Code; delete stale ones rather than committing them. |
 | `cmux/settings.json` | Legacy `~/.config/cmux/settings.json` config, superseded by `cmux/cmux.json`. Kept for reference only; not symlinked. |
-| `cmux/sidebars/workspaces.swift` | Symlink target for `~/.config/cmux/sidebars/workspaces.swift` — custom left-sidebar workspace list. Each row is a 3pt accent bar beside two lines: the title with a blue `● Running` on its right while the agent is busy, its dot blinking once a second off the sidebar clock (status text is 16pt, matching the line below it; there is deliberately no tab/pane count), and the repo basename on the left with the git branch in mono, underlined when the tree is dirty, on the right. Status is real, not inferred: cmux 0.64.23+ exposes `w.agents`, the coding-agent sessions a workspace hosts, each with an `idle|working|needs_input|ended` status, so a busy workspace shows the blue `● Running` and one whose agent stopped to ask shows an amber `● Needs you` and gets its card wash in the repo colour so it stands out from across the screen; `needs_input` wins over `working` when a workspace hosts both. A workspace cmux registers no agent session for falls back to the old heuristics — Claude Code's terminal title (it spins `◐◓◑◒` while working and rests on `✳`) and cmux's unread count. Beware one interpreter trap: `w.agents != nil` is *false* even when the field is present, so optional fields must be unwrapped with `if let`, never compared against nil. The bar and repo name share a colour that is a stable hash of the directory basename into a muted Tokyo-Night-ish palette, so each repo stays recognisable; the bar is bright on the selected row, dim otherwise, and the selected row gets a soft rounded wash. Right-clicking a row opens a context menu (Pin/Unpin, Mark as Read/Unread, a Move submenu, Close Others, Close) — a custom sidebar replaces the built-in row entirely, so the built-in row's right-click verbs have to be re-declared in the file via `.contextMenu` dispatching `workspace.action` / `workspace.close`. A pinned workspace shows a small tilted `pin.fill` at the head of its title line, nudging the title along. Rows are wrapped in `Reorderable(workspaces, move: "workspace.reorder")` rather than a plain `ForEach`, so they drag to reorder and the drop both moves the row and persists the order in cmux (this is the supported route — `List`/`.onMove`/`.draggable` are not). `Reorderable` silently ignores a `spacing:` argument and the enclosing `VStack`'s spacing doesn't reach its rows, so the gutter between cards is outer `.padding(3)` on the row itself — after `.background` so it stays transparent, and after `.contentShape` so it isn't part of the hit area. Rows use `.onTapGesture` rather than `Button` so the full row is clickable — the interpreter's `Button` only hit-tests non-transparent content. Two interpreter gotchas learned the hard way (2026-09-20) are commented at the top: `.fixedSize(horizontal:vertical:)` is read as a bare `.fixedSize()` and collapses every Spacer, and `.padding(.horizontal, n)` is read as `.padding(n)` on every edge, so only single-value padding is used. Select it via `cmux sidebar select workspaces`; preview as a pane with `cmux sidebar open workspaces`. To swap back to cmux's built-in sidebar, right-click the sidebar toggle button and pick **Default Workspaces** — that menu lists the built-in provider alongside every file in `~/.config/cmux/sidebars`, and switching either way is instant and non-destructive (the choice is just the `cmuxExtensionSidebar.providerId` app default; `cmux sidebar select` can only pick *custom* sidebars, so there is no CLI route back to the built-in one). Written against the interpreted Swift subset rather than the reactive `.js` runtime that arrived alongside the agent rosters in 0.64.23. |
+| `cmux/sidebars/workspaces.swift` | Symlink target for `~/.config/cmux/sidebars/workspaces.swift` — custom left-sidebar workspace list. Each row has a 3pt accent bar, a title (leading `OC \|` displayed as `X`, without renaming the workspace), and a second line with the repo basename and monospaced branch, prefixed with `*` when dirty (e.g. `*main`, not underlined). Agent status is blue `● Running` (dot blinks each second) or amber `● Needs you`; a waiting row gets a wash in its directory colour. Status uses cmux 0.64.23+ `w.agents` (`needs_input` wins over `working`); absent agent sessions fall back to Claude's spinning title glyphs and cmux unread count. Optional fields must use `if let`: the interpreter incorrectly treats `w.agents != nil` as false. Colours default to a stable basename hash into ten muted Tokyo-Night-ish hues. Right-click → **Color** shows each hue with a coloured `circle.fill` swatch and changes every workspace with the same **full directory path**, through the event handler below; **Default (repo color)** clears that directory's override. Separate clones with the same basename stay independent. The accent bar, repo text, pin and waiting wash all read `w.color`, falling back to the hash. Selected rows brighten the bar and get a soft neutral wash. The context menu also re-declares Pin/Unpin, Mark as Read/Unread, Move, Close Others and Close, because a custom sidebar replaces native rows wholesale. `Reorderable(workspaces, move: "workspace.reorder")` persists drag order; `List`/`.onMove`/`.draggable` are not the supported route. Row `.onTapGesture` keeps empty space clickable. The comments document interpreter layout traps: only `.padding(n)` works reliably, `.fixedSize(horizontal:vertical:)` collapses spacers, and `Reorderable` ignores `spacing:`, so outer `.padding(3)` provides gutters after the background/hit area. Select with `cmux sidebar select workspaces`; preview with `cmux sidebar open workspaces`. Switch back via the sidebar toggle's right-click menu → **Default Workspaces** (provider choice is `cmuxExtensionSidebar.providerId`; the CLI only selects custom providers). |
+| `cmux/automations.json` | Symlink target for `~/.cmuxterm/automations.json` — event-driven cmux rules that run the directory-colour handler on workspace colour actions, creation, selection and config reload. No timer, daemon or launchd job. If you already have automation rules, merge these four `directory-color-*` rules rather than replacing your file. Reload with `cmux automation reload`. |
+| `cmux/directory-colors.py` | Symlink target for `~/.config/cmux/directory-colors.py` — stock-Python handler that remembers full-path colour preferences in `~/.local/state/cmux/directory-colors.json` and synchronises native colours across matching workspaces in every window, including later-created/restored ones. Default is persisted as null so stale restored overrides cannot revive it. File locking, atomic writes, live-source validation and no-op comparisons prevent overlapping handlers, stale clicks and event loops. Running it with no event reconciles existing saved preferences. Local path preferences are not committed to this repo. |
+| `cmux/directory-colors.test.py` | Unit tests for exact-path isolation, later workspaces, persisted choices, default/reset, stale events and loop prevention. Run `/usr/bin/python3 -B cmux/directory-colors.test.py`. |
 | `ghostty/` | Symlink target for `~/.config/ghostty/` — Ghostty terminal config (`config`: `hyper` theme, Geist Mono 16, padding, keybinds) plus `themes/hyper`, a port of the Hyper.js default palette. Ghostty itself is no longer installed; cmux embeds Ghostty and reads this same file for its terminal panes, so this is what sets cmux's colours and font. Recovered from the Trash after the Ghostty uninstall took it. |
 | `opencode/opencode.json` | Symlink target for `~/.config/opencode/opencode.json`. Globally allows every OpenCode tool permission; the cmux OpenCode restore/feed plugins it used to load were removed (`cmux hooks opencode uninstall`) and can be restored with `cmux hooks opencode install`. |
 | `opencode/cli.json` | Symlink target for `~/.config/opencode/cli.json`. Current Settings snapshot: Aura/system colours, animations on, auto sidebar, scrollbar on, thinking hidden, rendered Markdown, auto tool grouping, low verbosity, transcript images/TPS on, new sessions in the launch directory, auto-accept permissions; tabs off with cwd scope/horizontal layout/status icons; auto diffs with word wrapping, file tree on and single patch off. Keeps the background-session keybind and local plugin declarations, with portable relative paths; disables built-in Context so the subscription plugin's replacement appears only once. |
@@ -59,35 +67,23 @@ from the pinned `lazy-lock.json`.
 
 | Path | What it does |
 |---|---|
-| `skills/codebase-audit/` | Skill for whole-repo health audits (naming drift, DRY, stale docs, dead code, scale readiness) with a fixed scoreboard report format; repo-scoped counterpart to per-diff code review. |
-| `skills/publish-setup/` | Skill for bootstrapping iOS app publishing (Fastlane match, ASC key, secrets sync). |
-| `skills/saving-a-memory/` | Skill for where/how to save memories (global `~/.claude/CLAUDE.md` by default; never project-local from a worktree). |
-| `skills/writing-goals/` | Skill for composing `/goal` conditions that are tight, transcript-verifiable, and dodge-proof. |
-| `skills/using-presenterm/` | Skill for authoring [presenterm](https://github.com/mfontanini/presenterm) terminal slideshows, including the house style (blackout theme, front-matter title slide, implicit slide ends). |
 | `skills/hammerspoon-config/` | Skill for writing/editing the Hammerspoon Lua config: the `~/.hammerspoon` → repo symlink (editing the repo file *is* editing the live config), the garbage-collection rule that makes unreferenced watchers/timers/eventtaps die silently, `hs.task` vs blocking `hs.execute` (and its missing login `PATH`), hotkey/window/eventtap patterns, and the house style of `hammerspoon/init.lua`. Ships `API-CHEATSHEET.md`, a condensed module/function index of the whole `hs.*` surface. |
 | `skills/hammerspoon-cli/` | Skill for driving the running Hammerspoon from the terminal via the `hs` CLI (`hs.ipc`): the test-snippet → write → `hs.reload()` → verify loop, the `loadfile` syntax check that runs *before* a reload, flag reference, and the traps — the 4s default timeout, per-invocation scoping, and the fact that a parse error kills `hs.ipc` and therefore the CLI itself. |
 | `skills/hammerspoon-debug/` | Skill for diagnosing Hammerspoon that "doesn't work": a symptom→cause triage table, reading `hs.logger` history remotely (and the dot-not-colon call syntax that silently breaks logging), Accessibility/Input Monitoring checks including the grant going stale after an app upgrade, the GC and hotkey-shadowing silent failures, and recovering a config broken badly enough that the CLI is gone. |
 | `skills/hammerspoon-spoons/` | Skill for finding/installing/configuring/authoring Spoons — `hs.loadSpoon`, `hs.spoons.use`, `SpoonInstall`, bundle anatomy, the catalog. Notes that the only installed Spoon is `EmmyLua.spoon` (an editor-tooling generator, not a runtime feature), and that because `~/.hammerspoon` is a symlink, installing one writes into this repo. |
 | `skills/printing/` | Skill for printing anything — PDF, HTML, Markdown, plain text, or a claude.ai Artifact — on the Brother DCP-L2550DW (CUPS queue `Brother_DCP_L2550DW_series`). Checks `lpstat` first as a real question rather than a formality, because the printer lives in a cupboard and is only plugged in sometimes, and never silently falls back to another queue. Covers rendering each input format to something `lp` will take, and why the tray's paper size wins over the document's. |
+| `skills/using-tu/` | Skill for driving interactive CLIs/TUIs (htop, vim, ncurses) during development or ops. |
 | `skills/remarkable/` | Skill for pushing PDFs/EPUBs to the reMarkable Paper Pro over the cloud API via the [`rmapi`](https://github.com/ddvk/rmapi) CLI (built from source, lands at `~/go/bin/rmapi`). Covers the auth check, re-pairing through the 8-character one-time code (fetched from Calum's logged-in Chrome rather than asking him to type it), and why cloud rather than USB. |
 | `statusline-command.sh` | Tokyo Night statusline for Claude Code: left clock `[5:30pm]`, model + effort `(medium)`, cwd (OSC-8 link to the GitHub remote), git branch + dirty flag, `origin/main` short SHA with `(-N, age)` when local `main` is ahead/unpushed (N commits + age of origin/main's tip), and trailing `[Ctx: n%, Tkns: n, Cache: ✓n% // 5h: n%, Wk: y%]` (context-window %, session token count and prompt-cache hit rate, then 5h/weekly rate-limit usage from stdin's `rate_limits`, Pro/Max only — each part, and the whole `//`-prefixed half, omitted when its data is absent; `//` is orange). The cache figure is `cache_read_input_tokens` as a share of `total_input_tokens` from stdin's `context_window.current_usage`, marked `✓` when the prompt is served from cache and `✗` when it is cold; its colouring is inverted against the other percentages (cyan ≥ 80%, yellow ≥ 50%, red below) because a high cache rate is good. Wire via `statusLine.command` in `settings.json`. |
 | `themes/blackout.json` | Blackout theme for Claude Code (`{name, base, overrides}`) — full Blackout-palette match: true-black surfaces, off-white text, Vercel-blue hero accent, amber/purple/cyan/pink semantic accents. Keys verified against claude-code 2.1.206. Symlink target for `~/.claude/themes/blackout.json`; select it as the theme in `settings.json`. |
 
-### `codex/`
-
-[Codex](https://developers.openai.com/codex) terminal UI setup.
-
-| Path | What it does |
-|---|---|
-| `themes/blackout.tmTheme` | Blackout syntax-highlighting theme for Codex CLI/TUI. Symlink target for `~/.codex/themes/blackout.tmTheme`; set `[tui].theme = "blackout"` in `~/.codex/config.toml`. |
-
 ### Herdr
 
-[Herdr](https://herdr.dev) is the terminal workspace manager (mouse-first tmux alternative with agent-state awareness) that hosts Claude Code and Codex panes. Its Claude and Codex hook scripts (`~/.claude/hooks/herdr-agent-state.sh`, `~/.codex/herdr-agent-state.sh`) are regenerated by `herdr integration install` on every run ("managed by herdr; reinstalling or updating the integration overwrites this file"), so tracking them would just get overwritten out from under git. New machine: install Herdr, then run `herdr integration install claude` and `herdr integration install codex` to wire up both agents' hooks.
+[Herdr](https://herdr.dev) is the terminal workspace manager (mouse-first tmux alternative with agent-state awareness) that hosts Claude Code and OpenCode panes. Its Claude hook script (`~/.claude/hooks/herdr-agent-state.sh`) is regenerated by `herdr integration install` on every run ("managed by herdr; reinstalling or updating the integration overwrites this file"), so tracking it would just get overwritten out from under git. New machine: install Herdr, then run `herdr integration install claude` to wire up the hook.
 
 ### `themes/`
 
-True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cursor / VS Code, OpenCode, Codex, Claude, Neovim, presenterm, and Antinote. Previously the standalone `0x63616c/themes` repo, now vendored here.
+True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cursor / VS Code, OpenCode, Claude, Neovim, presenterm, and Antinote. Previously the standalone `0x63616c/themes` repo, now vendored here.
 
 | Path | What it does |
 |---|---|
@@ -159,7 +155,6 @@ project you build from. Start at `splitflap/docs/00-build-guide.md`.
 
 | Path | What it does |
 |---|---|
-| `git/gcamai` | `gcam` (`git commit --all --message`) with the message written for you. Feeds `git diff HEAD` (stat + `-U0` body, budgeted per changed file at 12 KB ÷ file count, floor 400 B each, so one huge file can't starve the paths after it alphabetically) plus the last 10 commit subjects to the Codex CLI — `gpt-5.3-codex-spark`, read-only sandbox, `model_reasoning_effort=low`, tools forbidden — and commits whatever single Conventional Commits subject comes back (~3–6s). Deliberately shallow: a decent one-liner fast beats a perfect one slow. While it thinks, a human-speed typing animation cycles phrases behind a live `(5s)` elapsed counter. Logs every run (codex output, context, chosen message) to `$XDG_STATE_HOME/gcamai/`, newest also at `latest.log`. Env: `GCAMAI_DRY=1` print the message without committing, `GCAMAI_DEBUG=1` skip the animation and print the log path, `GCAMAI_MODEL` / `GCAMAI_DIFF_BYTES` to override. |
 | `git/hooks/pre-commit` | Parses every tracked `.lua` and runs the Hammerspoon tests before any commit. The parse check matters more than it sounds: a syntax error in the Hammerspoon config isn't a contained failure, it takes down the **entire** config including `hs.ipc` — the CLI you'd diagnose it with — leaving the menubar as the only way back. Uses `luajit` (what's actually installed; LuaJIT is 5.1, and the config sticks to 5.1-compatible syntax), skips cleanly with a hint if it's missing, and is bypassable with `--no-verify`. Enabled via `core.hooksPath`, so it's tracked in the repo rather than living untracked in `.git/hooks/`. |
 
 ### `restic/`
@@ -197,20 +192,13 @@ about into the live file instead, in place.
 git clone https://github.com/0x63616c/dotfiles.git
 cd dotfiles
 
-# gcamai — AI-written commit subject (needs the `codex` CLI on PATH)
-echo "alias gcamai='$PWD/git/gcamai'" >> ~/.aliases
-
 # Claude skills
-ln -s "$PWD/claude/skills/codebase-audit"                  ~/.claude/skills/codebase-audit
-ln -s "$PWD/claude/skills/publish-setup"                   ~/.claude/skills/publish-setup
-ln -s "$PWD/claude/skills/saving-a-memory"                 ~/.claude/skills/saving-a-memory
-ln -s "$PWD/claude/skills/writing-goals"                   ~/.claude/skills/writing-goals
-ln -s "$PWD/claude/skills/using-presenterm"                ~/.claude/skills/using-presenterm
 ln -s "$PWD/claude/skills/hammerspoon-config"              ~/.claude/skills/hammerspoon-config
 ln -s "$PWD/claude/skills/hammerspoon-cli"                 ~/.claude/skills/hammerspoon-cli
 ln -s "$PWD/claude/skills/hammerspoon-debug"               ~/.claude/skills/hammerspoon-debug
 ln -s "$PWD/claude/skills/hammerspoon-spoons"              ~/.claude/skills/hammerspoon-spoons
 ln -s "$PWD/claude/skills/printing"                        ~/.claude/skills/printing
+ln -s "$PWD/claude/skills/using-tu"                         ~/.claude/skills/using-tu
 ln -s "$PWD/claude/skills/remarkable"                      ~/.claude/skills/remarkable
 
 # Statusline (then set statusLine.command to this path in ~/.claude/settings.json)
@@ -220,14 +208,9 @@ ln -s "$PWD/claude/statusline-command.sh"                  ~/.claude/statusline-
 mkdir -p ~/.claude/themes
 ln -s "$PWD/claude/themes/blackout.json"                   ~/.claude/themes/blackout.json
 
-# Codex theme (then set [tui].theme = "blackout" in ~/.codex/config.toml)
-mkdir -p ~/.codex/themes
-ln -s "$PWD/codex/themes/blackout.tmTheme"                  ~/.codex/themes/blackout.tmTheme
-
-# Herdr (terminal workspace manager) + Claude/Codex hooks
+# Herdr (terminal workspace manager) + Claude hook
 curl -fsSL https://herdr.dev/install.sh | sh
 herdr integration install claude
-herdr integration install codex
 
 # macOS pointer speed (mouse/trackpad tracking speed, incl. outside slider range)
 ./macos/pointer.sh                                         # applies live, no logout
@@ -269,6 +252,12 @@ git config core.hooksPath git/hooks
 mkdir -p ~/.config/cmux ~/.config/cmux/sidebars ~/.config/opencode
 ln -s "$PWD/cmux/cmux.json"                                ~/.config/cmux/cmux.json
 ln -s "$PWD/cmux/sidebars/workspaces.swift"                ~/.config/cmux/sidebars/workspaces.swift
+ln -s "$PWD/cmux/directory-colors.py"                      ~/.config/cmux/directory-colors.py
+mkdir -p ~/.cmuxterm
+# If automations.json already exists, merge the directory-color-* rules instead.
+ln -s "$PWD/cmux/automations.json"                         ~/.cmuxterm/automations.json
+cmux automation reload
+# Tests (not symlinked): /usr/bin/python3 -B cmux/directory-colors.test.py
 # OpenCode: links configs, plugins, themes; backs up conflicting existing paths.
 # Use --capture-cli instead to save newer detached UI preferences before linking.
 /usr/bin/python3 -B opencode/install.py
