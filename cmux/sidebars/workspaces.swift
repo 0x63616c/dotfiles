@@ -113,10 +113,12 @@ func row(_ w) -> some View {
     let tint = colorForWorkspace(w)
     let palette = workspacePalette()
     let state = agentState(w)
-    let working = state == "working" || (state == "none" && isWorking(w.title))
     // "Waiting on you" is an agent that stopped for input; with no agent
     // session to ask, fall back to cmux's unread count.
     let waiting = state == "needs_input" || (state == "none" && w.unread > 0)
+    // Unread + a spinning title can coexist in the fallback. Waiting wins,
+    // just as needs_input wins over working for registered agents.
+    let working = !waiting && (state == "working" || (state == "none" && isWorking(w.title)))
 
     HStack(alignment: .top, spacing: 10) {
         // Accent bar: workspace colour, bright when selected.
@@ -148,8 +150,7 @@ func row(_ w) -> some View {
                         Circle().fill("#E0AF68").frame(width: 7, height: 7)
                         Text("Needs you").font(.system(size: 16)).foregroundColor("#E0AF68")
                     }
-                }
-                if working {
+                } else if working {
                     // Blinks: the sidebar re-renders about once a second, so
                     // the dot dims on odd seconds and comes back on even ones.
                     HStack(spacing: 4) {
