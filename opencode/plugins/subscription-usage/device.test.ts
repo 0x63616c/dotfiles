@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 import { createDeviceUsage } from "./device"
-import { UsageError, type Snapshot } from "./usage"
+import { fetchUsage, UsageError, type Snapshot } from "./usage"
 
 const now = Date.parse("2026-10-02T12:00:00Z")
 const snapshot: Snapshot = { fetchedAt: now, windows: [{ label: "Week", used: 29 }] }
@@ -22,6 +22,28 @@ async function temporary(run: (directory: string) => Promise<void>) {
 }
 
 describe("device-wide usage budget", () => {
+  test("Codex usage and reset inventory are each read once across simultaneous instances", () => temporary(async (directory) => {
+    const requests: string[] = []
+    const fetch: typeof fetchUsage = (provider, signal, dependencies) => fetchUsage(provider, signal, {
+      credentials,
+      ...dependencies,
+      fetch: async (url) => {
+        requests.push(url)
+        await sleep(20)
+        return Response.json(url.endsWith("/usage")
+          ? { rate_limit: { primary_window: { used_percent: 2, limit_window_seconds: 604800 } } }
+          : { available_count: 2 })
+      },
+    })
+    const instance = () => createDeviceUsage({ directory, credentials, fetch })
+    const states = await Promise.all(Array.from({ length: 8 }, () => instance()("codex", signal())))
+    expect(requests.filter((url) => url.endsWith("/usage")).length).toBe(1)
+    expect(requests.filter((url) => url.endsWith("/rate-limit-reset-credits")).length).toBe(1)
+    expect(states.every((state) => state.snapshot?.resetCredits?.available === 2)).toBe(true)
+    expect((await instance()("codex", signal())).snapshot?.resetCredits?.available).toBe(2)
+    expect(requests.length).toBe(2)
+  }))
+
   test("simultaneous instances share one fetch and cached startup/manual refreshes", () => temporary(async (directory) => {
     let calls = 0
     const fetch = async () => {

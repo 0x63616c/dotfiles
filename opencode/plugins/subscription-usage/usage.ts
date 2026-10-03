@@ -6,8 +6,9 @@ import { promisify } from "node:util"
 
 export const providers = ["claude", "codex"] as const
 export type Provider = (typeof providers)[number]
-export type Window = { label: string; used: number; resetsAt?: number }
-export type Snapshot = { windows: Window[]; fetchedAt: number; plan?: string }
+export type Window = { label: string; used: number; resetsAt?: number; durationSeconds?: number | null }
+export type ResetCredits = { available: number; fetchedAt: number; expiresAt?: number[] }
+export type Snapshot = { windows: Window[]; fetchedAt: number; plan?: string; resetCredits?: ResetCredits; resetCreditsRetryAt?: number }
 export type State = { snapshot?: Snapshot; error?: string; retryAt?: number; loading: boolean }
 type Credential = { token: string; accountID?: string; plan?: string }
 
@@ -16,6 +17,7 @@ const endpoints = {
   claude: "https://api.anthropic.com/api/oauth/usage",
   codex: "https://chatgpt.com/backend-api/wham/usage",
 }
+const resetCreditsEndpoint = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits"
 
 export class UsageError extends Error {
   constructor(message: string, readonly retryAt?: number, readonly auth = false) {
@@ -37,7 +39,7 @@ function number(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
-function window(label: string, used: unknown, reset: unknown): Window | undefined {
+function window(label: string, used: unknown, reset: unknown, durationSeconds: number | null): Window | undefined {
   const percent = number(used)
   if (percent === undefined) return
   const date = typeof reset === "string" ? Date.parse(reset) : Number.NaN
@@ -45,18 +47,19 @@ function window(label: string, used: unknown, reset: unknown): Window | undefine
     label,
     used: Math.max(0, Math.min(100, percent)),
     resetsAt: Number.isFinite(date) ? date : undefined,
+    durationSeconds,
   }
 }
 
 export function parseClaude(value: unknown, now = Date.now()): Snapshot {
   const data = object(value)
   const windows: Window[] = []
-  const add = (label: string, entry: unknown) => {
+  const add = (label: string, entry: unknown, durationSeconds = 604800) => {
     const item = object(entry)
-    const parsed = window(label, item.utilization, item.resets_at)
+    const parsed = window(label, item.utilization, item.resets_at, durationSeconds)
     if (parsed) windows.push(parsed)
   }
-  add("5h", data.five_hour)
+  add("5h", data.five_hour, 18000)
   add("Week", data.seven_day)
 
   // New Claude responses put model-specific weekly limits in this array.
@@ -67,7 +70,9 @@ export function parseClaude(value: unknown, now = Date.now()): Snapshot {
       : item.kind === "weekly_all" ? "Week"
       : text(model.display_name) ?? text(model.id)
     if (!label || windows.some((w) => w.label === label)) continue
-    const parsed = window(label, item.percent, item.resets_at)
+    const duration = item.kind === "session" ? 18000
+      : typeof item.kind === "string" && item.kind.startsWith("weekly_") ? 604800 : null
+    const parsed = window(label, item.percent, item.resets_at, duration)
     if (parsed) windows.push(parsed)
   }
   for (const [key, label] of [["seven_day_sonnet", "Sonnet"], ["seven_day_opus", "Opus"]]) {
@@ -97,10 +102,12 @@ export function parseCodex(value: unknown, now = Date.now()): Snapshot {
       if (used === undefined) continue
       const reset = number(item.reset_at)
       const after = number(item.reset_after_seconds)
+      const duration = number(item.limit_window_seconds)
       windows.push({
         label: `${prefix}${durationLabel(item.limit_window_seconds, fallback)}`,
         used: Math.max(0, Math.min(100, used)),
         resetsAt: reset !== undefined ? reset * 1000 : after !== undefined ? now + after * 1000 : undefined,
+        durationSeconds: duration !== undefined && duration > 0 ? duration : null,
       })
     }
   }
@@ -113,6 +120,21 @@ export function parseCodex(value: unknown, now = Date.now()): Snapshot {
   }
   if (!windows.length) throw new UsageError("Usage unavailable")
   return { windows, fetchedAt: now, plan: text(data.plan_type) }
+}
+
+export function parseResetCredits(value: unknown, now = Date.now()): ResetCredits {
+  const available = number(object(value).available_count)
+  if (available === undefined || !Number.isInteger(available) || available < 0) {
+    throw new UsageError("Reset inventory unavailable")
+  }
+  const credits = object(value).credits
+  const expiresAt = Array.isArray(credits) ? credits.flatMap((entry) => {
+    const credit = object(entry)
+    if (credit.status !== "available" || typeof credit.expires_at !== "string") return []
+    const date = Date.parse(credit.expires_at)
+    return Number.isFinite(date) ? [date] : []
+  }).sort((a, b) => a - b) : undefined
+  return { available, fetchedAt: now, ...(expiresAt ? { expiresAt } : {}) }
 }
 
 async function jsonFile(path: string): Promise<Record<string, unknown> | undefined> {
@@ -179,6 +201,8 @@ export async function fetchUsage(
   dependencies: {
     credentials: typeof loadCredential
     fetch: (url: string, init: RequestInit) => Promise<Response>
+    resetCredits?: ResetCredits
+    resetCreditsRetryAt?: number
   } = { credentials: loadCredential, fetch: globalThis.fetch },
 ): Promise<Snapshot> {
   const credential = await dependencies.credentials(provider, signal)
@@ -212,7 +236,31 @@ export async function fetchUsage(
     throw new UsageError("Invalid usage response")
   }
   const snapshot = provider === "claude" ? parseClaude(data) : parseCodex(data)
-  return { ...snapshot, plan: snapshot.plan ?? credential.plan }
+  if (provider === "claude") return { ...snapshot, plan: snapshot.plan ?? credential.plan }
+
+  // Read-only, optional inventory: failures must not discard ordinary quota data.
+  // Runs inside the same device-wide claim, never once per terminal/sidebar.
+  let resetCredits = dependencies.resetCredits
+  let resetCreditsRetryAt = dependencies.resetCreditsRetryAt
+  if (!(resetCreditsRetryAt && resetCreditsRetryAt > Date.now())) {
+    try {
+      const response = await dependencies.fetch(resetCreditsEndpoint, {
+        method: "GET",
+        headers: { ...headers, "OpenAI-Beta": "codex-1", originator: "Codex Desktop" },
+        signal: AbortSignal.any([signal, AbortSignal.timeout(4_000)]),
+        redirect: "error",
+      })
+      if (response.ok) {
+        resetCredits = parseResetCredits(await response.json())
+        resetCreditsRetryAt = undefined
+      } else if (response.status === 429) {
+        resetCreditsRetryAt = Math.max(Date.now() + 300_000, retryAfter(response.headers.get("retry-after")))
+      }
+    } catch {
+      signal.throwIfAborted()
+    }
+  }
+  return { ...snapshot, plan: snapshot.plan ?? credential.plan, resetCredits, resetCreditsRetryAt }
 }
 
 export function countdown(resetsAt: number | undefined, now: number): string {
@@ -222,6 +270,60 @@ export function countdown(resetsAt: number | undefined, now: number): string {
   if (minutes >= 1440) return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`
   if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
   return `${minutes}m`
+}
+
+/** Average consumption versus the fraction of the quota window elapsed. */
+export function quotaPace(window: Window, now: number, windows: readonly Window[] = []) {
+  let duration = window.durationSeconds
+  // Older on-device snapshots lack durations. Recover the known fixed labels,
+  // and model-specific weekly windows sharing the same weekly reset timestamp.
+  // Explicit null from a newer API parse means unknown, not an assumed week.
+  if (duration === undefined) {
+    const week = windows.find((other) => other.label === "Week" && other.resetsAt === window.resetsAt)
+    duration = window.label === "5h" ? 18000 : window.label === "Week" ? 604800
+      : week ? week.durationSeconds === undefined ? 604800 : week.durationSeconds : undefined
+  }
+  if (!duration || !Number.isFinite(duration) || duration <= 0 || window.resetsAt === undefined
+    || !Number.isFinite(window.resetsAt) || !Number.isFinite(now) || window.resetsAt <= now) return
+  const remaining = window.resetsAt - now
+  if (remaining > duration * 1000) return
+  const elapsed = Math.max(0, Math.min(100, (1 - remaining / (duration * 1000)) * 100))
+  return { elapsed, left: 100 - elapsed, ratio: elapsed > 0 ? window.used / elapsed : undefined }
+}
+
+export function percentLabel(percent: number): string {
+  return `${percent > 0 && percent < 1 ? "<1" : Number(percent.toFixed(1))}%`
+}
+
+export function isStale(state: State, now: number): boolean {
+  return !!state.error || (!!state.snapshot && now - state.snapshot.fetchedAt > 300_000)
+}
+
+export function providerNotice(state: State, now: number): string | undefined {
+  if (state.snapshot) {
+    if (!isStale(state, now)) return
+    const minutes = Math.floor(Math.max(0, now - state.snapshot.fetchedAt) / 60_000)
+    if (minutes === 0) return "Updated just now"
+    const age = minutes >= 1440 ? `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`
+      : minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`
+    return `Updated ${age} ago`
+  }
+  if (!state.error) return
+  const error = state.error === "Rate limited" ? "Rate Limited" : state.error
+  return state.retryAt && state.retryAt > now ? `${error} (Retrying in ${countdown(state.retryAt, now)})` : error
+}
+
+export function resetCreditsView(credits: ResetCredits, now: number) {
+  const expired = credits.expiresAt?.filter((expiry) => expiry > credits.fetchedAt && expiry <= now).length ?? 0
+  const available = Math.max(0, credits.available - expired)
+  const dates = credits.expiresAt?.filter((expiry) => Number.isFinite(expiry) && expiry > now).sort((a, b) => a - b) ?? []
+  const formatter = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" })
+  const entries = Array.from({ length: available }, (_, index) => {
+    const expiry = dates[index]
+    return `${index + 1} - ${expiry === undefined ? "Expiry unavailable" : `Expires ${formatter.format(expiry)}`}`
+  })
+  const note = providerNotice({ snapshot: { windows: [], fetchedAt: credits.fetchedAt }, loading: false }, now)
+  return { available, entries, note }
 }
 
 export function createMonitor(

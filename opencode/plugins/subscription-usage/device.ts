@@ -104,6 +104,8 @@ export function createDeviceUsage(options: {
         const snapshot = await fetch(provider, signal, {
           credentials: async () => credential,
           fetch: globalThis.fetch,
+          resetCredits: previous.snapshot?.resetCredits,
+          resetCreditsRetryAt: previous.snapshot?.resetCreditsRetryAt,
         })
         signal.throwIfAborted()
         entry = { snapshot, nextAttemptAt: now() + interval, rateLimits: 0 }
