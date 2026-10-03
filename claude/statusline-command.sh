@@ -122,8 +122,8 @@ cache_timer() {
     return
   fi
   if [ "$left" -ge 3600 ]; then mark="$((left / 3600))h$(printf '%02d' $((left % 3600 / 60)))m"
-  elif [ "$left" -ge 60 ]; then mark="$((left / 60))m"
-  else mark="${left}s"; fi
+  elif [ "$left" -ge 300 ]; then mark="$((left / 60))m"
+  else mark="$((left / 60)):$(printf '%02d' $((left % 60)))"; fi
   if [ $((left * 2)) -gt "$ttl_s" ]; then color="$GREEN"
   elif [ $((left * 5)) -gt "$ttl_s" ]; then color="$YELLOW"
   else color="$RED"; fi
