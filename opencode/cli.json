@@ -9,8 +9,6 @@
   },
   "plugins": [
     "-opencode.sidebar.context",
-    "./theme-pack",
-    "./plugins/statusline.tsx",
     "./plugins/subscription-usage"
   ],
   "diffs": {

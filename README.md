@@ -36,18 +36,25 @@ the slash and elapsed percentage stay gray.
 | `ghostty/` | Symlink target for `~/.config/ghostty/` — Ghostty terminal config (`config`: `hyper` theme, Geist Mono 16, padding, keybinds) plus `themes/hyper`, a port of the Hyper.js default palette. Ghostty itself is no longer installed; cmux embeds Ghostty and reads this same file for its terminal panes, so this is what sets cmux's colours and font. Recovered from the Trash after the Ghostty uninstall took it. |
 | `opencode/opencode.json` | Symlink target for `~/.config/opencode/opencode.json`. Globally allows every OpenCode tool permission; the cmux OpenCode restore/feed plugins it used to load were removed (`cmux hooks opencode uninstall`) and can be restored with `cmux hooks opencode install`. |
 | `opencode/cli.json` | Symlink target for `~/.config/opencode/cli.json`. Current Settings snapshot: Blackout/system colours, animations on, auto sidebar, scrollbar on, thinking hidden, rendered Markdown, auto tool grouping, low verbosity, transcript images/TPS on, new sessions in the launch directory, auto-accept permissions; tabs off with cwd scope/horizontal layout/status icons; auto diffs with word wrapping, file tree on and single patch off; compact paste display. Keeps the background-session keybind and local plugin declarations, with portable relative paths; disables built-in Context so the subscription plugin's replacement appears only once. |
-| `opencode/install.py` | Stock-Python, repeatable installer for both configs, local plugins and custom themes. Backs up conflicting files/directories/symlinks beside their original paths rather than overwriting them; respects `XDG_CONFIG_HOME`. `--capture-cli` saves a detached live settings file before restoring its link. Never links the entire config directory or copies credentials, service state or history into Git. |
+| `opencode/install.py` | Stock-Python, repeatable **V2-only** installer for both configs, the subscription-usage plugin and custom theme JSON directory. Backs up conflicting files/directories/symlinks beside their original paths rather than overwriting them; respects `XDG_CONFIG_HOME`. `--capture-cli` saves a detached live settings file before restoring its link. Does not restore the removed V1 statusline/theme-loader plugins, link the entire config directory, or copy credentials, service state or history into Git. |
 | `opencode/install.test.py` | Temporary-directory tests for backup collisions, repeat installs, dangling links, settings capture after an atomic replacement and preservation of private runtime files. Run `/usr/bin/python3 -B opencode/install.test.py`. |
-| `opencode/plugins/statusline.tsx` | Previously untracked directory/git sidebar footer, saved unchanged and symlinked from the global plugin directory. This is a **legacy V1 plugin**; its declaration is preserved, but it needs porting before it can run on V2. |
 | `opencode/plugins/subscription-usage/` | OpenCode **V2** CLI plugin, globally symlinked into `~/.config/opencode/plugins/subscription-usage`. Recreates the built-in Context token/percentage/spend display, respecting compaction and undo, with an underlined heading. Below it, underlined AI Subscriptions lists Codex then Claude Code with bold provider names (no underlines), right-aligned tiers and reset countdowns, italic quota labels, full-row usage bars and model-specific limits. Percentages compare quota used with window time elapsed (`2% / 3%`); colours flag consumption ahead of a linear budget. Codex also displays an italic Resets available heading with a right-aligned count and numbered expiry lines including the year (e.g. `1 - Expires 22 Oct 2026`), earliest first; unknown dates say Expiry unavailable. It preserves the last inventory on failure with its own age note and subtracts known expirations; it never redeems resets. Subscription renewal/expiry is not fetched. Cached readings survive refresh failures with muted colours and a small gray age note (`Updated 12m ago`), without stale badges or error clutter; failures/retry countdowns show only when no reading is available. Reads existing Claude Code Keychain/file and Codex `auth.json` logins locally. A private SQLite cache and atomic cross-process claim share one refresh cycle per provider/login every two minutes across the device (one Claude usage GET; Codex usage plus reset-inventory GET), with persistent shared rate-limit backoff (5 → 10 → 20 → 30 minutes, respecting longer server delays) and separate inventory backoff. Clickable ↻ reads this same cache/budget rather than bypassing it. No separate daemon/job; credentials are never cached. See its `README.md` for auth, options, and development checks. |
 
 OpenCode's Settings UI can replace `cli.json` atomically, breaking a file symlink.
 If that happens, run `/usr/bin/python3 -B opencode/install.py --capture-cli` from
 this repo, review `git diff`, then commit/push the captured preferences. Do not run
 the installer without `--capture-cli` if you want to keep detached UI changes.
-Authentication, model/session history, caches and `service.json` stay machine-local;
-the old `tui.json`, generated V1 dependency installs and empty OCX profiles are not
-part of this V2 restore. No global custom skills or MCP servers were configured.
+Authentication, model/session history, caches and `service.json` stay machine-local.
+V1 statusline/theme-loader code and declarations were removed after checkpoint
+`e5c687f`. The old `tui.json`, V1 binary/history-search tool, generated V1 dependency
+installs and inactive backups were moved to a private, timestamped archive under
+`~/.local/state/opencode/legacy-archive/` (with original-path manifest and a shell
+backup), not deleted. The local `~/.zshrc` no longer adds the V1 binary directory
+or exports the old background-subagent/permission overrides; V2 permission rules
+remain in `opencode.json`, and debug logging is retained. OCX/default-profile files
+are unchanged and are not part of this V2 restore. No global custom skills or MCP
+servers were configured. Restart the TUI to verify the cleaned plugin list; no
+background-service restart or session/database migration is needed.
 
 ### `nvim/`
 
@@ -90,7 +97,7 @@ True-black **Blackout** theme (plus a **Lucent Orng++** OpenCode variant) for Cu
 | Path | What it does |
 |---|---|
 | `themes/cursor/` | Cursor & VS Code theme: `palette/palette.json` is the single source of color, `bun run build` regenerates, `scripts/install.sh` links into Cursor + VS Code. Symlink target for `~/.cursor/extensions/blackout-theme` and `~/.vscode/extensions/blackout-theme`. |
-| `themes/opencode/` | OpenCode TUI themes: `blackout.json` (true-black main background, subtle gray `#101010` user-message/shared raised-panel backgrounds) + `lucent-orng-plusplus.json` (opaque variant of the built-in `lucent-orng`). Installer links these to `~/.config/opencode/themes/` and preserves the legacy theme-pack declaration through `~/.config/opencode/theme-pack` → `themes/`. Blackout is the current selection. |
+| `themes/opencode/` | OpenCode TUI themes: `blackout.json` (true-black main background, subtle gray `#101010` user-message/shared raised-panel backgrounds) + `lucent-orng-plusplus.json` (opaque variant of the built-in `lucent-orng`). Installer links these to `~/.config/opencode/themes/`; V2 loads the JSON files directly, without the removed legacy theme plugin/manifest. Blackout is the current selection. |
 | `themes/antinote/` | Blackout theme for [Antinote](https://antinote.io). Antinote is sandboxed, so `sync.sh` **copies** (not links) `blackout.json` into its container. |
 
 ### `presenterm/`

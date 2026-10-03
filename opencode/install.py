@@ -31,8 +31,8 @@ def capture_cli(repo, config):
     data = json.loads(source.read_text())
     # Keep local plugin paths portable without touching any other preferences.
     replacements = {
-        str(repo / "themes"): "./theme-pack",
-        str(config / "plugins/statusline.tsx"): "./plugins/statusline.tsx",
+        str(repo / "opencode/plugins/subscription-usage"): "./plugins/subscription-usage",
+        str(config / "plugins/subscription-usage"): "./plugins/subscription-usage",
     }
     for index, plugin in enumerate(data.get("plugins", [])):
         if isinstance(plugin, str):
@@ -49,10 +49,8 @@ def install(repo, config, capture=False):
     for relative, source in (
         ("opencode.json", "opencode/opencode.json"),
         ("cli.json", "opencode/cli.json"),
-        ("plugins/statusline.tsx", "opencode/plugins/statusline.tsx"),
         ("plugins/subscription-usage", "opencode/plugins/subscription-usage"),
         ("themes", "themes/opencode"),
-        ("theme-pack", "themes"),
     ):
         link(repo / source, config / relative)
 

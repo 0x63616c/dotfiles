@@ -16,13 +16,16 @@ class InstallTests(unittest.TestCase):
             repo, config = root / "repo", root / "config/opencode"
             (repo / "opencode/plugins/subscription-usage").mkdir(parents=True)
             (repo / "themes/opencode").mkdir(parents=True)
-            for relative in ("opencode/opencode.json", "opencode/cli.json", "opencode/plugins/statusline.tsx"):
+            for relative in ("opencode/opencode.json", "opencode/cli.json"):
                 (repo / relative).write_text("{}\n")
             config.mkdir(parents=True)
             (config / "cli.json").write_text('{"theme":{"name":"old"}}')
             (config / "cli.json.before-dotfiles").write_text("existing backup")
             (config / "service.json").write_text("private runtime settings")
             installer.install(repo, config)
+            self.assertFalse((config / "plugins/statusline.tsx").exists())
+            self.assertFalse((config / "theme-pack").exists())
+            self.assertTrue((config / "themes").is_symlink())
             self.assertEqual((config / "cli.json.before-dotfiles.1").read_text(), '{"theme":{"name":"old"}}')
             installer.install(repo, config)
             self.assertFalse((config / "cli.json.before-dotfiles.2").exists())
@@ -30,14 +33,14 @@ class InstallTests(unittest.TestCase):
             replacement.write_text(json.dumps({
                 "theme": {"name": "aura"},
                 "session": {"verbosity": "low"},
-                "plugins": [str(repo / "themes"), {"package": str(config / "plugins/statusline.tsx"), "options": {"custom": True}}],
+                "plugins": [str(repo / "opencode/plugins/subscription-usage"), {"package": "./plugins/custom", "options": {"custom": True}}],
             }))
             replacement.replace(config / "cli.json")
             installer.install(repo, config, capture=True)
             self.assertTrue((config / "cli.json").is_symlink())
             captured = json.loads((repo / "opencode/cli.json").read_text())
             self.assertEqual(captured["session"]["verbosity"], "low")
-            self.assertEqual(captured["plugins"], ["./theme-pack", {"package": "./plugins/statusline.tsx", "options": {"custom": True}}])
+            self.assertEqual(captured["plugins"], ["./plugins/subscription-usage", {"package": "./plugins/custom", "options": {"custom": True}}])
             self.assertEqual((config / "service.json").read_text(), "private runtime settings")
             self.assertFalse((repo / "opencode/service.json").exists())
 

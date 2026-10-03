@@ -52,15 +52,17 @@ Opaque-solid variant of the built-in `lucent-orng` theme, with transparent surfa
 
 | File | Purpose |
 |---|---|
-| `package.json` | Opencode plugin manifest that exposes the custom themes |
-| `lucent-orng.json` | Reference copy of the built-in theme |
-| `lucent-orng-plusplus.json` | TUI variant with opaque surfaces |
+| `opencode/blackout.json` | True-black TUI theme with subtle gray raised surfaces |
+| `opencode/lucent-orng-plusplus.json` | TUI variant with opaque surfaces |
 
-Global config:
+Install both through `/usr/bin/python3 -B opencode/install.py` from the dotfiles
+root. It links `themes/opencode/` to `~/.config/opencode/themes/`; V2 discovers
+the JSON files directly, with no theme plugin or package manifest required.
+
+To select Lucent Orng++ in `~/.config/opencode/cli.json`:
 ```json
 {
-  "theme": "lucent-orng-plusplus",
-  "plugin": ["/Users/calum/code/github.com/0x63616c/dotfiles/themes"]
+  "theme": { "name": "lucent-orng-plusplus", "mode": "system" }
 }
 ```
 
