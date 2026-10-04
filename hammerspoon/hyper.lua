@@ -61,6 +61,12 @@ hyper.bind("m", "Open Messages", function()
   hs.application.launchOrFocusByBundleID("com.apple.MobileSMS")
 end)
 
+-- Grok Bot. Bundle id is com.anysphere.sand, nothing to do with its display
+-- name, so launching by name would mean Spotlight guessing.
+hyper.bind("g", "Open Grok Bot", function()
+  hs.application.launchOrFocusByBundleID("com.anysphere.sand")
+end)
+
 -- Hammerspoon's own Console: the log/error window itself, not an app.
 hyper.bind("h", "Open Hammerspoon Console", function()
   hs.openConsole()
