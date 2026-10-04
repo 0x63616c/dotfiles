@@ -1,3 +1,11 @@
+# Engineering judgment
+
+Before fixing the exact reported issue, step back and consider whether it's a
+symptom of a broader problem or a questionable design assumption. A targeted fix
+is often right, but choose it deliberately—not reflexively. Prefer addressing
+the underlying class of problems when that makes the system simpler and more
+robust.
+
 # Computer control and Jev
 
 For desktop/app tasks, load the `computer-control-jev` skill before acting.
