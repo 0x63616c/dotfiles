@@ -67,10 +67,24 @@ hyper.bind("g", "Open Grok Bot", function()
   hs.application.launchOrFocusByBundleID("com.anysphere.sand")
 end)
 
--- 1Password. By bundle id so the Safari extension app (com.1password.safari),
--- also named 1Password, can never be the one that opens.
-hyper.bind("p", "Open 1Password", function()
-  hs.application.launchOrFocusByBundleID("com.1password.1password")
+-- 1Password Quick Access. 1Password has no URL or API for Quick Access, only
+-- its own global shortcut, set in 1Password → Settings → General to Hyper+\
+-- (keybinds.quickAccess in its settings.json, which carries integrity hashes
+-- and so isn't edited from here). Hyper+P replays that shortcut. The shortcut
+-- only exists while 1Password runs, so if it isn't, launch it by bundle id —
+-- never by name, which could pick the same-named Safari extension app
+-- (com.1password.safari) — and replay once it has had time to register.
+local ONEPASSWORD = "com.1password.1password"
+local function quickAccess()
+  hs.eventtap.keyStroke(hyper.mods, "\\", 0)
+end
+hyper.bind("p", "1Password Quick Access", function()
+  if hs.application.get(ONEPASSWORD) then
+    quickAccess()
+  else
+    hs.application.launchOrFocusByBundleID(ONEPASSWORD)
+    hs.timer.doAfter(2, quickAccess)
+  end
 end)
 
 -- Hammerspoon's own Console: the log/error window itself, not an app.
