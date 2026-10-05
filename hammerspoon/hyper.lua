@@ -67,6 +67,12 @@ hyper.bind("g", "Open Grok Bot", function()
   hs.application.launchOrFocusByBundleID("com.anysphere.sand")
 end)
 
+-- 1Password. By bundle id so the Safari extension app (com.1password.safari),
+-- also named 1Password, can never be the one that opens.
+hyper.bind("p", "Open 1Password", function()
+  hs.application.launchOrFocusByBundleID("com.1password.1password")
+end)
+
 -- Hammerspoon's own Console: the log/error window itself, not an app.
 hyper.bind("h", "Open Hammerspoon Console", function()
   hs.openConsole()
