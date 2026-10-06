@@ -15,6 +15,7 @@ class InstallTests(unittest.TestCase):
             root = Path(directory)
             repo, config = root / "repo", root / "config/opencode"
             (repo / "opencode/plugins/subscription-usage").mkdir(parents=True)
+            (repo / "opencode/plugins/full-terminal-title").mkdir(parents=True)
             (repo / "themes/opencode").mkdir(parents=True)
             for relative in ("opencode/opencode.json", "opencode/cli.json"):
                 (repo / relative).write_text("{}\n")
@@ -26,6 +27,7 @@ class InstallTests(unittest.TestCase):
             self.assertFalse((config / "plugins/statusline.tsx").exists())
             self.assertFalse((config / "theme-pack").exists())
             self.assertTrue((config / "themes").is_symlink())
+            self.assertEqual((config / "plugins/full-terminal-title").resolve(), (repo / "opencode/plugins/full-terminal-title").resolve())
             self.assertEqual((config / "cli.json.before-dotfiles.1").read_text(), '{"theme":{"name":"old"}}')
             installer.install(repo, config)
             self.assertFalse((config / "cli.json.before-dotfiles.2").exists())
@@ -33,14 +35,16 @@ class InstallTests(unittest.TestCase):
             replacement.write_text(json.dumps({
                 "theme": {"name": "aura"},
                 "session": {"verbosity": "low"},
-                "plugins": [str(repo / "opencode/plugins/subscription-usage"), {"package": "./plugins/custom", "options": {"custom": True}}],
+                "terminal": {"title": False, "copy": "select"},
+                "plugins": [str(repo / "opencode/plugins/subscription-usage"), {"package": str(config / "plugins/full-terminal-title"), "options": {"custom": True}}],
             }))
             replacement.replace(config / "cli.json")
             installer.install(repo, config, capture=True)
             self.assertTrue((config / "cli.json").is_symlink())
             captured = json.loads((repo / "opencode/cli.json").read_text())
             self.assertEqual(captured["session"]["verbosity"], "low")
-            self.assertEqual(captured["plugins"], ["./plugins/subscription-usage", {"package": "./plugins/custom", "options": {"custom": True}}])
+            self.assertEqual(captured["plugins"], ["./plugins/subscription-usage", {"package": "./plugins/full-terminal-title", "options": {"custom": True}}])
+            self.assertEqual(captured["terminal"], {"title": False, "copy": "select"})
             self.assertEqual((config / "service.json").read_text(), "private runtime settings")
             self.assertFalse((repo / "opencode/service.json").exists())
 

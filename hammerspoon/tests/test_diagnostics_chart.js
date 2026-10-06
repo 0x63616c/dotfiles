@@ -58,7 +58,18 @@ function axis(svg) {
 
 const { get, buttons, listeners, posts } = page([94, 95, 97]);
 assert.equal(get('#used').textContent, '97 GB');
-assert.equal(get('#capacity').textContent, '3 GB free · 100 GB total · 97% used');
+assert.match(html, /\.metric \{ display: flex; flex-direction: column; min-height: 88px;/);
+assert.match(html, /\.metric \.value \{ align-self: flex-end; margin-top: auto;[^}]*font-size: 23px;/);
+assert.equal((html.match(/class="metric"><div class="name">[^<]+<\/div><div class="value"/g) || []).length, 3);
+assert.doesNotMatch(html, /class="detail"/);
+assert.equal(get('#used-percent').textContent, '97%');
+assert.equal(get('#free').textContent, '3 GB');
+assert.match(html, /class="name">Disk used %</);
+assert.match(html, /class="name">Free space</);
+assert.doesNotMatch(html, /id="(?:read|write)"/);
+const fractional = page([95.3]);
+assert.equal(fractional.get('#used-percent').textContent, '95.3%');
+assert.equal(fractional.get('#free').textContent, '4.7 GB');
 assert.match(html, /data-range="1h" class="active"/);
 assert.match(html, /let range = '1h'/);
 listeners.pointerdown({ target: {} });
@@ -94,7 +105,10 @@ for (const percents of [[95], [95, 95]]) {
   assert(labels.length >= 2 && labels.every(label => Number.isFinite(parseFloat(label))));
   assert.match(svg.children.find(node => node.attributes.class === 'line used').attributes.d, /^M[\d.]+,[\d.]+/);
 }
-const capped = page([105]).get('#fullness');
+const overfull = page([105]);
+assert.equal(overfull.get('#used-percent').textContent, '100%');
+assert.equal(overfull.get('#free').textContent, '0 GB');
+const capped = overfull.get('#fullness');
 const topY = Number(capped.children.find(node => node.attributes.class === 'line used').attributes.d.match(/^M[\d.]+,([\d.]+)/)[1]);
 assert(topY >= 8);
 assert(axis(capped).filter(label => label.endsWith('%')).every(label => parseFloat(label) <= 100));

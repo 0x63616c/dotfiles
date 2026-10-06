@@ -82,9 +82,9 @@ end
 -- Screen-edge indicator ------------------------------------------------------
 --
 -- Dictation state, readable at a glance without hunting for Wispr's own UI:
--- a magenta edge glow on every screen while the mic is live, with sonar rings
+-- a shared white-accent edge glow on every screen while the mic is live, with sonar rings
 -- that spawn at the edge and sweep a short way inward before fading
--- (RING_TRAVEL is deliberately tiny; a longer sweep drags magenta across
+-- (RING_TRAVEL is deliberately tiny; a longer sweep drags the glow across
 -- whatever you're dictating into).
 --
 -- Two layers, deliberately:
@@ -104,8 +104,8 @@ local geometry = require("lib.geometry")
 -- The ring cadence is shared with the Hyper cheatsheet card (hyper.lua), so the
 -- two overlays pulse as one gesture. Direction, colour and path stay here.
 local sonar = require("lib.sonar")
+local ui = require("ui")
 
-local BORDER_MAGENTA = { red = 1.0, green = 0.0, blue = 1.0 }
 local BORDER_WIDTH   = 28    -- static edge glow thickness, points
 local BORDER_BANDS   = 12    -- nested strokes faking the glow's falloff
 local BORDER_FALLOFF = 1.7   -- >1 concentrates brightness at the outer edge,
@@ -167,9 +167,8 @@ local notchSub = ""
 local notchTextW = 0      -- measured width of the title, for the marquee
 local notchShownAt = 0
 
-local function magentaAlpha(alpha)
-  return { red = BORDER_MAGENTA.red, green = BORDER_MAGENTA.green,
-           blue = BORDER_MAGENTA.blue, alpha = alpha }
+local function glowColor(alpha)
+  return ui.color(ui.theme.color.accent, alpha)
 end
 
 -- Element indices are fixed so rings and the notch can be addressed by index.
@@ -200,7 +199,7 @@ local function buildBorderCanvas(screen, withNotch)
       type = "rectangle",
       action = "stroke",
       strokeWidth = band * 2,
-      strokeColor = magentaAlpha(BORDER_BASE
+      strokeColor = glowColor(BORDER_BASE
         * ((1 - (i - 1) / BORDER_BANDS) ^ BORDER_FALLOFF)),
       frame = { x = inset, y = inset,
                 w = f.w - inset * 2, h = f.h - inset * 2 },
@@ -215,12 +214,12 @@ local function buildBorderCanvas(screen, withNotch)
       action = "skip",
       closed = true,
       strokeWidth = RING_WIDTH,
-      strokeColor = magentaAlpha(0),
+      strokeColor = glowColor(0),
       coordinates = geometry.ringPath(f.w, f.h, 0, nil, RING_OPTS),
     }
   end
 
-  -- The notch: top centre, solid magenta, white text. One screen only —
+  -- The notch: top centre, shared dark card surface, white text. One screen only —
   -- repeating it on every display is noise. Frames are set by the tick.
   local nx = (f.w - NOTCH_W) / 2
   local act = withNotch and "fill" or "skip"
@@ -228,7 +227,7 @@ local function buildBorderCanvas(screen, withNotch)
     type = "segments",
     action = act,
     closed = true,
-    fillColor = magentaAlpha(0.95),
+    fillColor = ui.surfaceColor,
     coordinates = geometry.notchPath(nx, nx + NOTCH_W,
                                      -NOTCH_H - NOTCH_OVERHANG, -NOTCH_OVERHANG,
                                      NOTCH_RADIUS),
@@ -309,7 +308,7 @@ local function tickBorder(elapsed)
       local el = c[RING_BASE + k]
       el.action = "stroke"
       el.strokeWidth = r.width
-      el.strokeColor = magentaAlpha(r.alpha)
+      el.strokeColor = glowColor(r.alpha)
       el.coordinates = geometry.ringPath(f.w, f.h, r.offset, notch, RING_OPTS)
     end
   end

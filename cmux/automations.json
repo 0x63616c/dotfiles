@@ -2,12 +2,6 @@
   "version": 1,
   "rules": [
     {
-      "id": "directory-color-change",
-      "when": { "event": "workspace.action" },
-      "rate_limit": { "interval_seconds": 1, "maximum": 100 },
-      "then": [{ "action": "run", "command": "/usr/bin/python3 \"$HOME/.config/cmux/directory-colors.py\"" }]
-    },
-    {
       "id": "directory-color-created",
       "when": { "event": "workspace.created" },
       "rate_limit": { "interval_seconds": 1, "maximum": 100 },

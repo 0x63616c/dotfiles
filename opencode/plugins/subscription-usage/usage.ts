@@ -25,6 +25,30 @@ export class UsageError extends Error {
   }
 }
 
+/** Bound the whole operation, even if a transport/body ignores its abort signal. */
+export async function withTimeout<T>(
+  signal: AbortSignal,
+  milliseconds: number,
+  run: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  signal.throwIfAborted()
+  const controller = new AbortController()
+  const bounded = AbortSignal.any([signal, controller.signal])
+  const timer = setTimeout(() => controller.abort(new UsageError("Offline / request timed out")), milliseconds)
+  let aborted!: () => void
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      aborted = () => reject(bounded.reason)
+      bounded.addEventListener("abort", aborted, { once: true })
+      // Attach both handlers: late completion/rejection cannot update the caller.
+      try { run(bounded).then(resolve, reject) } catch (error) { reject(error) }
+    })
+  } finally {
+    clearTimeout(timer)
+    bounded.removeEventListener("abort", aborted)
+  }
+}
+
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -213,49 +237,55 @@ export async function fetchUsage(
   }
   if (provider === "claude") headers["anthropic-beta"] = "oauth-2025-04-20"
   if (provider === "codex" && credential.accountID) headers["ChatGPT-Account-Id"] = credential.accountID
-  let response: Response
-  try {
-    response = await dependencies.fetch(endpoints[provider], {
-      headers,
-      signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)]),
-      redirect: "error",
-    })
-  } catch {
-    signal.throwIfAborted()
-    throw new UsageError("Offline / request timed out")
-  }
-  if (response.status === 401) {
-    throw new UsageError(`Open ${provider === "claude" ? "Claude Code" : "Codex"} to refresh login`, undefined, true)
-  }
-  if (response.status === 429) throw new UsageError("Rate limited", retryAfter(response.headers.get("retry-after")))
-  if (!response.ok) throw new UsageError(`Usage API: HTTP ${response.status}`)
   let data: unknown
   try {
-    data = await response.json()
-  } catch {
-    throw new UsageError("Invalid usage response")
+    data = await withTimeout(signal, 10_000, async (requestSignal) => {
+      const response = await dependencies.fetch(endpoints[provider], {
+        headers, signal: requestSignal, redirect: "error",
+      })
+      if (response.status === 401) {
+        throw new UsageError(`Open ${provider === "claude" ? "Claude Code" : "Codex"} to refresh login`, undefined, true)
+      }
+      if (response.status === 429) throw new UsageError("Rate limited", retryAfter(response.headers.get("retry-after")))
+      if (!response.ok) throw new UsageError(`Usage API: HTTP ${response.status}`)
+      try {
+        return await response.json()
+      } catch {
+        requestSignal.throwIfAborted()
+        throw new UsageError("Invalid usage response")
+      }
+    })
+  } catch (error) {
+    signal.throwIfAborted()
+    if (error instanceof UsageError) throw error
+    throw new UsageError("Offline / request timed out")
   }
   const snapshot = provider === "claude" ? parseClaude(data) : parseCodex(data)
   if (provider === "claude") return { ...snapshot, plan: snapshot.plan ?? credential.plan }
 
   // Read-only, optional inventory: failures must not discard ordinary quota data.
-  // Runs inside the same device-wide claim, never once per terminal/sidebar.
+  // Runs inside the same device-wide reservation, never once per terminal/sidebar.
   let resetCredits = dependencies.resetCredits
   let resetCreditsRetryAt = dependencies.resetCreditsRetryAt
   if (!(resetCreditsRetryAt && resetCreditsRetryAt > Date.now())) {
     try {
-      const response = await dependencies.fetch(resetCreditsEndpoint, {
-        method: "GET",
-        headers: { ...headers, "OpenAI-Beta": "codex-1", originator: "Codex Desktop" },
-        signal: AbortSignal.any([signal, AbortSignal.timeout(4_000)]),
-        redirect: "error",
+      await withTimeout(signal, 4_000, async (requestSignal) => {
+        const response = await dependencies.fetch(resetCreditsEndpoint, {
+          method: "GET",
+          headers: { ...headers, "OpenAI-Beta": "codex-1", originator: "Codex Desktop" },
+          signal: requestSignal,
+          redirect: "error",
+        })
+        if (response.ok) {
+          const credits = parseResetCredits(await response.json())
+          requestSignal.throwIfAborted()
+          resetCredits = credits
+          resetCreditsRetryAt = undefined
+        } else if (response.status === 429) {
+          requestSignal.throwIfAborted()
+          resetCreditsRetryAt = Math.max(Date.now() + 300_000, retryAfter(response.headers.get("retry-after")))
+        }
       })
-      if (response.ok) {
-        resetCredits = parseResetCredits(await response.json())
-        resetCreditsRetryAt = undefined
-      } else if (response.status === 429) {
-        resetCreditsRetryAt = Math.max(Date.now() + 300_000, retryAfter(response.headers.get("retry-after")))
-      }
     } catch {
       signal.throwIfAborted()
     }
@@ -329,6 +359,7 @@ export function resetCreditsView(credits: ResetCredits, now: number) {
 export function createMonitor(
   change: (provider: Provider, state: State) => void,
   load: (provider: Provider, signal: AbortSignal) => Promise<Snapshot | State>,
+  timeout = 60_000,
 ) {
   const controller = new AbortController()
   const state: Record<Provider, State> = { claude: { loading: true }, codex: { loading: true } }
@@ -343,7 +374,7 @@ export function createMonitor(
     change(provider, state[provider])
     const request = (async () => {
       try {
-        const result = await load(provider, controller.signal)
+        const result = await withTimeout(controller.signal, timeout, (signal) => load(provider, signal))
         if (controller.signal.aborted) return
         state[provider] = "loading" in result ? result : { snapshot: result, loading: false }
       } catch (error) {

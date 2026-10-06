@@ -529,6 +529,90 @@ test("transport URIs match the verified recipes", function()
   eq(sonos.tvUri("RINCON_BEAM"), "x-sonos-htastream:RINCON_BEAM:spdif", "tv")
 end)
 
+local function deskMoveFixture(coordinator)
+  return {
+    { name = "Living Room", uuid = "BEAM", ip = "beam", coordinator = "BEAM" },
+    { name = "Desk", uuid = "DESK", ip = "desk", coordinator = coordinator },
+    { name = "Bedroom", uuid = "BED", ip = "bed", coordinator = coordinator },
+  }
+end
+
+test("group all makes Desk the leader even when every room is with the Beam", function()
+  local calls, finished = {}, false
+  sonos.groupAllToDesk(deskMoveFixture("BEAM"), "Desk", function(ip, service, action, args, cb)
+    calls[#calls + 1] = { ip = ip, action = action, args = args }
+    eq(service, "AVTransport", "transport service")
+    cb("<ok/>")
+  end, function(ok) finished = ok end)
+  eq(#calls, 5, "detach, line-in, two joins, play")
+  eq(calls[1].ip, "desk", "detach Desk, not the Beam")
+  eq(calls[1].action, "BecomeCoordinatorOfStandaloneGroup", "detach first")
+  eq(calls[2].args[1][2], "x-rincon-stream:DESK:0", "Desk's own line-in")
+  eq(calls[3].ip, "beam", "old leader joins Desk")
+  eq(calls[3].args[1][2], "x-rincon:DESK", "target Desk UUID, not its old coordinator")
+  eq(calls[4].args[1][2], "x-rincon:DESK", "remaining room also joins Desk")
+  eq(calls[5].ip, "desk", "play on the new leader")
+  eq(calls[5].action, "Play", "resume a paused group")
+  eq(finished, true, "completion")
+end)
+
+test("group all rejoins existing Desk members after making Desk standalone", function()
+  local joins = 0
+  sonos.groupAllToDesk(deskMoveFixture("DESK"), "Desk", function(_, _, action, args, cb)
+    if action == "SetAVTransportURI" and args[1][2] == "x-rincon:DESK" then joins = joins + 1 end
+    cb("<ok/>")
+  end, function(ok) eq(ok, true, "successful restore") end)
+  eq(joins, 2, "no rooms skipped using the pre-detach topology")
+end)
+
+test("Desk moves wait for each async response including Play", function()
+  local calls, reply, finished = 0, nil, false
+  sonos.groupAllToDesk(deskMoveFixture("BEAM"), "Desk", function(_, _, _, _, cb)
+    calls = calls + 1
+    reply = cb
+  end, function(ok) finished = ok end)
+  eq(calls, 1, "only detach sent before its response")
+  for expected = 2, 5 do
+    reply("<ok/>")
+    eq(calls, expected, "one next request per success")
+    eq(finished, false, "not complete before Play succeeds")
+  end
+  reply("<ok/>")
+  eq(finished, true, "complete after Play response")
+end)
+
+test("failed Desk moves stop instead of continuing with a partial restore", function()
+  for failAt = 1, 5 do
+    local calls, result, message = 0, nil, nil
+    sonos.groupAllToDesk(deskMoveFixture("BEAM"), "Desk", function(_, _, _, _, cb)
+      calls = calls + 1
+      if calls == failAt then cb(nil) else cb("<ok/>") end
+    end, function(ok, err) result, message = ok, err end)
+    eq(calls, failAt, "no requests after failure")
+    eq(result, false, "failure reported")
+    check(type(message) == "string" and message:find("failed on", 1, true), "names the failed move")
+  end
+end)
+
+test("missing Desk reports an error without touching speakers", function()
+  local calls = 0
+  sonos.groupAllToDesk({}, "Desk", function() calls = calls + 1 end, function(ok, err)
+    eq(ok, false, "failure")
+    eq(err, "No room called Desk", "useful error")
+  end)
+  eq(calls, 0, "no commands")
+end)
+
+test("a standalone Desk still restores its line-in and resumes playback", function()
+  local desk = deskMoveFixture("DESK")[2]
+  local actions = {}
+  sonos.groupAllToDesk({ desk }, "Desk", function(_, _, action, _, cb)
+    actions[#actions + 1] = action
+    cb("<ok/>")
+  end, function(ok) eq(ok, true, "successful restore") end)
+  eq(table.concat(actions, ","), "BecomeCoordinatorOfStandaloneGroup,SetAVTransportURI,Play", "single room sequence")
+end)
+
 test("slider maps x to 0..100 and pins past either end", function()
   eq(sonos.volumeFromX(100, 100, 200), 0, "left edge")
   eq(sonos.volumeFromX(300, 100, 200), 100, "right edge")

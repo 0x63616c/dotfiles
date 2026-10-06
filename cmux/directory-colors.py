@@ -1,16 +1,20 @@
 #!/usr/bin/python3
-"""Remember cmux sidebar colours by full directory path, without a daemon."""
+"""Save directory colour requests before reconciling cmux's workspace colours."""
 
+import argparse
 import fcntl
 import json
 import os
 from pathlib import Path
+import re
+import stat
 import subprocess
 import tempfile
 
 
 CMUX = "/Applications/cmux.app/Contents/Resources/bin/cmux"
-STATE = Path.home() / ".local/state/cmux/directory-colors.json"
+CONFIG = Path.home() / ".config/cmux/directory-colors.json"
+LOCK = Path.home() / ".local/state/cmux/directory-colors.lock"
 
 
 def rpc(method, **params):
@@ -28,81 +32,107 @@ def workspaces():
     return rows
 
 
-def path_for(row):
-    # Deliberately no basename/realpath matching: two clones called dotfiles
-    # are separate preferences. Match the same directory the sidebar displays.
-    return row.get("current_directory") or ""
+def path_key(directory, home=None):
+    """Keep full-path identity, but make paths under HOME portable across users."""
+    if not directory or not os.path.isabs(directory):
+        return None
+    directory = os.path.normpath(directory)
+    home = os.path.normpath(str(home or Path.home()))
+    if directory == home:
+        return "~"
+    if directory.startswith(home + "/"):
+        return "~" + directory[len(home):]
+    return directory
 
 
-def apply(event, colors, rows, send):
-    """Update a directory preference and converge its live native colours.
+def read_config(path):
+    colors = json.loads(path.read_text())
+    if not isinstance(colors, dict):
+        raise ValueError("directory-colors.json must be a path-to-colour object")
+    for directory, color in colors.items():
+        if not (directory == "~" or directory.startswith(("~/", "/"))):
+            raise ValueError("Colour paths must start with ~/ or /: " + directory)
+        if not isinstance(color, str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+            raise ValueError("Colours must be #RRGGBB: " + directory)
+    return {directory: color.upper() for directory, color in colors.items()}
 
-    Null is a remembered default, not an absent preference. Keep it so stale
-    session-restored workspace overrides cannot resurrect a reset colour.
-    """
-    name = event.get("name")
-    if name == "workspace.action":
-        payload = event.get("payload", {})
-        result = payload.get("result", {})
-        params = payload.get("params", {})
-        action = result.get("action") or params.get("action")
-        if action not in ("set_color", "clear_color"):
-            return False
-        target_id = event.get("workspace_id") or result.get("workspace_id")
-        target = next((r for r in rows if r["id"] == target_id), None)
-        if not target or not path_for(target):
-            return False
-        color = result.get("color") if action == "set_color" else None
-        # An older action can finish its handler after a newer click. The live
-        # originating row must still agree with this event before accepting it.
-        if target.get("custom_color") != color:
-            return False
-        colors[path_for(target)] = color
-    elif name not in (None, "workspace.created", "workspace.selected", "config.reloaded"):
-        return False
 
+def set_override(colors, rows, workspace_id, color):
+    target = next((r for r in rows if r["id"].lower() == workspace_id.lower()), None)
+    if not target:
+        raise ValueError("Workspace no longer exists: " + workspace_id)
+    key = path_key(target.get("current_directory"))
+    if key is None:
+        raise ValueError("Workspace has no absolute directory")
+    if color == "default":
+        colors.pop(key, None)
+    else:
+        color = "#" + color.lstrip("#")
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
+            raise ValueError("Colour must be RRGGBB or default")
+        colors[key] = color.upper()
+    return key
+
+
+def reconcile(colors, rows, send):
+    # The directory config is authoritative. Missing entries mean the hashed
+    # default, so reset also clears stale native session-restored overrides.
+    # Never infer a saved preference from a native workspace colour: in-process
+    # sidebar clicks don't emit workspace.action, and old restore handlers can
+    # otherwise undo a new choice before it is recorded.
     for row in rows:
-        directory = path_for(row)
-        if directory not in colors or row.get("custom_color") == colors[directory]:
+        key = path_key(row.get("current_directory"))
+        if key is None:
             continue
-        color = colors[directory]
+        color = colors.get(key)
+        current = row.get("custom_color")
+        if (current.upper() if current else None) == color:
+            continue
         params = {"workspace_id": row["id"], "action": "clear_color" if color is None else "set_color"}
         if color is not None:
             params["color"] = color
         send("workspace.action", **params)
-    return True
 
 
 def save(colors, path):
-    # Replace atomically; a crash must not truncate the saved preferences.
+    # Resolve BEFORE replacing: atomic writes through a symlink must update the
+    # tracked target, not replace ~/.config/cmux/directory-colors.json itself.
+    path = path.resolve(strict=True)
+    mode = stat.S_IMODE(path.stat().st_mode)
     fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
     try:
         with os.fdopen(fd, "w") as file:
+            os.fchmod(file.fileno(), mode)
             json.dump(colors, file, indent=2, sort_keys=True)
             file.write("\n")
+            file.flush()
+            os.fsync(file.fileno())
         os.replace(temporary, path)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
 
 
-def main():
-    raw = os.environ.get("CMUX_AUTOMATION_EVENT_JSON") or os.environ.get("CMUX_AUTOMATION_EVENT")
-    event = json.loads(raw) if raw else {}
-    # Ignore unrelated workspace actions before taking a lock or querying cmux.
-    if event.get("name") == "workspace.action":
-        payload = event.get("payload", {})
-        action = payload.get("result", {}).get("action") or payload.get("params", {}).get("action")
-        if action not in ("set_color", "clear_color"):
-            return
-    STATE.parent.mkdir(parents=True, exist_ok=True)
-    with STATE.with_suffix(".lock").open("a") as lock:
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--workspace", help="Workspace UUID whose directory to change")
+    parser.add_argument("--color", help="RRGGBB or default")
+    args = parser.parse_args(argv)
+    if bool(args.workspace) != bool(args.color):
+        parser.error("--workspace and --color must be supplied together")
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with LOCK.open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        colors = json.loads(STATE.read_text()) if STATE.exists() else {}
-        previous = colors.copy()
-        apply(event, colors, workspaces(), rpc)
-        if colors != previous:
-            save(colors, STATE)
+        colors = read_config(CONFIG)
+        rows = workspaces()
+        if args.workspace:
+            previous = colors.copy()
+            set_override(colors, rows, args.workspace, args.color)
+            if colors != previous:
+                save(colors, CONFIG)
+        # Persist first. Even a failed RPC cannot lose a click, and another
+        # lifecycle handler can only reapply the new saved preference.
+        reconcile(colors, rows, rpc)
 
 
 if __name__ == "__main__":

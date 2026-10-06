@@ -57,9 +57,12 @@ enough terminal width to be visible.
   refresh; the CLI owns renewing its credentials.
 - Makes at most **one refresh cycle per provider/login every 120 seconds across this
   device**, regardless of how many OpenCode terminals or sidebars are open.
-  Instances check the local cache every 15 seconds; an atomic SQLite claim allows
-  only one process to fetch. Claude makes one usage GET; Codex makes one usage GET
-  and one best-effort reset-inventory GET in that same claim. Inventory 429s have
+  Instances check the local cache every 15 seconds; a brief atomic SQLite transaction
+  reserves the next allowed request time, then releases the database before fetching.
+  There are **no persistent refresh locks, PID owners or waiting loops**: other
+  terminals immediately show cached data (or `Refresh pending` until the next local read).
+  Claude makes one usage GET; Codex makes one usage GET
+  and one best-effort reset-inventory GET in that same reservation. Inventory 429s have
   a separately persisted cooldown, so they do not block ordinary quota updates.
   There is no separate daemon or scheduled job.
 - Click **↻** to read the shared state and fetch if its device-wide
@@ -71,12 +74,17 @@ enough terminal width to be visible.
   `Rate Limited (Retrying in 1m)`. With a reading, the error stays out of the UI and
   a small gray `Updated 12m ago` note shows its age instead — no stale badge.
   The retry countdown is time until our next attempt, not a guarantee that
-  Anthropic's limit will reset. Requests time out after ten seconds.
+  Anthropic's limit will reset. Deadlines cover transport **and response bodies**:
+  usage requests get ten seconds, optional inventory four seconds, and a whole
+  fetch cycle twenty seconds. The monitor also bounds credential/cache/loading work
+  to sixty seconds. Timeout/cancellation rejects even if an operation ignores abort.
 - Cache and cooldowns persist in
   `${XDG_CACHE_HOME:-~/.cache}/opencode/subscription-usage/usage.sqlite` (directory
   mode 0700, database 0600). Stores readings, errors, retry times and a one-way login
-  fingerprint, **never credentials**. Accounts/profiles are isolated. Dead owners
-  are detected by PID; interrupted attempts retain their reserved polling budget.
+  fingerprint, **never credentials**. Accounts/profiles are isolated. Interrupted,
+  killed or frozen attempts retain their reserved polling budget but cannot block
+  the next due attempt. A per-attempt ID only fences writes: late results cannot
+  overwrite newer readings or cooldowns. Legacy owner records do not block refreshes.
   If the shared cache cannot be opened, no independent network poll is started.
 - Network failures keep the last reading, with muted colours and a quiet age note;
   readings older than five minutes also get that note. Authentication failures
@@ -109,8 +117,9 @@ its tests cover latest-response selection, cache/reasoning tokens, model limits,
 compaction and undo boundaries.
 `usage.ts` owns credential reads, API parsing, and cancellable local monitoring.
 `device.ts` uses OpenCode's Bun runtime and built-in SQLite for the device-wide
-cache, request budget and cross-process ownership. Tests include simultaneous OS
-processes, killed-owner recovery and responsive bar/countdown layout, using fixtures and fake credentials; they
+cache, request-time reservations and fenced writes. Tests include simultaneous OS
+processes, live legacy owners, killed/frozen attempts, late completions, abort-ignoring
+transports, stalled response bodies and responsive bar/countdown layout, using fixtures and fake credentials; they
 do not access real logins or make network requests.
 The usage endpoints are the ones used by the clients, not a stable public API:
 

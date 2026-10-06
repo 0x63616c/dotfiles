@@ -275,23 +275,26 @@ end
 
 -- The two moves --------------------------------------------------------------
 
--- Every room joins the Desk pair's group. Joining is a member pointing its
--- transport at the coordinator; no Play needed, the coordinator's stream just
--- starts arriving.
+-- Desk is the normal Mac audio route; TV mode is an explicit exception.
+-- Desk may currently be a member of the Beam's group, so targeting its current
+-- coordinator was a no-op when the whole house was already grouped there.
+-- Detach Desk, select its line-in, join the other rooms to Desk itself, then
+-- Play (the old group may have been paused). Success callbacks order the moves.
+local transportBusy = false
+
 local function groupAllToDesk()
-  local desk = sonos.findRoom(rooms, DESK_ROOM)
-  if not desk then
-    hs.alert.show("No room called " .. DESK_ROOM)
-    return
-  end
-  local uri = sonos.groupUri(desk.coordinator)
-  for _, r in ipairs(rooms) do
-    if r.coordinator ~= desk.coordinator then
-      call(r.ip, "AVTransport", "SetAVTransportURI",
-        { { "CurrentURI", uri }, { "CurrentURIMetaData", "" } })
+  if transportBusy then return end
+  transportBusy = true
+  sonos.groupAllToDesk(rooms, DESK_ROOM, call, function(ok, err)
+    transportBusy = false
+    if ok then
+      log.i("restored Desk line-in and grouped all rooms to Desk")
+    else
+      log.w(err)
+      hs.alert.show("Sonos: " .. err)
     end
-  end
-  hs.timer.doAfter(SETTLE_DELAY, refresh)
+    hs.timer.doAfter(SETTLE_DELAY, refresh)
+  end)
 end
 
 -- The Beam back on its TV input: the TV should play in the living room and
@@ -307,6 +310,7 @@ end
 -- and went quiet with its transport still reading PLAYING. So evict the other
 -- members explicitly first rather than assuming which role the Beam is in.
 local function tvMode()
+  if transportBusy then return end
   local tv = sonos.findRoom(rooms, TV_ROOM)
   if not tv then
     hs.alert.show("No room called " .. TV_ROOM)

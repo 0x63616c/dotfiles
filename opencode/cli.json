@@ -9,8 +9,12 @@
   },
   "plugins": [
     "-opencode.sidebar.context",
-    "./plugins/subscription-usage"
+    "./plugins/subscription-usage",
+    "./plugins/full-terminal-title"
   ],
+  "terminal": {
+    "title": false
+  },
   "diffs": {
     "wrap": "word",
     "view": "auto",

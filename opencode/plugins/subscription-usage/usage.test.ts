@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   countdown, createMonitor, fetchUsage, isStale, loadCredential, parseClaude, parseCodex, parseResetCredits, percentLabel,
-  providerNotice, quotaPace, resetCreditsView, retryAfter, UsageError, type Provider, type Snapshot, type State,
+  providerNotice, quotaPace, resetCreditsView, retryAfter, UsageError, withTimeout, type Provider, type Snapshot, type State,
 } from "./usage"
 
 const now = Date.parse("2026-10-02T12:00:00Z")
@@ -289,6 +289,25 @@ describe("Codex banked resets", () => {
       expect(result.windows[0].used).toBe(2)
     }
   })
+
+  test("a hung optional inventory cannot hide quota data or publish late inventory", async () => {
+    const previous = { available: 2, fetchedAt: now }
+    let release!: (response: Response) => void
+    let requestSignal: AbortSignal | undefined
+    const result = await fetchUsage("codex", signal(), { credentials, resetCredits: previous,
+      fetch: async (url, init) => {
+        if (url.endsWith("/usage")) return Response.json(usage)
+        requestSignal = init.signal as AbortSignal
+        return new Promise<Response>((resolve) => { release = resolve })
+      },
+    })
+    expect(requestSignal?.aborted).toBe(true)
+    expect(result.windows[0].used).toBe(2)
+    expect(result.resetCredits).toEqual(previous)
+    release(Response.json({ available_count: 99 }))
+    await Bun.sleep(0)
+    expect(result.resetCredits).toEqual(previous)
+  }, 8_000)
 })
 
 describe("refresh lifecycle", () => {
@@ -328,7 +347,7 @@ describe("refresh lifecycle", () => {
     const b = monitor.refresh()
     expect(requests.length).toBe(2)
     requests.find((r) => r.provider === "codex")!.resolve(snapshot)
-    await Promise.resolve()
+    await Bun.sleep(0)
     expect(seen.codex?.snapshot).toBe(snapshot)
     expect(seen.claude?.loading).toBe(true)
     monitor.stop()
@@ -338,6 +357,38 @@ describe("refresh lifecycle", () => {
     expect(seen.claude?.snapshot).toBeUndefined()
     await monitor.refresh()
     expect(requests.length).toBe(2)
+  })
+
+  test("hung loads cannot leave the monitor pending forever and later refreshes recover", async () => {
+    const seen: Partial<Record<Provider, State>> = {}
+    let hung = true
+    const requests: AbortSignal[] = []
+    const monitor = createMonitor((provider, state) => { seen[provider] = state }, async (_provider, signal) => {
+      requests.push(signal)
+      return hung ? new Promise<Snapshot>(() => {}) : snapshot
+    }, 20)
+    try {
+      await monitor.refresh()
+      expect(requests.every((signal) => signal.aborted)).toBe(true)
+      expect(seen.codex?.loading).toBe(false)
+      expect(seen.codex?.error).toBe("Offline / request timed out")
+      hung = false
+      await monitor.refresh()
+      expect(seen.codex?.snapshot).toBe(snapshot)
+      expect(seen.codex?.error).toBeUndefined()
+    } finally { monitor.stop() }
+  })
+
+  test("the deadline covers a stalled response body, not just receiving headers", async () => {
+    let body!: ReadableStreamDefaultController
+    const response = new Response(new ReadableStream({ start(controller) { body = controller } }))
+    let requestSignal: AbortSignal | undefined
+    await expect(withTimeout(signal(), 20, async (signal) => {
+      requestSignal = signal
+      return await response.json()
+    })).rejects.toThrow("Offline / request timed out")
+    expect(requestSignal?.aborted).toBe(true)
+    body.error(new Error("fixture body closed"))
   })
 
   test("network errors retain stale data and auth errors clear it", async () => {

@@ -1,8 +1,8 @@
 {
+  "syncClaudeAiSkills": false,
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "sonnet",
   "hooks": {
     "SessionStart": [
       {
@@ -63,6 +63,5 @@
   "skipDangerousModePermissionPrompt": true,
   "switchModelsOnFlag": false,
   "autoContinueAtUsageLimit": true,
-  "inputNeededNotifEnabled": false,
-  "syncClaudeAiSkills": false
+  "inputNeededNotifEnabled": false
 }

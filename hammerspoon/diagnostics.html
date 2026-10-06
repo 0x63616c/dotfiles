@@ -21,13 +21,9 @@
   button.active { background: var(--color-accent); color: var(--color-popover); }
   button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
   .metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-gap); margin-bottom: 20px; }
-  .metric { background: var(--color-muted); border: 1px solid var(--color-mutedEdge); border-radius: var(--radius-control); padding: 14px 16px; }
-  .metric .name { font-size: var(--text-caption); color: var(--color-mutedForeground); margin-bottom: 8px; }
-  .metric .value { font-size: 23px; font-variant-numeric: tabular-nums; letter-spacing: -.03em; font-weight: 600; }
-  .metric .unit { font-size: var(--text-body); color: var(--color-mutedForeground); margin-left: 5px; font-weight: 500; letter-spacing: 0; }
-  .metric .detail { color: var(--color-mutedForeground); font-size: var(--text-caption); margin-top: 5px; }
-  .meter { height: 4px; border-radius: 4px; background: var(--color-mutedEdge); overflow: hidden; margin-top: 12px; }
-  .meter > span { display: block; height: 100%; background: var(--color-accent); }
+  .metric { display: flex; flex-direction: column; min-height: 88px; background: var(--color-muted); border: 1px solid var(--color-mutedEdge); border-radius: var(--radius-control); padding: 14px 16px; }
+  .metric .name { font-size: var(--text-body); font-weight: 500; color: var(--color-mutedForeground); line-height: 1.2; }
+  .metric .value { align-self: flex-end; margin-top: auto; padding-top: 12px; text-align: right; font-size: 23px; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.03em; font-weight: 600; }
   .panels { display: grid; gap: 18px; }
   .panel { border-top: 1px solid var(--color-border); padding-top: 18px; }
   .panel-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 12px; }
@@ -54,7 +50,8 @@
   .panel.no-data .chart { display: none; }
   .panel.no-data .empty { display: block; }
   footer { color: var(--color-mutedForeground); border-top: 1px solid var(--color-border); font-size: var(--text-caption); line-height: 1.5; margin-top: 18px; padding-top: 13px; }
-  @media(max-width: 760px) { main { width: calc(100vw - 24px); } .metrics { gap: 6px; } .metric { padding: 10px; } .metric .value { font-size: 18px; } }
+  @media(max-width: 760px) { main { width: calc(100vw - 24px); } .metric { padding: 14px; } }
+  @media(max-width: 560px) { .metrics { grid-template-columns: 1fr; } }
 </style>
 <main>
   <header>
@@ -65,9 +62,9 @@
     <button data-range="1h" class="active">1h</button><button data-range="6h">6h</button><button data-range="24h">24h</button><button data-range="7d">7d</button><button data-range="30d">30d</button><button data-range="All">All</button>
   </div></div>
   <section class="metrics" aria-label="Latest readings">
-    <div class="metric"><div class="name">Startup disk used</div><div class="value" id="used">—</div><div class="detail" id="capacity">Waiting for first sample</div><div class="meter"><span id="meter" style="width:0"></span></div></div>
-    <div class="metric"><div class="name">Disk read</div><div class="value" id="read">—</div><div class="detail">Average since previous sample</div></div>
-    <div class="metric"><div class="name">Disk write</div><div class="value" id="write">—</div><div class="detail">Average since previous sample</div></div>
+    <div class="metric"><div class="name">Used space</div><div class="value" id="used">—</div></div>
+    <div class="metric"><div class="name">Disk used %</div><div class="value" id="used-percent">—</div></div>
+    <div class="metric"><div class="name">Free space</div><div class="value" id="free">—</div></div>
   </section>
   <div class="panels">
     <section class="panel" id="fullness-panel"><div class="panel-head"><div><h2>Disk fullness</h2><p id="scale-subtitle">Data volume's shared APFS container · fitted scale</p></div><div class="panel-actions"><div class="ranges" role="group" aria-label="Disk fullness scale"><button data-scale="fit" class="active" aria-pressed="true">Fit</button><button data-scale="fixed" aria-pressed="false">0–100%</button></div><div class="legend"><span><i class="swatch used"></i>Used</span></div></div></div><svg class="chart" id="fullness" role="img" aria-label="Disk fullness over time"></svg><div class="empty">No samples in this range yet.</div></section>
@@ -84,14 +81,11 @@ let diskMode = 'fit';
 const latest = [...DATA['1h'], ...DATA['6h'], ...DATA['24h'], ...DATA['7d'], ...DATA['30d'], ...DATA.All].sort((a,b) => a[0]-b[0]).at(-1);
 const number = n => new Intl.NumberFormat('en', {maximumFractionDigits: 1}).format(n);
 const size = n => n == null ? '—' : number(n / 1e9) + ' GB';
-const rate = n => n == null ? '—' : n < 1e6 ? number(n / 1e3) + ' KB/s' : number(n / 1e6) + ' MB/s';
 if (latest) {
   const percent = Math.max(0, Math.min(100, latest[1] / latest[2] * 100));
   document.querySelector('#used').textContent = size(latest[1]);
-  document.querySelector('#capacity').textContent = `${size(Math.max(0, latest[2]-latest[1]))} free · ${size(latest[2])} total · ${number(percent)}% used`;
-  document.querySelector('#meter').style.width = percent + '%';
-  document.querySelector('#read').textContent = rate(latest[3]);
-  document.querySelector('#write').textContent = rate(latest[4]);
+  document.querySelector('#used-percent').textContent = number(percent) + '%';
+  document.querySelector('#free').textContent = size(Math.max(0, latest[2]-latest[1]));
   document.querySelector('#sample-age').textContent = 'Last sample ' + new Date(latest[0]*1000).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
 }
 function element(name, attrs, text) {

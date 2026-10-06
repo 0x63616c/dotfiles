@@ -43,29 +43,22 @@ enum custom_keycodes {
 #define BOOTBLU_MS        1000 // total delay before jumping to bootloader
 #define BOOTBLU_PURPLE_MS 800  // switch blue -> purple at this point (last 200ms)
 
-// Hyper used to be the four left mods the Caps key held down in hardware; the
-// Caps key now sends plain KC_CAPS, which macOS remaps to F18 (hidutil, via a
-// LaunchAgent in dotfiles/hammerspoon/launchagents) and Hammerspoon's
-// capslock.lua turns into Hyper while held — the same path every other
-// keyboard takes. Nothing in firmware sets these bits anymore. The macros
-// below key off caps_held directly rather than this, but the #define and
-// send_hyper_string are left in place as generic helpers around whatever real
-// modifiers happen to be held (e.g. an actual Shift) while a password sends.
-#define HYPER_MODS (MOD_BIT(KC_LCTL) | MOD_BIT(KC_LSFT) | MOD_BIT(KC_LALT) | MOD_BIT(KC_LGUI))
-
 // Type `str` cleanly even if modifiers are physically held: drop them, send,
 // then restore so the held key keeps working afterward.
-static void send_hyper_string(const char *str) {
+static void send_unmodified_string(const char *str) {
     uint8_t saved = get_mods();
     clear_mods();
+    send_keyboard_report();
     send_string(str);
     set_mods(saved);
+    send_keyboard_report();
 }
 
-// Physical Caps key held — tracked directly (not via HYPER_MODS, which this
-// key no longer asserts) so Hyper+Esc/Hello/F13-F15 below still mean "hold
-// Caps and press X", exactly as before the key started sending plain KC_CAPS.
+// Physical Caps key held — tracked directly, not via software Hyper modifiers,
+// so Hyper+Esc still means "hold Caps and press Esc".
 // The board sees the physical key regardless of what macOS remaps it to.
+// Text macros use physical Ctrl instead: software Hyper would add modifiers
+// back to their generated text. Never send a secret while Caps is held.
 //
 // The both-shifts Caps Lock chord that used to live here moved to
 // Hammerspoon (doubleshift.lua): a firmware tap_code(KC_CAPS) would now be
@@ -133,9 +126,9 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 return false;
             }
             return true;
-        case KC_HELLO: // corner (F16): Caps -> password 4 (plain press does nothing)
-            if (record->event.pressed && caps_held) {
-                send_hyper_string(SECRET_PW4);
+        case KC_HELLO: // corner (F16): Ctrl -> password 4 (plain press does nothing)
+            if (record->event.pressed && !caps_held && (get_mods() & MOD_MASK_CTRL)) {
+                send_unmodified_string(SECRET_PW4);
             }
             return false;
         case KC_BOOTBLU: // still available to map elsewhere via VIA if wanted
@@ -146,21 +139,21 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 }
             }
             return false;
-        case KC_F13: // Caps + F13 -> password 1 (plain F13 otherwise)
-            if (record->event.pressed && caps_held) {
-                send_hyper_string(SECRET_PW1);
+        case KC_F13: // Ctrl + F13 -> password 1 (plain F13 otherwise)
+            if (record->event.pressed && !caps_held && (get_mods() & MOD_MASK_CTRL)) {
+                send_unmodified_string(SECRET_PW1);
                 return false;
             }
             return true;
-        case KC_F14: // Caps + F14 -> password 2 (plain F14 otherwise)
-            if (record->event.pressed && caps_held) {
-                send_hyper_string(SECRET_PW2);
+        case KC_F14: // Ctrl + F14 -> password 2 (plain F14 otherwise)
+            if (record->event.pressed && !caps_held && (get_mods() & MOD_MASK_CTRL)) {
+                send_unmodified_string(SECRET_PW2);
                 return false;
             }
             return true;
-        case KC_F15: // Caps + F15 -> password 3 (plain F15 otherwise)
-            if (record->event.pressed && caps_held) {
-                send_hyper_string(SECRET_PW3);
+        case KC_F15: // Ctrl + F15 -> password 3 (plain F15 otherwise)
+            if (record->event.pressed && !caps_held && (get_mods() & MOD_MASK_CTRL)) {
+                send_unmodified_string(SECRET_PW3);
                 return false;
             }
             return true;

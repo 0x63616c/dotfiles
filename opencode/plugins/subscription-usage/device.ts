@@ -3,8 +3,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { chmod, mkdir } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { setTimeout as sleep } from "node:timers/promises"
-import { fetchUsage, loadCredential, UsageError, type Provider, type Snapshot, type State } from "./usage"
+import { fetchUsage, loadCredential, UsageError, withTimeout, type Provider, type Snapshot, type State } from "./usage"
 
 type Entry = {
   snapshot?: Snapshot
@@ -12,21 +11,17 @@ type Entry = {
   retryAt?: number
   nextAttemptAt: number
   rateLimits: number
-  owner?: { pid: number; id: string }
+  attemptID?: string
 }
-type Claim = { kind: "waiting" } | { kind: "cached"; state: State } | { kind: "owned"; previous: Entry }
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== "ESRCH"
-  }
-}
+type Claim = { kind: "cached"; state: State } | { kind: "reserved"; previous: Entry }
 
 function view(entry: Entry): State {
-  return { snapshot: entry.snapshot, error: entry.error, retryAt: entry.retryAt, loading: false }
+  return {
+    snapshot: entry.snapshot,
+    error: entry.error ?? (entry.snapshot ? undefined : "Refresh pending"),
+    retryAt: entry.retryAt,
+    loading: false,
+  }
 }
 
 /** One durable request budget per device/login, shared by independent CLI processes. */
@@ -36,12 +31,14 @@ export function createDeviceUsage(options: {
   credentials?: typeof loadCredential
   fetch?: typeof fetchUsage
   now?: () => number
+  requestTimeout?: number
 } = {}) {
   const directory = options.directory ?? join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "opencode", "subscription-usage")
   const interval = Math.max(60_000, options.interval ?? 120_000)
   const credentials = options.credentials ?? loadCredential
   const fetch = options.fetch ?? fetchUsage
   const now = options.now ?? Date.now
+  const requestTimeout = options.requestTimeout ?? 20_000
 
   return async (provider: Provider, signal: AbortSignal): Promise<State> => {
     const credential = await credentials(provider, signal)
@@ -73,40 +70,30 @@ export function createDeviceUsage(options: {
         .run(key, JSON.stringify(entry))
     }
     const id = randomUUID()
-    let previous: Entry
     try {
-      while (true) {
-        signal.throwIfAborted()
-        // SQLite's cross-process write lock makes checking the budget and taking
-        // ownership one atomic operation — including simultaneous TUI startups.
-        const claim = db.transaction((): Claim => {
-          const entry = read()
-          if (entry.owner && alive(entry.owner.pid)) return { kind: "waiting" }
-          if (entry.owner) {
-            delete entry.owner
-            entry.error ??= "Refresh interrupted"
-            write(entry)
-          }
-          if (entry.nextAttemptAt > now()) return { kind: "cached", state: view(entry) }
-          write({ ...entry, nextAttemptAt: now() + interval, owner: { pid: process.pid, id } })
-          return { kind: "owned", previous: entry }
-        }).immediate()
-        if (claim.kind === "cached") return claim.state
-        if (claim.kind === "owned") {
-          previous = claim.previous
-          break
-        }
-        await sleep(100, undefined, { signal })
-      }
+      signal.throwIfAborted()
+      // Reserve the next request time in a brief atomic transaction, then release
+      // SQLite before any network work. There is no owner/PID lock or waiting loop.
+      const claim = db.transaction((): Claim => {
+        const entry = read()
+        if (entry.nextAttemptAt > now()) return { kind: "cached", state: view(entry) }
+        write({
+          snapshot: entry.snapshot, error: entry.error, retryAt: entry.retryAt,
+          nextAttemptAt: now() + interval, rateLimits: entry.rateLimits, attemptID: id,
+        })
+        return { kind: "reserved", previous: entry }
+      }).immediate()
+      if (claim.kind === "cached") return claim.state
+      const previous = claim.previous
 
       let entry: Entry
       try {
-        const snapshot = await fetch(provider, signal, {
+        const snapshot = await withTimeout(signal, requestTimeout, (requestSignal) => fetch(provider, requestSignal, {
           credentials: async () => credential,
           fetch: globalThis.fetch,
           resetCredits: previous.snapshot?.resetCredits,
           resetCreditsRetryAt: previous.snapshot?.resetCreditsRetryAt,
-        })
+        }))
         signal.throwIfAborted()
         entry = { snapshot, nextAttemptAt: now() + interval, rateLimits: 0 }
       } catch (error) {
@@ -125,18 +112,20 @@ export function createDeviceUsage(options: {
           rateLimits,
         }
       }
-      db.transaction(() => {
-        if (read().owner?.id === id) write(entry)
+      return db.transaction(() => {
+        if (read().attemptID === id) write(entry)
+        // This ID only fences writes: it never blocks a later reservation.
+        // A superseded attempt cannot overwrite newer readings or cooldowns.
+        return view(read())
       }).immediate()
-      return view(entry)
     } finally {
       try {
-        // Cancellation releases ownership, but keeps the reserved request budget.
-        // A killed process is recovered by the next reader using its dead PID.
+        // Cancellation records the interruption but keeps the reserved budget.
+        // A killed/frozen process needs no cleanup: nextAttemptAt permits recovery.
         db.transaction(() => {
           const entry = read()
-          if (entry.owner?.id !== id) return
-          delete entry.owner
+          if (entry.attemptID !== id) return
+          delete entry.attemptID
           entry.error ??= "Refresh interrupted"
           write(entry)
         }).immediate()

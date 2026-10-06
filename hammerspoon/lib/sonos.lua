@@ -160,6 +160,46 @@ function M.findRoom(rooms, name)
   return nil
 end
 
+-- Restore the Mac's line-in, not whatever group Desk happens to belong to.
+-- The injected call has the panel's async SOAP signature; no network lives here.
+-- Wait for each success before sending the next command: selecting line-in on
+-- a grouped member does not make it safe to assume it is already a coordinator.
+function M.groupAllToDesk(rooms, deskName, call, done)
+  local desk = M.findRoom(rooms, deskName)
+  if not desk then done(false, "No room called " .. deskName); return end
+
+  local steps = {
+    { room = desk, action = "BecomeCoordinatorOfStandaloneGroup", args = {} },
+    { room = desk, action = "SetAVTransportURI", args = {
+      { "CurrentURI", M.lineInUri(desk.uuid) }, { "CurrentURIMetaData", "" },
+    } },
+  }
+  -- Use Desk's own UUID, never desk.coordinator (which may be the Beam).
+  -- Rejoin every other room even if the snapshot says it was already with Desk:
+  -- making Desk standalone may have left its former members in another group.
+  for _, r in ipairs(rooms) do
+    if r.uuid ~= desk.uuid then
+      steps[#steps + 1] = { room = r, action = "SetAVTransportURI", args = {
+        { "CurrentURI", M.groupUri(desk.uuid) }, { "CurrentURIMetaData", "" },
+      } }
+    end
+  end
+  steps[#steps + 1] = { room = desk, action = "Play", args = { { "Speed", "1" } } }
+
+  local function nextStep(i)
+    local step = steps[i]
+    if not step then done(true); return end
+    call(step.room.ip, "AVTransport", step.action, step.args, function(body)
+      if not body then
+        done(false, step.action .. " failed on " .. step.room.name)
+        return
+      end
+      nextStep(i + 1)
+    end)
+  end
+  nextStep(1)
+end
+
 -- A stable fingerprint of the room list, so the panel can tell "same rooms,
 -- new numbers" (update in place) from "the topology changed" (rebuild).
 function M.fingerprint(rooms)

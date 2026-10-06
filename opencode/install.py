@@ -30,10 +30,10 @@ def capture_cli(repo, config):
         return
     data = json.loads(source.read_text())
     # Keep local plugin paths portable without touching any other preferences.
-    replacements = {
-        str(repo / "opencode/plugins/subscription-usage"): "./plugins/subscription-usage",
-        str(config / "plugins/subscription-usage"): "./plugins/subscription-usage",
-    }
+    replacements = {}
+    for name in ("subscription-usage", "full-terminal-title"):
+        replacements[str(repo / "opencode/plugins" / name)] = "./plugins/" + name
+        replacements[str(config / "plugins" / name)] = "./plugins/" + name
     for index, plugin in enumerate(data.get("plugins", [])):
         if isinstance(plugin, str):
             data["plugins"][index] = replacements.get(plugin, plugin)
@@ -53,6 +53,7 @@ def install(repo, config, capture=False):
         ("opencode.json", "opencode/opencode.json"),
         ("cli.json", "opencode/cli.json"),
         ("plugins/subscription-usage", "opencode/plugins/subscription-usage"),
+        ("plugins/full-terminal-title", "opencode/plugins/full-terminal-title"),
         ("themes", "themes/opencode"),
     ):
         link(repo / source, config / relative)

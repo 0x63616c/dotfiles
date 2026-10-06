@@ -133,23 +133,14 @@
 # 5.8G
 /Users/calum/yt-tmp
 
-# ── Photos library ────────────────────────────────────────────────────────────
-# 31G, of which originals/ is 57M. iCloud Photos with "Optimise Mac Storage" is
-# on, so the full-resolution photographs are NOT on this Mac — this directory is
-# a database plus thumbnails. Backing it up would store 31G and recover no
-# photographs.
-#
-# The actual photos have exactly one copy and it is Apple's. Fixing that needs
-# Immich / osxphotos pulling originals down; see the follow-ups in the README.
-/Users/calum/Pictures/Photos Library.photoslibrary
-
-# ── Messages: keep the data, drop the caches ──────────────────────────────────
-# Attachments (34G) and chat.db are the most irreplaceable data on the machine
-# and are deliberately included. These two are not.
-# 6.2G
-/Users/calum/Library/Messages/Caches
-# 93M
-/Users/calum/Library/Messages/NickNameCache
+# ── Photos and Messages: deliberately included ────────────────────────────────
+# Keep the local Photos library: database, thumbnails, edits and local originals.
+# Keep all local Messages data, including chat.db, attachments, previews/caches
+# and NickNameCache. Calum explicitly chose to retain those caches (2026-10-03).
+# ~/Library/Photos ("Shared with You" media) also stays included.
+# iCloud-only originals and missing message attachments are not on disk, so
+# inclusion alone cannot protect them: they must be downloaded separately.
+# Do not restore the former Photos-library or Messages-cache path exclusions.
 
 # ── Live databases and on-device telemetry ───────────────────────────────────
 # Not size — these are the "resource deadlock avoided" (EDEADLK) sources that

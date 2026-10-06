@@ -1,0 +1,21 @@
+{
+  "name": "opencode-full-terminal-title",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tui": "./tui.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test --conditions=browser"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "2.0.22",
+    "@types/bun": "^1.3.0",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.15"
+  }
+}

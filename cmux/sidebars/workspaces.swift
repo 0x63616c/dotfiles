@@ -7,8 +7,8 @@
 // The left accent bar and the repo name share a colour that is a stable hash
 // of the directory basename by default, so each repo stays recognisable across
 // sessions. Right-click > Color changes every workspace at this full directory
-// path. cmux/automations.json + directory-colors.py persist the directory choice
-// and synchronise native workspace colours, including workspaces opened later.
+// path. A Hammerspoon URL request saves cmux/directory-colors.json first, then
+// synchronises native colours. cmux's lifecycle rules apply it to later rows.
 // Default (repo color) clears the directory override and restores the hash tint.
 // The bar is bright on the selected row and dim otherwise; the selected row
 // also gets a soft rounded wash behind it, and a row whose agent is waiting on
@@ -31,14 +31,6 @@ func basename(_ path: String) -> String {
         return String(parts[parts.count - 1])
     }
     return path
-}
-
-func sidebarTitle(_ title: String) -> String {
-    if title.hasPrefix("OC |") {
-        let parts = title.split(separator: "|")
-        return "X" + parts.dropFirst().joined(separator: "|")
-    }
-    return title
 }
 
 func workspacePalette() -> [String] {
@@ -138,13 +130,17 @@ func row(_ w) -> some View {
                         .foregroundColor(tint)
                         .rotationEffect(.degrees(45))
                 }
-                Text(sidebarTitle(w.title))
+                Text(w.title)
                     .font(.system(size: 16))
                     .fontWeight(w.selected ? .semibold : .medium)
                     .foregroundColor(w.selected ? .primary : "#D0D0D0")
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Spacer()
+                // Only share the title's width when a status is present.
+                // An idle title gets the entire line before truncating.
+                if waiting || working {
+                    Spacer()
+                }
                 if waiting {
                     HStack(spacing: 4) {
                         Circle().fill("#E0AF68").frame(width: 7, height: 7)
@@ -160,6 +156,7 @@ func row(_ w) -> some View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // Line 2: repo on the left, branch (* prefix when dirty) on the right.
             HStack(spacing: 5) {
@@ -172,13 +169,15 @@ func row(_ w) -> some View {
                 if let b = w.branch {
                     if w.dirty {
                         Text("*" + b)
-                            .font(.system(size: 16, design: .monospaced))
+                            .font(.system(size: 16))
+                            .fontWeight(.medium)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
                     } else {
                         Text(b)
-                            .font(.system(size: 16, design: .monospaced))
+                            .font(.system(size: 16))
+                            .fontWeight(.medium)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -220,7 +219,7 @@ func row(_ w) -> some View {
         }
         Menu("Color") {
             Button(action: {
-                cmux("workspace.action", action: "clear_color", workspace_id: w.id)
+                openURL("hammerspoon://cmux-directory-color?workspace=" + w.id + "&color=default")
             }) {
                 HStack(spacing: 6) {
                     Image(systemName: "circle.fill")
@@ -233,7 +232,7 @@ func row(_ w) -> some View {
             let names = ["Red", "Orange", "Amber", "Green", "Teal", "Cyan", "Blue", "Purple", "Pink", "Sand"]
             ForEach(palette.indices) { i in
                 Button(action: {
-                    cmux("workspace.action", action: "set_color", workspace_id: w.id, color: palette[i])
+                    openURL("hammerspoon://cmux-directory-color?workspace=" + w.id + "&color=" + palette[i].replacingOccurrences(of: "#", with: ""))
                 }) {
                     HStack(spacing: 6) {
                         Image(systemName: "circle.fill")

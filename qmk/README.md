@@ -26,10 +26,15 @@ and creates `secrets.h` from the template. `just doctor` shows what's set up.
 
 Passwords are compiled into the firmware, not stored as VIA macros:
 
-- `0x63616c/keymap.c` types `SECRET_PW1`..`PW4` on Caps+F13 / F14 / F15 / F16 (top-right keys). The Caps key sends plain Caps Lock; macOS remaps it to F18 and Hammerspoon (`hammerspoon/capslock.lua`) makes a hold Hyper. The both-shifts Caps Lock chord lives in `hammerspoon/doubleshift.lua`, not here.
+- `0x63616c/keymap.c` types `SECRET_PW1`..`PW4` on Ctrl+F13 / F14 / F15 / F16 (top-right keys; F16 is the corner key). Either Ctrl works; physical modifiers are released while the text types, then restored. These strings can be passwords, email addresses or other text.
+- Release Caps before using a text macro. Caps still becomes Hyper via macOS's F18 remap and Hammerspoon (`hammerspoon/capslock.lua`); holding it would make Hammerspoon add Hyper to the generated text, so the firmware blocks text macros while Caps is held. Caps+Esc still enters the bootloader. The both-shifts Caps Lock chord lives in `hammerspoon/doubleshift.lua`, not here.
 - Real values live in `0x63616c/secrets.h` (gitignored). Missing/incomplete = hard build error.
 - VIA/WebHID cannot read them (not in EEPROM). A physical flash dump still can —
   keyboard secrets are not a substitute for a password manager.
+
+To update the text, edit `0x63616c/secrets.h` locally and run `just flash`.
+Shortcut changes also need a reflash. Connect by USB in Cable mode; when it
+waits for the bootloader, press Caps+Esc (blue → purple).
 
 ## New machine
 
