@@ -242,6 +242,14 @@ function M.displayVolume(raw, baseline)
   return math.floor(raw / baseline * 100 + 0.5)
 end
 
+-- Keep the real speaker setting visible beside a calibrated percentage;
+-- separate strings let the panel mute the raw suffix without muting the value.
+function M.volumeLabel(raw, baseline)
+  local main = tostring(M.displayVolume(raw, baseline))
+  if not baseline or baseline == 0 then return main, nil end
+  return main, " (" .. tostring(raw) .. ")"
+end
+
 -- The inverse: a displayed/dragged percentage -> the raw value to actually
 -- send. Always clamped to Sonos' real 0-100 range, since a calibrated room
 -- showing >100% (or a drag pinned at the slider's 100 end) would otherwise

@@ -58,7 +58,6 @@ local SRC_W      = 96
 local SLIDER_W   = 200
 local TRACK_H    = 6
 local KNOB_R     = 6
-local NUM_W      = 34
 local BTN_H      = 33
 local BTN_PAD    = 16
 local BTN_GAP    = theme.space.gap
@@ -133,7 +132,7 @@ local function saveBaselines()
   hs.settings.set(BASELINES_KEY, baselines)
 end
 
--- Rooms as last read: lib/sonos.lua's records with volume, uri, state and a
+-- Rooms as last read: lib/sonos.lua's records with volume, raw, uri, state and a
 -- source label added.
 local rooms = {}
 -- Bumped per refresh; a response for an older generation is dropped rather
@@ -165,10 +164,11 @@ local function refresh()
       if pending == 0 and gen == generation then apply(list) end
     end
     for _, r in ipairs(list) do
-      r.volume, r.uri, r.state, r.source = 0, "", "", ""
+      r.volume, r.raw, r.uri, r.state, r.source = 0, 0, "", "", ""
       pending = pending + 1
       call(r.ip, "RenderingControl", "GetVolume", { { "Channel", "Master" } }, function(body)
         local raw = tonumber(sonos.value(body, "CurrentVolume")) or 0
+        r.raw = raw
         r.volume = sonos.displayVolume(raw, baselines[r.uuid])
         done()
       end)
@@ -395,6 +395,17 @@ local function fillWidth(volume)
   return math.max(0, math.min(SLIDER_W, SLIDER_W * volume / 100))
 end
 
+local function volumeText(r)
+  local _, rawSuffix = sonos.volumeLabel(r.raw, baselines[r.uuid])
+  -- Keep the dragged percentage until refresh, even if sending raw rounded or
+  -- clamped it. Both runs share alignment so the whole label stays right-aligned.
+  local text = ui.styled(tostring(r.volume), theme.text.body, ui.fg, { align = "right" })
+  if rawSuffix then
+    text = text .. ui.styled(rawSuffix, theme.text.body, ui.muted, { align = "right" })
+  end
+  return text
+end
+
 -- The three elements a volume change moves. Split out from paintRow because a
 -- drag repaints at frame rate and the source label can't change mid-drag —
 -- restyling it every frame is a styledtext build and a canvas redraw for text
@@ -405,7 +416,7 @@ local function paintSlider(c, i, r)
   local w = fillWidth(r.volume)
   c["fill:" .. i].frame = { x = L.trackX, y = L.trackY, w = w, h = TRACK_H }
   c["knob:" .. i].center = { x = L.trackX + w, y = L.trackY + TRACK_H / 2 }
-  c["num:" .. i].text = ui.styled(tostring(r.volume), theme.text.body, ui.fg, { align = "right" })
+  c["num:" .. i].text = volumeText(r)
 end
 
 -- Paint one row's numbers into existing elements.
@@ -449,15 +460,17 @@ local function dragTo(i)
   local v = sonos.volumeFromX(x, L.trackX, SLIDER_W)
   if v == r.volume then return end
   r.volume = v
+  r.raw = sonos.rawVolume(v, baselines[r.uuid])
   dragDirty = true
-  setVolume(r, sonos.rawVolume(v, baselines[r.uuid]))
+  setVolume(r, r.raw)
   if locked then
     -- Every other visible room snaps to the same displayed percentage,
     -- through its own baseline — matching percentage is the whole point.
     for j, o in ipairs(rooms) do
       if j ~= i and rowLayout[j] and o.volume ~= v then
         o.volume = v
-        setVolume(o, sonos.rawVolume(v, baselines[o.uuid]))
+        o.raw = sonos.rawVolume(v, baselines[o.uuid])
+        setVolume(o, o.raw)
       end
     end
   end
@@ -601,13 +614,17 @@ local function build(list)
   stopDrag()
 
   -- Measure the name column from the longest name, like the cheatsheet does
-  -- for its labels; the other columns are fixed.
+  -- for its labels.
   local names, nameW = {}, NAME_MIN_W
   for i, r in ipairs(list) do
     local prefix = r.isCoordinator and "" or "↳  "
     names[i] = ui.styled(prefix .. r.name, theme.text.label, r.isCoordinator and ui.fg or ui.muted)
     nameW = math.max(nameW, ui.width(names[i]) + 2)
   end
+
+  -- A small baseline can put the uncapped percentage into four digits.
+  -- Reserve the suffix too so calibration and drags never need a rebuild.
+  local numW = math.ceil(ui.width(ui.styled("8888 (888)", theme.text.body, ui.fg))) + 2
 
   local btnText, btnW = {}, {}
   local btnRowW = 0
@@ -619,7 +636,7 @@ local function build(list)
   btnRowW = PAD * 2 + btnRowW
 
   local nRows = math.max(#list, 1)
-  local rowW = PAD * 2 + nameW + GAP + SRC_W + GAP + SLIDER_W + GAP + NUM_W
+  local rowW = PAD * 2 + nameW + GAP + SRC_W + GAP + SLIDER_W + GAP + numW
   local cardW = math.max(rowW, btnRowW)
   local cardH = HEADER_H + nRows * ROW_H + FOOTER_H
 
@@ -681,12 +698,12 @@ local function build(list)
     c[#c + 1] = { type = "circle", action = "fill", id = "knob:" .. i,
                   center = { x = trackX + w, y = trackY + TRACK_H / 2 }, radius = KNOB_R,
                   fillColor = ui.fg }
-    c[#c + 1] = ui.text(ui.styled(tostring(r.volume), theme.text.body, ui.fg, { align = "right" }),
-      { x = numX, y = y + (ROW_H - 18) / 2, w = NUM_W, h = 20 }, "num:" .. i)
+    c[#c + 1] = ui.text(volumeText(r),
+      { x = numX, y = y + (ROW_H - 18) / 2, w = numW, h = 20 }, "num:" .. i)
     c[#c + 1] = { type = "rectangle", action = "fill", id = "vol:" .. i,
                   fillColor = ui.color(theme.color.accent, 0), trackMouseByBounds = true,
                   trackMouseDown = true, trackMouseUp = true, trackMouseMove = true,
-                  frame = { x = trackX - KNOB_R * 2, y = y, w = SLIDER_W + KNOB_R * 4 + GAP + NUM_W, h = ROW_H } }
+                  frame = { x = trackX - KNOB_R * 2, y = y, w = SLIDER_W + KNOB_R * 4 + GAP + numW, h = ROW_H } }
   end
 
   -- Footer: hairline, then the two buttons as recessed chips with a keycap's
