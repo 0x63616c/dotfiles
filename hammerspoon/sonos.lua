@@ -141,11 +141,11 @@ local generation = 0
 
 local apply  -- forward: paints a finished room list, defined with the canvas
 
--- Whether every visible room's slider is locked to move together; see
--- setLocked, defined with the rest of the panel below (it also repaints the
--- Lock button). Forward-declared here since clearCalibration, above the
--- panel section, needs to drop the lock.
-local locked = false
+-- Keep sliders locked together across panel closes and Hammerspoon reloads;
+-- the lit Lock button shows the restored state. setLocked also persists and
+-- repaints changes; forward-declared so clearCalibration can drop the lock.
+local LOCKED_KEY = "sonosVolumeLocked"
+local locked = hs.settings.get(LOCKED_KEY) == true
 local setLocked
 
 -- Read topology from the first speaker that answers, then fan out for volumes
@@ -560,13 +560,13 @@ local function runButton(id)
   end
 end
 
--- Flips the lock and repaints the button to match. fn() in BUTTONS runs
+-- Persists the lock and repaints the button to match. fn() in BUTTONS runs
 -- inside flashButton's press-flash, so the button lands on this resting
 -- state the moment the flash ends; setting it here too covers the paths that
--- don't go through a button press (clearCalibration, and openPanel resetting
--- it on close/reopen).
+-- don't go through the Lock button (clearCalibration also persists it off).
 setLocked = function(v)
   locked = v
+  hs.settings.set(LOCKED_KEY, locked)
   if sonosPanelCanvas then paintButtonState(sonosPanelCanvas, "lock") end
 end
 
@@ -757,8 +757,7 @@ local function openPanel()
   closePanel()
   ringsT0 = nil
   rooms = {}
-  locked = false   -- never silently on for a freshly opened panel; see `locked` above
-  build({})
+  build({})   -- the lit Lock button makes the persisted state visible on open
   if not sonosPanelKeys then
     sonosPanelKeys = { popup.escape(closePanel) }
     for _, b in ipairs(BUTTONS) do
