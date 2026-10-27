@@ -158,6 +158,8 @@
 	<true/>
 	<key>notchHiddenControls</key>
 	<string>commandBar,microphone,panel,recording,scratchpad,screenshot,speedTest</string>
+	<key>notchHideInFullscreen</key>
+	<false/>
 	<key>notchHideUntilHover</key>
 	<false/>
 	<key>notchHidesMenuBarIcon</key>
