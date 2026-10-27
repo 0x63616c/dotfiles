@@ -283,7 +283,7 @@
 	<key>whatsAppDownloadsAccessConfirmed</key>
 	<true/>
 	<key>whatsAppDownloadsEnabled</key>
-	<true/>
+	<false/>
 	<key>whatsAppDownloadsRetentionDays</key>
 	<integer>7</integer>
 	<key>whatsAppOrganizerDelayMinutes</key>
