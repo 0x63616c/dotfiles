@@ -1,0 +1,17 @@
+#!/bin/sh
+# Applies the repo's macOS preference snapshots (home/prefs/*.plist) with `prefsync apply` (MERGE, never replace).
+# Re-runs when the manifest or any snapshot changes; apply itself is a no-op (and restarts nothing) if already in sync.
+{{- $m := include "prefs/manifest.toml" | fromToml }}
+# manifest: {{ include "prefs/manifest.toml" | sha256sum }}
+# prefsync: {{ include "dot_local/bin/executable_prefsync" | sha256sum }}
+{{- range $m.domain }}
+{{- $f := printf "prefs/%s.plist" .name }}
+{{- if stat (joinPath $.chezmoi.sourceDir $f) }}
+# {{ .name }}: {{ include $f | sha256sum }}
+{{- end }}
+{{- end }}
+set -eu
+PREFSYNC_SRC="{{ .chezmoi.workingTree }}"
+export PREFSYNC_SRC
+# Run the source copy: ~/.local/bin/prefsync is deployed by this same apply, but never trust ordering.
+exec /usr/bin/python3 "{{ .chezmoi.sourceDir }}/dot_local/bin/executable_prefsync" apply

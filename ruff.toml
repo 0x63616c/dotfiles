@@ -1,0 +1,6 @@
+# Lints prefsync (home/dot_local/bin/executable_prefsync has no .py extension: pass it explicitly) and tests/.
+line-length = 120
+target-version = "py39"   # the Xcode CLT python3 on macOS
+
+[lint]
+select = ["E", "F", "W", "B", "I"]

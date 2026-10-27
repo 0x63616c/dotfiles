@@ -1,0 +1,893 @@
+#!/usr/bin/env python3
+"""prefsync: keep macOS preference domains in sync with the chezmoi dotfiles repo.
+
+  prefsync capture [domain...]   live prefs -> filtered snapshot in home/prefs/<domain>.plist (+ local git commit)
+  prefsync apply   [domain...]   snapshot -> live prefs (MERGE, never replace; restarts the target only on change)
+  prefsync status  [domain...]   what differs between the Mac, the repo snapshot and the last sync
+  prefsync diff    [domain...]   same, with values
+  prefsync add <domain>          add a domain to the manifest, snapshot it, regenerate the LaunchAgent
+  prefsync doctor                health check (agent loaded, manifest, git, logs)
+
+Design: home/prefs/manifest.toml lists domains + deny globs. A LaunchAgent (generated from the manifest by
+chezmoi) runs `capture --watch` whenever a watched plist changes, plus hourly. Capture never pushes.
+Three-way sync per domain: "base" (last synced state, kept in ~/.local/state/prefsync) vs live vs snapshot,
+so a change made on the Mac and a change pulled from git are both kept.
+Stdlib only, Python 3.9+ (the Xcode CLT python3), so it works on a fresh Mac.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import copy
+import datetime
+import fcntl
+import fnmatch
+import json
+import logging
+import logging.handlers
+import os
+import plistlib
+import re
+import shlex
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+
+LABEL = "dev.0x63616c.prefsync"
+HOME = os.path.expanduser("~")
+DEFAULTS = os.environ.get("PREFSYNC_DEFAULTS", "/usr/bin/defaults")
+STATE_DIR = os.environ.get("PREFSYNC_STATE_DIR", os.path.join(HOME, ".local", "state", "prefsync"))
+LOG_FILE = os.environ.get("PREFSYNC_LOG", os.path.join(HOME, "Library", "Logs", "prefsync.log"))
+HOME_TOKEN = "@HOME@"
+MIN_KEYS_FOR_GUARD = 4  # shrink guard only applies to snapshots with at least this many keys
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(r"(?<!\d)\+?\d?[ .-]?\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}(?!\d)")
+UUID_RE = re.compile(r"^[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$")
+
+log = logging.getLogger("prefsync")
+
+
+class PrefsyncError(Exception):
+    pass
+
+
+# ----------------------------------------------------------------------------- logging
+def setup_logging(verbose: bool = False) -> None:
+    log.setLevel(logging.INFO)
+    log.handlers.clear()
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S")
+    try:
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        fh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=256 * 1024, backupCount=3)
+        fh.setFormatter(fmt)
+        log.addHandler(fh)
+    except OSError:
+        pass
+    if verbose or sys.stderr.isatty():
+        sh = logging.StreamHandler(sys.stderr)
+        sh.setFormatter(logging.Formatter("%(message)s"))
+        log.addHandler(sh)
+
+
+# ----------------------------------------------------------------------------- TOML (subset)
+def _skip_ws(s: str, i: int, newlines: bool = True) -> int:
+    while i < len(s):
+        c = s[i]
+        if c == "#":
+            while i < len(s) and s[i] != "\n":
+                i += 1
+        elif c in " \t\r" or (newlines and c == "\n"):
+            i += 1
+        else:
+            break
+    return i
+
+
+def _parse_value(s: str, i: int):
+    c = s[i]
+    if c == '"':
+        j = i + 1
+        while s[j] != '"':
+            j += 2 if s[j] == "\\" else 1
+        return json.loads(s[i : j + 1]), j + 1
+    if c == "'":
+        j = s.index("'", i + 1)
+        return s[i + 1 : j], j + 1
+    if c == "[":
+        out = []
+        i = _skip_ws(s, i + 1)
+        while s[i] != "]":
+            v, i = _parse_value(s, i)
+            out.append(v)
+            i = _skip_ws(s, i)
+            if s[i] == ",":
+                i = _skip_ws(s, i + 1)
+        return out, i + 1
+    m = re.match(r"true|false|[+-]?\d+(\.\d+)?", s[i:])
+    if not m:
+        raise ValueError("unsupported TOML value at: " + s[i : i + 20])
+    tok = m.group(0)
+    if tok in ("true", "false"):
+        return tok == "true", i + len(tok)
+    return (float(tok) if "." in tok else int(tok)), i + len(tok)
+
+
+def mini_toml(text: str) -> dict:
+    """Parse the TOML subset used by the manifest ([table], [[array]], strings, bools, ints, arrays)."""
+    root: dict = {}
+    cur = root
+    i = 0
+    n = len(text)
+    while True:
+        i = _skip_ws(text, i)
+        if i >= n:
+            break
+        if text.startswith("[[", i):
+            end = text.index("]]", i)
+            name = text[i + 2 : end].strip()
+            cur = {}
+            root.setdefault(name, []).append(cur)
+            i = end + 2
+        elif text[i] == "[":
+            end = text.index("]", i)
+            name = text[i + 1 : end].strip()
+            cur = root.setdefault(name, {})
+            i = end + 1
+        else:
+            m = re.compile(r'\s*([A-Za-z0-9_.-]+|"[^"]*")\s*=\s*').match(text, i)
+            if not m:
+                raise ValueError("bad TOML near: " + text[i : i + 30])
+            key = m.group(1).strip('"')
+            cur[key], i = _parse_value(text, m.end())
+    return root
+
+
+def parse_toml(text: str) -> dict:
+    try:
+        import tomllib  # Python 3.11+
+
+        return tomllib.loads(text)
+    except ImportError:
+        return mini_toml(text)
+
+
+# ----------------------------------------------------------------------------- repo / manifest
+def find_repo(start: str | None = None) -> str:
+    start = start or os.environ.get("PREFSYNC_SRC") or os.path.join(HOME, ".local", "share", "chezmoi")
+    p = os.path.abspath(os.path.expanduser(start))
+    while True:
+        if os.path.exists(os.path.join(p, ".git")):
+            return p
+        parent = os.path.dirname(p)
+        if parent == p:
+            raise PrefsyncError("chezmoi source repo not found (set PREFSYNC_SRC): " + start)
+        p = parent
+
+
+def source_root(repo: str) -> str:
+    rootfile = os.path.join(repo, ".chezmoiroot")
+    if os.path.exists(rootfile):
+        with open(rootfile) as f:
+            return os.path.join(repo, f.read().strip())
+    return repo
+
+
+class Domain:
+    def __init__(self, d: dict):
+        self.name: str = d["name"]
+        self.allow: list[str] = list(d.get("allow", []))
+        self.deny: list[str] = list(d.get("deny", []))
+        self.allow_data: list[str] = list(d.get("allow_data", []))
+        self.restart: str = d.get("restart", "none")
+        self.mkdir: list[str] = list(d.get("mkdir", []))
+        self.watch: str | None = d.get("watch")
+
+
+class Ctx:
+    """Everything one run needs: repo paths, manifest, private strings."""
+
+    def __init__(self, repo: str | None = None):
+        self.repo = find_repo(repo)
+        self.root = source_root(self.repo)
+        self.prefs_dir = os.environ.get("PREFSYNC_PREFS_DIR") or os.path.join(self.root, "prefs")
+        self.manifest_path = os.path.join(self.prefs_dir, "manifest.toml")
+        if not os.path.exists(self.manifest_path):
+            raise PrefsyncError("manifest not found: " + self.manifest_path)
+        with open(self.manifest_path) as f:
+            m = parse_toml(f.read())
+        self.settings: dict = m.get("settings", {})
+        self.domains = [Domain(d) for d in m.get("domain", [])]
+        self.private = private_strings()
+
+    def domain(self, name: str) -> Domain:
+        for d in self.domains:
+            if d.name == name:
+                return d
+        raise PrefsyncError("domain not in manifest: %s (run: prefsync add %s)" % (name, name))
+
+    def select(self, names: list[str]) -> list[Domain]:
+        return [self.domain(n) for n in names] if names else list(self.domains)
+
+    def snap_path(self, d: Domain) -> str:
+        return os.path.join(self.prefs_dir, d.name + ".plist")
+
+    def relpath(self, path: str) -> str:
+        return os.path.relpath(path, self.repo)
+
+
+def private_strings() -> list[str]:
+    out = {os.path.basename(HOME), socket.gethostname().split(".")[0]}
+    for flag in ("LocalHostName", "ComputerName", "HostName"):
+        try:
+            r = subprocess.run(["/usr/sbin/scutil", "--get", flag], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0 and r.stdout.strip():
+                out.add(r.stdout.strip().split(".")[0])
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return sorted((s.lower() for s in out if len(s) >= 4 and s.lower() not in ("localhost", "root")))
+
+
+# ----------------------------------------------------------------------------- plist helpers
+def walk(v):
+    yield v
+    if isinstance(v, dict):
+        for x in v.values():
+            yield from walk(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from walk(x)
+
+
+def map_strings(v, fn):
+    if isinstance(v, str):
+        return fn(v)
+    if isinstance(v, dict):
+        return {k: map_strings(x, fn) for k, x in v.items()}
+    if isinstance(v, list):
+        return [map_strings(x, fn) for x in v]
+    return v
+
+
+def to_template(v):
+    return map_strings(v, lambda s: s.replace(HOME, HOME_TOKEN))
+
+
+def from_template(v):
+    return map_strings(v, lambda s: s.replace(HOME_TOKEN, HOME))
+
+
+def private_reason(key: str, value, private: list[str], allow_data: bool) -> str | None:
+    """Why a (templated) value must not enter a public repo, or None."""
+    for x in walk(value):
+        if isinstance(x, datetime.datetime):
+            return "contains a date (volatile)"
+        if isinstance(x, bytes):
+            if not allow_data:
+                return "contains binary data (not in allow_data)"
+            with contextlib.suppress(Exception):
+                text = x.decode("utf-8", "ignore")
+                reason = text_reason(text, private)
+                if reason:
+                    return "binary data " + reason
+        elif isinstance(x, str):
+            reason = text_reason(x, private)
+            if reason:
+                return reason
+            if UUID_RE.match(x):
+                return "UUID value (machine/device specific)"
+    return None
+
+
+def text_reason(s: str, private: list[str]) -> str | None:
+    low = s.lower()
+    for p in private:
+        if p in low:
+            return "contains username/machine name"
+    if EMAIL_RE.search(s):
+        return "contains an email address"
+    if PHONE_RE.search(s):
+        return "contains a phone number"
+    return None
+
+
+def filter_doc(doc: dict, dom: Domain, private: list[str]):
+    """Return (kept, denied{key: reason}). Allow globs first (if any), then deny globs, then safety nets."""
+    kept: dict = {}
+    denied: dict = {}
+    for key in sorted(doc):
+        if dom.allow and not any(fnmatch.fnmatchcase(key, g) for g in dom.allow):
+            continue  # not allow-listed: silently ignored (not a "denial")
+        if any(fnmatch.fnmatchcase(key, g) for g in dom.deny):
+            continue
+        val = to_template(doc[key])
+        reason = private_reason(key, val, private, key in dom.allow_data)
+        if reason:
+            denied[key] = reason
+            continue
+        kept[key] = val
+    return kept, denied
+
+
+def deep_merge(base, over):
+    """Merge `over` onto `base`: dicts merge recursively, everything else is replaced by `over`."""
+    if isinstance(base, dict) and isinstance(over, dict):
+        out = dict(base)
+        for k, v in over.items():
+            out[k] = deep_merge(base[k], v) if k in base else copy.deepcopy(v)
+        return out
+    return copy.deepcopy(over)
+
+
+def merge3(base, live, snap):
+    """Apply what changed locally (base -> live) onto the repo snapshot (recursive; local removals are removed)."""
+    if not (isinstance(live, dict) and isinstance(snap, dict)):
+        return copy.deepcopy(live)
+    base = base if isinstance(base, dict) else {}
+    out = dict(snap)
+    for k in set(base) | set(live):
+        if k in live and k in base and live[k] == base[k]:
+            continue  # unchanged locally: keep whatever the repo has
+        if k not in live:
+            out.pop(k, None)
+        elif k in snap and isinstance(live[k], dict) and isinstance(snap[k], dict):
+            out[k] = merge3(base.get(k), live[k], snap[k])
+        else:
+            out[k] = copy.deepcopy(live[k])
+    return out
+
+
+def short(v, n: int = 48) -> str:
+    if isinstance(v, bytes):
+        s = "<data %d bytes>" % len(v)
+    else:
+        s = json.dumps(v, default=str, ensure_ascii=False)
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+
+def diff_paths(old, new, prefix: str = "", depth: int = 0):
+    """List of (op, path, old, new); op in + - ~ . Recurses into dicts up to 3 levels."""
+    out = []
+    if isinstance(old, dict) and isinstance(new, dict) and depth < 3:
+        for k in sorted(set(old) | set(new), key=str):
+            p = prefix + "." + str(k) if prefix else str(k)
+            if k not in old:
+                out.append(("+", p, None, new[k]))
+            elif k not in new:
+                out.append(("-", p, old[k], None))
+            elif old[k] != new[k]:
+                out.extend(diff_paths(old[k], new[k], p, depth + 1))
+    elif old != new:
+        out.append(("~", prefix, old, new))
+    return out
+
+
+def fmt_change(c) -> str:
+    op, p, o, n = c
+    if op == "+":
+        return "+%s=%s" % (p, short(n))
+    if op == "-":
+        return "-%s" % p
+    return "%s %s→%s" % (p, short(o, 24), short(n, 24))
+
+
+def dump_plist(doc: dict) -> bytes:
+    return plistlib.dumps(doc, fmt=plistlib.FMT_XML, sort_keys=True)
+
+
+def read_plist(path: str):
+    try:
+        with open(path, "rb") as f:
+            return plistlib.load(f)
+    except FileNotFoundError:
+        return None
+
+
+def write_atomic(path: str, data: bytes) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".prefsync-")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+# ----------------------------------------------------------------------------- defaults
+def defaults_export(domain: str, retries: int = 3) -> dict:
+    err = "unknown"
+    for attempt in range(retries):
+        try:
+            r = subprocess.run([DEFAULTS, "export", domain, "-"], capture_output=True, timeout=30)
+            if r.returncode == 0 and r.stdout.strip():
+                return plistlib.loads(r.stdout)
+            err = r.stderr.decode("utf-8", "replace").strip() or "empty output"
+        except (plistlib.InvalidFileException, ValueError, OSError, subprocess.SubprocessError) as e:
+            err = str(e)
+        if attempt < retries - 1:
+            time.sleep(1)
+    raise PrefsyncError("defaults export %s failed: %s" % (domain, err))
+
+
+def defaults_import(domain: str, doc: dict) -> None:
+    """`defaults import` merges top-level keys into the domain (it does not wipe other keys)."""
+    with tempfile.NamedTemporaryFile(suffix=".plist", delete=False) as f:
+        f.write(dump_plist(doc))
+        tmp = f.name
+    try:
+        r = subprocess.run([DEFAULTS, "import", domain, tmp], capture_output=True, timeout=30)
+        if r.returncode != 0:
+            raise PrefsyncError("defaults import %s failed: %s" % (domain, r.stderr.decode().strip()))
+    finally:
+        os.unlink(tmp)
+
+
+# ----------------------------------------------------------------------------- state + lock
+def state_path(kind: str, name: str, ext: str = "plist") -> str:
+    return os.path.join(STATE_DIR, kind, "%s.%s" % (name, ext))
+
+
+@contextlib.contextmanager
+def locked(wait: float = 30.0):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    f = open(os.path.join(STATE_DIR, "lock"), "w")
+    deadline = time.time() + wait
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except OSError:
+            if time.time() >= deadline:
+                f.close()
+                raise PrefsyncError("another prefsync run holds the lock (waited %ds)" % wait) from None
+            time.sleep(0.25)
+    try:
+        yield
+    finally:
+        fcntl.flock(f, fcntl.LOCK_UN)
+        f.close()
+
+
+def live_filtered(ctx: Ctx, dom: Domain, track: bool = False):
+    doc = defaults_export(dom.name)
+    kept, denied = filter_doc(doc, dom, ctx.private)
+    if not track:
+        return kept, denied
+    seen_path = state_path("seen", dom.name, "json")
+    try:
+        with open(seen_path) as f:
+            seen = set(json.load(f))
+    except (OSError, ValueError):
+        seen = None
+    fresh = {k for k in kept} | {"!" + k for k in denied}
+    if seen is not None:
+        for k in sorted(fresh - seen):
+            if k.startswith("!"):
+                log.warning("%s: auto-denied new key %s (%s)", dom.name, k[1:], denied[k[1:]])
+            else:
+                log.info("%s: new key %s = %s", dom.name, k, short(kept[k]))
+    if seen is None or fresh - seen:
+        os.makedirs(os.path.dirname(seen_path), exist_ok=True)
+        write_atomic(seen_path, json.dumps(sorted((seen or set()) | fresh)).encode())
+    return kept, denied
+
+
+# ----------------------------------------------------------------------------- git
+def git(ctx: Ctx, *args: str, check: bool = False):
+    r = subprocess.run(["git", "-C", ctx.repo, *args], capture_output=True, text=True, timeout=120)
+    if check and r.returncode != 0:
+        raise PrefsyncError("git %s: %s" % (" ".join(args), (r.stderr or r.stdout).strip()))
+    return r
+
+
+def repo_busy(ctx: Ctx) -> str | None:
+    gd = os.path.join(ctx.repo, ".git")
+    for f in ("index.lock", "MERGE_HEAD", "rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD"):
+        if os.path.exists(os.path.join(gd, f)):
+            return f
+    return None
+
+
+def commit_paths(ctx: Ctx, paths: list[str], message: str) -> bool:
+    """Commit only the given files. On any failure (gitleaks hook, busy repo) leave them uncommitted and log."""
+    if not ctx.settings.get("commit", True) or not paths:
+        return False
+    busy = repo_busy(ctx)
+    if busy:
+        log.warning("not committing (repo busy: %s); will retry next run", busy)
+        return False
+    rel = [ctx.relpath(p) for p in paths]
+    fail_marker = os.path.join(STATE_DIR, "commit-failed")
+    with contextlib.suppress(OSError):
+        if time.time() - os.path.getmtime(fail_marker) < 600:
+            log.info("commit backoff (last attempt failed <10 min ago); leaving %s uncommitted", ", ".join(rel))
+            return False
+    st = git(ctx, "status", "--porcelain", "--", *rel)
+    if not st.stdout.strip():
+        return False
+    git(ctx, "add", "--", *rel)
+    r = git(ctx, "commit", "-m", message, "--", *rel)
+    if r.returncode != 0:
+        git(ctx, "reset", "-q", "--", *rel)
+        write_atomic(fail_marker, b"")
+        log.error("git commit failed (left uncommitted): %s", (r.stderr or r.stdout).strip().replace("\n", " | ")[:400])
+        return False
+    with contextlib.suppress(OSError):
+        os.unlink(fail_marker)
+    log.info("committed: %s", message.splitlines()[0])
+    return True
+
+
+def build_message(domain: str, changes: list) -> str:
+    items = [fmt_change(c) for c in changes]
+    head = "prefs(%s): %s" % (domain, ", ".join(items[:4]))
+    if len(items) > 4:
+        head += " and %d more" % (len(items) - 4)
+    head = head[:200]
+    return (
+        head + "\n\n" + "\n".join(items) + "\n\nCaptured automatically by prefsync (not pushed; review before pushing)."
+    )
+
+
+# ----------------------------------------------------------------------------- capture
+def capture_domain(ctx: Ctx, dom: Domain, force: bool = False, commit: bool = True) -> str:
+    live, _denied = live_filtered(ctx, dom, track=True)
+    snap_p = ctx.snap_path(dom)
+    snap = read_plist(snap_p)
+    base_p = state_path("base", dom.name)
+    base = read_plist(base_p)
+
+    if base is None:
+        if snap is not None:
+            log.info("%s: skipped capture: not applied on this Mac yet (run: prefsync apply %s)", dom.name, dom.name)
+            return "skipped"
+        if not live:
+            log.info("%s: nothing to capture (no non-denied keys)", dom.name)
+            return "empty"
+        new_snap = live
+    else:
+        if live == base and snap is not None and not force:
+            if commit and os.path.exists(os.path.join(STATE_DIR, "commit-failed")):
+                commit_paths(ctx, [snap_p], "prefs(%s): commit pending snapshot (earlier commit failed)" % dom.name)
+            return "unchanged"
+        new_snap = merge3(base, live, snap if snap is not None else {})
+
+    if snap is not None and len(snap) >= MIN_KEYS_FOR_GUARD and len(live) < len(snap) / 2 and not force:
+        log.error(
+            "%s: refusing capture: live has %d keys vs %d in snapshot (<50%%). Use --force if intended.",
+            dom.name,
+            len(live),
+            len(snap),
+        )
+        return "guarded"
+
+    result = "unchanged"
+    if snap != new_snap:
+        changes = diff_paths(snap or {}, new_snap)
+        write_atomic(snap_p, dump_plist(new_snap))
+        log.info("%s: captured %d change(s): %s", dom.name, len(changes), "; ".join(fmt_change(c) for c in changes[:6]))
+        if commit:
+            commit_paths(ctx, [snap_p], build_message(dom.name, changes))
+        result = "captured"
+    elif commit:
+        commit_paths(ctx, [snap_p], "prefs(%s): commit pending snapshot (earlier commit failed)" % dom.name)
+    write_atomic(base_p, dump_plist(live))
+    return result
+
+
+def cmd_capture(ctx: Ctx, args) -> int:
+    if args.watch:
+        time.sleep(2)  # let the app/cfprefsd finish writing
+    doms = ctx.select(args.domains)
+    with locked(args.wait):
+        for dom in doms:
+            try:
+                capture_domain(ctx, dom, force=args.force, commit=not args.no_commit)
+            except PrefsyncError as e:
+                log.error("%s: %s", dom.name, e)
+            except Exception as e:  # keep going: one broken domain must not block the rest
+                log.exception("%s: unexpected error: %s", dom.name, e)
+    return 0
+
+
+# ----------------------------------------------------------------------------- apply
+def app_running(name: str) -> bool:
+    return subprocess.run(["pgrep", "-f", "%s.app/Contents/MacOS" % name], capture_output=True).returncode == 0
+
+
+def restart_before(spec: str) -> bool:
+    if spec.startswith("app:"):
+        name = spec[4:]
+        if app_running(name):
+            subprocess.run(["osascript", "-e", 'tell application "%s" to quit' % name], capture_output=True, timeout=15)
+            for _ in range(20):
+                if not app_running(name):
+                    break
+                time.sleep(0.5)
+            return True
+    return False
+
+
+def restart_after(spec: str, was_running: bool) -> None:
+    if spec.startswith("app:"):
+        if was_running:
+            subprocess.run(["open", "-a", spec[4:]], capture_output=True, timeout=15)
+    elif spec.startswith("killall:"):
+        subprocess.run(["killall", spec[8:]], capture_output=True)
+    elif spec.startswith("cmd:"):
+        subprocess.run(shlex.split(spec[4:]), capture_output=True, timeout=60)
+
+
+def apply_domain(ctx: Ctx, dom: Domain, dry_run: bool = False) -> bool:
+    for d in dom.mkdir:
+        os.makedirs(os.path.expandvars(d.replace("~", HOME, 1) if d.startswith("~") else d), exist_ok=True)
+    snap = read_plist(ctx.snap_path(dom))
+    if snap is None:
+        log.info("%s: no snapshot in repo; nothing to apply", dom.name)
+        return False
+    live_full = defaults_export(dom.name)
+    desired = from_template(snap)
+    changed = {}
+    for k, v in desired.items():
+        merged = deep_merge(live_full[k], v) if k in live_full else v
+        if merged != live_full.get(k):
+            changed[k] = merged
+    if not changed:
+        log.info("%s: already in sync (%d keys)", dom.name, len(snap))
+        if not dry_run:
+            kept, _ = live_filtered(ctx, dom, track=True)
+            write_atomic(state_path("base", dom.name), dump_plist(kept))
+        return False
+    desc = "; ".join(
+        fmt_change(c) for k in sorted(changed) for c in diff_paths({k: live_full.get(k)}, {k: changed[k]})[:3]
+    )
+    if dry_run:
+        print("%s: would change %d key(s): %s" % (dom.name, len(changed), desc))
+        return True
+    log.info("%s: applying %d key(s): %s", dom.name, len(changed), desc[:600])
+    was = restart_before(dom.restart)
+    defaults_import(dom.name, changed)
+    restart_after(dom.restart, was)
+    kept, _ = live_filtered(ctx, dom, track=True)
+    write_atomic(state_path("base", dom.name), dump_plist(kept))
+    return True
+
+
+def cmd_apply(ctx: Ctx, args) -> int:
+    doms = ctx.select(args.domains)
+    rc = 0
+    with locked(args.wait):
+        for dom in doms:
+            try:
+                if not args.dry_run:
+                    capture_domain(ctx, dom, commit=True)  # never overwrite a local change you just made
+                apply_domain(ctx, dom, dry_run=args.dry_run)
+            except PrefsyncError as e:
+                log.error("%s: %s", dom.name, e)
+                rc = 1
+    return rc
+
+
+# ----------------------------------------------------------------------------- status / diff
+def cmd_status(ctx: Ctx, args, verbose: bool = False) -> int:
+    for dom in ctx.select(args.domains):
+        try:
+            live, denied = live_filtered(ctx, dom)
+        except PrefsyncError as e:
+            print("%-52s ERROR %s" % (dom.name, e))
+            continue
+        snap = read_plist(ctx.snap_path(dom))
+        base = read_plist(state_path("base", dom.name))
+        local = diff_paths(base, live) if base is not None else []
+        repo = diff_paths(live, snap) if snap is not None and base is not None else []
+        if snap is None:
+            state = "no snapshot yet (prefsync capture)"
+        elif base is None:
+            state = "not applied on this Mac yet (prefsync apply)"
+        elif not local and not repo:
+            state = "in sync"
+        else:
+            state = "%d local change(s) to capture, %d repo change(s) to apply" % (len(local), len(repo))
+        print(
+            "%-52s %3d live / %3d repo keys, %d denied-private: %s"
+            % (dom.name, len(live), len(snap or {}), len(denied), state)
+        )
+        if verbose:
+            for c in local:
+                print("    local: " + fmt_change(c))
+            for c in repo:
+                print("    repo : " + fmt_change(c))
+            for k, why in sorted(denied.items()):
+                print("    denied %s: %s" % (k, why))
+        if git_dirty(ctx, dom):
+            print("    snapshot has UNCOMMITTED changes in git")
+    return 0
+
+
+def git_dirty(ctx: Ctx, dom: Domain) -> bool:
+    r = git(ctx, "status", "--porcelain", "--", ctx.relpath(ctx.snap_path(dom)))
+    return bool(r.stdout.strip())
+
+
+# ----------------------------------------------------------------------------- add
+def cmd_add(ctx: Ctx, args) -> int:
+    name = args.domain
+    if any(d.name == name for d in ctx.domains):
+        print("already in manifest: " + name)
+        return 0
+    probe = defaults_export(name)
+    if not probe:
+        print("warning: %s has no preferences yet (is the app installed and has it been opened?)" % name)
+    lines = ["", "[[domain]]", 'name = "%s"' % name]
+    if args.restart:
+        lines.append('restart = "%s"' % args.restart)
+    if args.deny:
+        lines.append("deny = [%s]" % ", ".join(json.dumps(g) for g in args.deny))
+    with open(ctx.manifest_path, "a") as f:
+        f.write("\n".join(lines) + "\n")
+    ctx.domains = [Domain(d) for d in parse_toml(open(ctx.manifest_path).read()).get("domain", [])]
+    dom = ctx.domain(name)
+    with locked(args.wait):
+        capture_domain(ctx, dom, commit=False)
+        kept, denied = live_filtered(ctx, dom, track=True)
+    print("Added %s: %d keys captured, %d auto-denied as private." % (name, len(kept), len(denied)))
+    for k, why in sorted(denied.items()):
+        print("  denied %s: %s" % (k, why))
+    print(
+        "REVIEW home/prefs/%s.plist for anything personal or volatile, add deny globs to the manifest, then commit."
+        % name
+    )
+    if args.no_apply:
+        print("Skipped `chezmoi apply`. Run it to regenerate the LaunchAgent.")
+        return 0
+    return subprocess.run(["chezmoi", "apply", "--include=files,scripts"]).returncode
+
+
+# ----------------------------------------------------------------------------- doctor
+def cmd_doctor(ctx: Ctx, args) -> int:
+    problems = 0
+
+    def ok(msg):
+        print("  ok    " + msg)
+
+    def warn(msg):
+        print("  WARN  " + msg)
+
+    def bad(msg):
+        nonlocal problems
+        problems += 1
+        print("  FAIL  " + msg)
+
+    print("prefsync doctor (repo %s)" % ctx.repo)
+    ok("python %s, manifest has %d domains" % (sys.version.split()[0], len(ctx.domains)))
+    uid = os.getuid()
+    r = subprocess.run(["launchctl", "print", "gui/%d/%s" % (uid, LABEL)], capture_output=True, text=True)
+    if r.returncode != 0:
+        bad("LaunchAgent %s not loaded (run: chezmoi apply)" % LABEL)
+    else:
+        m = re.search(r"state = (\w+)", r.stdout)
+        ok("LaunchAgent loaded (state %s)" % (m.group(1) if m else "?"))
+    agent = read_plist(os.path.join(HOME, "Library", "LaunchAgents", LABEL + ".plist"))
+    if agent is None:
+        bad("LaunchAgent plist not deployed")
+    else:
+        want = sorted(watch_file(d) for d in ctx.domains)
+        have = sorted(agent.get("WatchPaths", []))
+        if want == have:
+            ok("agent WatchPaths match manifest (%d files)" % len(have))
+        else:
+            bad(
+                "agent WatchPaths differ from manifest; run chezmoi apply (missing: %s)" % sorted(set(want) - set(have))
+            )
+    email = git(ctx, "config", "user.email").stdout.strip()
+    if email.endswith("@users.noreply.github.com"):
+        ok("git author " + email)
+    else:
+        warn("git author is %r (expected GitHub noreply address)" % email)
+    hp = git(ctx, "config", "core.hooksPath").stdout.strip()
+    if hp and subprocess.run(["sh", "-c", "command -v gitleaks"], capture_output=True).returncode == 0:
+        ok("gitleaks hook active (hooksPath=%s)" % hp)
+    else:
+        bad("gitleaks hook not active (hooksPath=%r); captured commits would be unscanned" % hp)
+    for dom in ctx.domains:
+        try:
+            live, denied = live_filtered(ctx, dom)
+        except PrefsyncError as e:
+            bad("%s: %s" % (dom.name, e))
+            continue
+        snap = read_plist(ctx.snap_path(dom))
+        if snap is None and not live:
+            ok("%s: nothing customised yet (captured automatically once you change a setting)" % dom.name)
+        elif snap is None:
+            warn("%s: no snapshot yet (%d live keys)" % (dom.name, len(live)))
+        else:
+            ok("%s: snapshot %d keys, live %d keys" % (dom.name, len(snap), len(live)))
+        if not os.path.exists(watch_file(dom)):
+            warn("%s: watched file does not exist yet: %s" % (dom.name, watch_file(dom)))
+        if git_dirty(ctx, dom):
+            warn("%s: snapshot has uncommitted changes (commit failed? see log)" % dom.name)
+    if os.path.exists(LOG_FILE):
+        cutoff = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+        with open(LOG_FILE, errors="replace") as f:
+            errs = [ln.rstrip() for ln in f if " ERROR " in ln and ln[:19] >= cutoff]
+        if errs:
+            warn("%d error(s) in the last 24h; latest: %s" % (len(errs), errs[-1][:200]))
+        else:
+            ok("no errors in the last 24h (%s)" % LOG_FILE)
+    print("%s" % ("all good" if not problems else "%d problem(s)" % problems))
+    return 1 if problems else 0
+
+
+def watch_file(dom: Domain) -> str:
+    if dom.watch:
+        return dom.watch.replace("~", HOME, 1) if dom.watch.startswith("~") else dom.watch
+    return os.path.join(HOME, "Library", "Preferences", dom.name + ".plist")
+
+
+# ----------------------------------------------------------------------------- main
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="prefsync", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    p.add_argument("-v", "--verbose", action="store_true", help="also log to stderr")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    def common(sp, domains=True):
+        sp.add_argument("--wait", type=float, default=30.0, help="seconds to wait for the lock (default 30)")
+        if domains:
+            sp.add_argument("domains", nargs="*", help="domain(s); default: all in the manifest")
+
+    c = sub.add_parser("capture", help="live -> repo snapshot")
+    common(c)
+    c.add_argument("--watch", action="store_true", help="LaunchAgent mode: settle 2s before reading")
+    c.add_argument("--force", action="store_true", help="bypass the unchanged/shrink guards")
+    c.add_argument("--no-commit", action="store_true")
+    a = sub.add_parser("apply", help="repo snapshot -> live (merge)")
+    common(a)
+    a.add_argument("--dry-run", action="store_true")
+    for name in ("status", "diff"):
+        s = sub.add_parser(name)
+        common(s)
+    ad = sub.add_parser("add", help="add a domain to the manifest")
+    common(ad, domains=False)
+    ad.add_argument("domain")
+    ad.add_argument("--restart", help='e.g. "app:Name", "killall:Dock", "cmd:..."')
+    ad.add_argument("--deny", action="append", help="deny glob (repeatable)")
+    ad.add_argument("--no-apply", action="store_true", help="don't run chezmoi apply afterwards")
+    d = sub.add_parser("doctor", help="health check")
+    common(d, domains=False)
+    return p
+
+
+def main(argv=None) -> int:
+    args = build_parser().parse_args(argv)
+    setup_logging(args.verbose)
+    try:
+        ctx = Ctx()
+        if args.cmd == "capture":
+            return cmd_capture(ctx, args)
+        if args.cmd == "apply":
+            return cmd_apply(ctx, args)
+        if args.cmd == "status":
+            return cmd_status(ctx, args)
+        if args.cmd == "diff":
+            return cmd_status(ctx, args, verbose=True)
+        if args.cmd == "add":
+            return cmd_add(ctx, args)
+        if args.cmd == "doctor":
+            return cmd_doctor(ctx, args)
+    except PrefsyncError as e:
+        log.error("%s", e)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

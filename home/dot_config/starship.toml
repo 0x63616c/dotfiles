@@ -1,0 +1,7 @@
+# Starship prompt: default modules, but one line (no blank line before the prompt, no line break before the ❯).
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = false
+
+[line_break]
+disabled = true

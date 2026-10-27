@@ -27,3 +27,13 @@
 [git]
   autoCommit = false
   autoPush = false
+
+{{- /* prefsync: before every chezmoi run reads the source state, capture live macOS prefs into home/prefs so a
+       change made in System Settings/an app is never overwritten by apply. Fast, idempotent, never fails the run.
+       Skipped until the Xcode CLT exist (fresh Mac: /usr/bin/python3 is only a shim). */}}
+{{- if eq .chezmoi.os "darwin" }}
+
+[hooks.read-source-state.pre]
+  command = "sh"
+  args = ["-c", "[ -d /Library/Developer/CommandLineTools/usr/bin ] && [ -f \"$0/dot_local/bin/executable_prefsync\" ] && PREFSYNC_SRC=\"$0\" /usr/bin/python3 \"$0/dot_local/bin/executable_prefsync\" capture --wait 20 >/dev/null 2>&1; exit 0", {{ .chezmoi.sourceDir | quote }}]
+{{- end }}

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Loads/reloads the prefsync LaunchAgent (dev.0x63616c.prefsync). Idempotent: bootout (ignore failure) then bootstrap.
+# Re-runs when the generated agent plist (i.e. the manifest's domain list) changes.
+# agent template: {{ include "private_Library/LaunchAgents/dev.0x63616c.prefsync.plist.tmpl" | sha256sum }}
+# manifest: {{ include "prefs/manifest.toml" | sha256sum }}
+set -eu
+label="dev.0x63616c.prefsync"
+plist="$HOME/Library/LaunchAgents/$label.plist"
+uid="$(id -u)"
+[ -f "$plist" ] || { echo "prefsync agent plist missing: $plist" >&2; exit 1; }
+launchctl bootout "gui/$uid/$label" >/dev/null 2>&1 || true
+launchctl bootstrap "gui/$uid" "$plist"
+launchctl enable "gui/$uid/$label" >/dev/null 2>&1 || true
+echo "prefsync LaunchAgent loaded ($label)."

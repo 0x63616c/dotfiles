@@ -1,0 +1,47 @@
+{{- /* Generated from home/prefs/manifest.toml: one WatchPaths entry per domain. Add a domain there, then chezmoi apply. */ -}}
+{{- $m := include "prefs/manifest.toml" | fromToml -}}
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>dev.0x63616c.prefsync</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/python3</string>
+		<string>{{ .chezmoi.homeDir }}/.local/bin/prefsync</string>
+		<string>capture</string>
+		<string>--watch</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PREFSYNC_SRC</key>
+		<string>{{ .chezmoi.workingTree }}</string>
+	</dict>
+	<key>WatchPaths</key>
+	<array>
+{{- range $m.domain }}
+{{- $f := get . "watch" | default (printf "~/Library/Preferences/%s.plist" .name) }}
+		<string>{{ $f | replace "~" $.chezmoi.homeDir }}</string>
+{{- end }}
+	</array>
+	<key>StartInterval</key>
+	<integer>3600</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>5</integer>
+	<key>StandardErrorPath</key>
+	<string>{{ .chezmoi.homeDir }}/Library/Logs/prefsync.launchd.log</string>
+	<key>StandardOutPath</key>
+	<string>{{ .chezmoi.homeDir }}/Library/Logs/prefsync.launchd.log</string>
+</dict>
+</plist>

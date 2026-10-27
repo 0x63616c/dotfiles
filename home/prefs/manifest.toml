@@ -1,0 +1,97 @@
+# prefsync manifest: the ONE list of macOS preference domains kept in sync with this repo.
+# Not deployed to $HOME (see home/.chezmoiignore). Edit via `prefsync add <domain>` or by hand, then `chezmoi apply`.
+# Everything else (LaunchAgent WatchPaths, apply-script hashes) is generated from this file.
+#
+# Fields per [[domain]]:
+#   name        defaults domain (NSGlobalDomain for global prefs)
+#   allow       optional globs: if present, ONLY matching top-level keys are kept
+#   deny        globs of top-level keys never captured (volatile, private, machine-specific)
+#   allow_data  keys allowed to hold binary <data> (any other key containing data or dates is dropped)
+#   restart     what to do after apply changes something:
+#                 "app:<Name>"      quit the app before writing, relaunch after (apps rewrite prefs on quit)
+#                 "killall:<Proc>"  killall <Proc> after writing
+#                 "cmd:<command>"   run a command after writing
+#                 "none"
+#   mkdir       directories (may use $HOME) created before apply
+#   watch       optional: plist file to watch (default ~/Library/Preferences/<name>.plist)
+# Safety nets applied to every domain regardless of globs: $HOME in string values is stored as @HOME@;
+# keys whose values contain an email, phone number, UUID-only string, username or machine name are dropped.
+
+[settings]
+commit = true   # auto-commit captured changes locally (never pushes)
+
+[[domain]]
+name = "com.vorssaint.utils"
+restart = "app:Vorssaint"
+mkdir = ["$HOME/Documents/Screenshots"]
+allow_data = ["radialMenuProfiles"]
+deny = [
+  "NS*", "appUpdates*", "appVolumes*", "audioPriority*", "brightness*Paths", "brightnessDDC*",
+  "commandBarQuery*", "commandBarUsage", "fanControlHelperVersion", "featureAvailable.*",
+  "mic*Saved*", "micMuteActive", "micMuteMutedDevices", "settingsWindow*", "shelfItems",
+  "whatsNew*", "*IntroVersion", "updateHighlightsSeenVersion", "vorssDisabledSleep",
+  "onboardingStep", "*LastZoom",
+]
+
+[[domain]]
+name = "com.apple.symbolichotkeys"
+restart = "cmd:/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u"
+
+[[domain]]
+name = "com.apple.dock"
+restart = "killall:Dock"
+# Dock layout (persistent-*, recent-apps) is bookmark data with local paths: not synced.
+deny = [
+  "persistent-apps", "persistent-others", "recent-apps", "*analytics*", "*stamp*", "*Time*",
+  "mod-count", "loc", "region", "trash-full", "version", "workspaces-*", "*-hidden-apps", "GUID",
+]
+
+[[domain]]
+name = "com.apple.finder"
+restart = "killall:Finder"
+deny = [
+  "*Recent*", "*WindowLocation", "FXDesktopVolumePositions", "DataSeparatedDisplayNameCache",
+  "FXDetached*", "FXICloud*", "*Upgraded*", "FXQuickActionsConfigUpgradeLevel", "FXSyncExtension*",
+  "TagsCloudSerialNumber", "FavoriteTagNames", "LastTrashState", "NS*", "*ViewSettings*",
+  "*SidebarWidth*", "Sidebar*DisclosedState", "*Version", "FXPreferredSearchViewStyleVersion",
+  "*Window*", "*Bounds", "ComputerViewSettings", "ShowSidebar",
+]
+
+# Keyboard, appearance and gestures only. NSGlobalDomain is shared by every app on the Mac,
+# so it is allow-listed (deny-by-default). Add a key here when you want it synced.
+[[domain]]
+name = "NSGlobalDomain"
+restart = "cmd:/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u"
+watch = "~/Library/Preferences/.GlobalPreferences.plist"
+allow = [
+  "KeyRepeat", "InitialKeyRepeat", "ApplePressAndHoldEnabled", "AppleKeyboardUIMode",
+  "AppleInterfaceStyle", "AppleInterfaceStyleSwitchesAutomatically", "AppleAccentColor",
+  "AppleHighlightColor", "AppleShowAllExtensions", "AppleShowAllFiles", "AppleShowScrollBars",
+  "AppleScrollerPagingBehavior", "AppleActionOnDoubleClick", "AppleMiniaturizeOnDoubleClick",
+  "AppleMeasurementUnits", "AppleMetricUnits", "AppleTemperatureUnit", "AppleICUForce24HourTime",
+  "AppleFontSmoothing", "AppleAntiAliasingThreshold", "AppleWindowTabbingMode",
+  "NSAutomatic*Enabled", "NSAutomaticTextCompletionEnabled", "NSNavPanelExpandedStateForSaveMode",
+  "NSNavPanelExpandedStateForSaveMode2", "NSDocumentSaveNewDocumentsToCloud",
+  "NSWindowShouldDragOnGesture", "NSTableViewDefaultSizeMode", "NSQuitAlwaysKeepsWindows",
+  "NSCloseAlwaysConfirmsChanges", "NSAutomaticWindowAnimationsEnabled", "NSScrollAnimationEnabled",
+  "NSUseAnimatedFocusRing", "NSWindowResizeTime", "NSToolbarTitleViewRolloverDelay",
+  "NSUserQuotesArray", "KB_DoubleQuoteOption", "KB_SingleQuoteOption", "KB_SpellingLanguage",
+  "WebAutomaticSpellingCorrectionEnabled", "com.apple.keyboard.*", "com.apple.trackpad.*",
+  "com.apple.mouse.*", "com.apple.springing.*", "com.apple.sound.beep.*", "com.apple.swipescrolldirection",
+  "com.apple.scrollwheel.*",
+]
+deny = ["*Last*", "*Time*", "*Request*"]
+
+[[domain]]
+name = "com.apple.AppleMultitouchTrackpad"
+restart = "cmd:/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u"
+
+[[domain]]
+name = "com.apple.driver.AppleBluetoothMultitouch.trackpad"
+restart = "cmd:/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u"
+
+[[domain]]
+name = "com.apple.screencapture"
+restart = "killall:SystemUIServer"
+mkdir = ["$HOME/Documents/Screenshots"]
+deny = ["*analytics*", "*stamp*"]

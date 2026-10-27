@@ -15,7 +15,7 @@ That one line sets up the whole machine. In order, it:
 3. Installs Homebrew if missing. This asks for your password **once** and also installs the Xcode Command Line Tools.
 4. Runs `brew bundle` on [`home/dot_config/brewfile/Brewfile`](home/dot_config/brewfile/Brewfile): every CLI tool and app, including chezmoi itself, so Homebrew takes over updating it.
 5. Deploys the dotfiles (`~/.zshrc`, `~/.zprofile`, `~/.config/brewfile/Brewfile`).
-6. Applies macOS app settings (Vorssaint), and enables the repo's gitleaks pre-commit hook.
+6. Applies synced macOS settings (see [Settings sync](#settings-sync)), installs the settings watcher, and enables the repo's gitleaks pre-commit hook.
 
 Every step is safe to re-run.
 
@@ -26,6 +26,7 @@ Every step is safe to re-run.
 ├── .chezmoiroot                 # "home": chezmoi only reads ./home
 ├── AGENTS.md  CLAUDE.md         # agent instructions (CLAUDE.md just imports AGENTS.md)
 ├── README.md
+├── tests/                       # prefsync unit tests, render-test.sh
 ├── .githooks/pre-commit         # gitleaks scan on staged changes
 └── home/                        # the chezmoi source state
     ├── .chezmoi.toml.tmpl       # per-machine config (name, email, hostname, secrets)
@@ -33,8 +34,13 @@ Every step is safe to re-run.
     │   ├── run_before_00-ensure-homebrew.sh
     │   ├── run_onchange_before_10-brew-bundle.sh.tmpl
     │   ├── run_once_after_05-git-hooks.sh.tmpl
-    │   └── run_onchange_after_20-vorssaint-defaults.sh.tmpl
+    │   ├── run_onchange_after_30-prefsync-apply.sh.tmpl
+    │   └── run_onchange_after_40-prefsync-agent.sh.tmpl
     ├── dot_config/brewfile/Brewfile
+    ├── dot_config/starship.toml    # one-line prompt
+    ├── dot_local/bin/executable_prefsync   # the settings-sync tool (-> ~/.local/bin/prefsync)
+    ├── private_Library/LaunchAgents/dev.0x63616c.prefsync.plist.tmpl   # generated from the manifest
+    ├── prefs/                   # manifest.toml + one captured .plist per domain (not deployed)
     ├── dot_zprofile
     └── dot_zshrc
 ```
@@ -48,6 +54,23 @@ chezmoi diff     # preview what apply would change
 ```
 
 Edit the source (`chezmoi cd`), never the deployed files in `$HOME`.
+
+## Settings sync
+
+Change settings the normal way (System Settings, Vorssaint, Finder, Dock, trackpad). Within seconds they land in this repo as a local commit; on a new Mac `chezmoi apply` puts them back. Nothing to track by hand.
+
+How it works:
+
+- **One manifest**, [`home/prefs/manifest.toml`](home/prefs/manifest.toml), lists the preference domains (Vorssaint, symbolic hotkeys such as the Spotlight shortcut, Dock, Finder, keyboard/appearance, trackpad, screenshots) with globs of keys to leave out.
+- **`prefsync`** (a stdlib-only Python script, deployed to `~/.local/bin/prefsync`) reads the live preferences with `defaults export`, drops volatile or private keys (window frames, recents, timestamps, device names, anything with an email, phone number, UUID or your username; `$HOME` is stored as `@HOME@`), and writes a sorted snapshot to `home/prefs/<domain>.plist`. It commits locally with a message listing the changed keys. It never pushes.
+- **A LaunchAgent** (`dev.0x63616c.prefsync`, generated from the manifest, loaded by chezmoi) runs `prefsync capture` whenever a watched preferences file changes, plus once an hour as a safety net. macOS shows a one-time "Background Items Added" notice.
+- **Before every chezmoi run** a hook captures first, so applying the repo can never overwrite a change you just made.
+- **Applying merges** the snapshot over the live settings (keys not in the snapshot are left alone) and restarts the Dock, Finder or app only if something actually changed. A change pulled from git and a change made on the Mac are both kept (three-way, per key).
+- **Safe on a fresh Mac:** a domain is only captured after it has been applied on that Mac, so a new Mac's defaults never overwrite the repo.
+
+Add an app: `prefsync add <bundle-or-domain> [--restart app:Name]` (find the domain with `defaults domains | tr ',' '\n' | grep -i name`). It adds the manifest entry, captures it, and runs `chezmoi apply` to extend the watcher. Then read the new `home/prefs/<domain>.plist` before pushing (public repo).
+
+Check on it: `prefsync status`, `prefsync diff`, `prefsync doctor`, and `~/Library/Logs/prefsync.log`.
 
 ## Secrets
 

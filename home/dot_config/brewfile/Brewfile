@@ -9,6 +9,8 @@ brew "gh"
 brew "gitleaks"
 brew "mise"
 brew "mas"
+brew "shellcheck"   # AGENTS.md verify loop
+brew "ruff"         # lints/formats prefsync (Python)
 
 # --- Shell (zsh, no Oh My Zsh) ---
 brew "starship"

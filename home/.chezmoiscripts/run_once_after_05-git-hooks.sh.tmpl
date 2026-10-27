@@ -1,8 +1,11 @@
 #!/bin/sh
-# Point the chezmoi source repo at the tracked .githooks dir (gitleaks pre-commit).
+# Point the chezmoi source repo at the tracked .githooks dir (gitleaks pre-commit) and set the repo-local
+# git identity (GitHub noreply address) so prefsync's auto-commits and ours are attributed correctly.
 set -eu
 repo="{{ .chezmoi.workingTree }}"
 if [ -n "$repo" ] && [ -d "$repo/.git" ]; then
   git -C "$repo" config core.hooksPath .githooks
-  echo "git hooks enabled in $repo"
+  git -C "$repo" config user.name {{ .name | quote }}
+  git -C "$repo" config user.email {{ .email | quote }}
+  echo "git hooks and identity set in $repo"
 fi
