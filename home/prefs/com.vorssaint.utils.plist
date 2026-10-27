@@ -21,7 +21,7 @@
 	<key>clamshellPreferred</key>
 	<true/>
 	<key>cleanerScheduleFrequency</key>
-	<string>off</string>
+	<string>daily</string>
 	<key>cleanerScheduleNotify</key>
 	<true/>
 	<key>clipboardAutoClearDelaySeconds</key>
