@@ -34,6 +34,8 @@
 	<integer>20</integer>
 	<key>clipboardHistoryRetentionDays</key>
 	<integer>0</integer>
+	<key>clipboardHistoryShortcut</key>
+	<string>control+option+shift+command:9</string>
 	<key>colorPickerShortcut</key>
 	<string>control+option+shift+command:34</string>
 	<key>colorPickerShortcutEnabled</key>
@@ -234,6 +236,8 @@
 	<false/>
 	<key>shelfEnabled</key>
 	<true/>
+	<key>shelfShortcut</key>
+	<string>control+option+shift+command:2</string>
 	<key>smoothScrollCoast</key>
 	<integer>30</integer>
 	<key>smoothScrollEnabled</key>
