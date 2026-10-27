@@ -316,12 +316,16 @@
 	<true/>
 	<key>windowGestureEnabled</key>
 	<false/>
+	<key>windowLayoutShortcutBottom</key>
+	<string>control+option+shift+command:125</string>
 	<key>windowLayoutShortcutCenterHalf</key>
-	<string>control+option+shift+command:36</string>
+	<string>none</string>
 	<key>windowLayoutShortcutLeft</key>
 	<string>control+option+shift+command:123</string>
 	<key>windowLayoutShortcutRight</key>
 	<string>control+option+shift+command:124</string>
+	<key>windowLayoutShortcutTop</key>
+	<string>control+option+shift+command:126</string>
 	<key>windowLayoutShortcutsEnabled</key>
 	<true/>
 	<key>windowLayoutSideRepeatCyclesThirds</key>
