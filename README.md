@@ -19,31 +19,6 @@ That one line sets up the whole machine. In order, it:
 
 Every step is safe to re-run.
 
-## Layout
-
-```
-.
-├── .chezmoiroot                 # "home": chezmoi only reads ./home
-├── AGENTS.md  CLAUDE.md         # agent instructions (CLAUDE.md just imports AGENTS.md)
-├── README.md
-├── tests/                       # prefsync unit tests, render-test.sh
-├── .githooks/pre-commit         # gitleaks scan on staged changes
-└── home/                        # the chezmoi source state
-    ├── .chezmoi.toml.tmpl       # per-machine config (name, email, hostname, secrets)
-    ├── .chezmoiscripts/
-    │   ├── run_before_00-ensure-homebrew.sh
-    │   ├── run_onchange_before_10-brew-bundle.sh.tmpl
-    │   ├── run_once_after_05-git-hooks.sh.tmpl
-    │   ├── run_onchange_after_30-prefsync-apply.sh.tmpl
-    │   └── run_onchange_after_40-prefsync-agent.sh.tmpl
-    ├── dot_config/brewfile/Brewfile
-    ├── dot_config/starship.toml    # one-line prompt
-    ├── dot_local/bin/executable_prefsync   # the settings-sync tool (-> ~/.local/bin/prefsync)
-    ├── private_Library/LaunchAgents/dev.0x63616c.prefsync.plist.tmpl   # generated from the manifest
-    ├── prefs/                   # manifest.toml + one captured .plist per domain (not deployed)
-    ├── dot_zprofile
-    └── dot_zshrc
-```
 
 ## Day to day
 

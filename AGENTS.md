@@ -2,29 +2,6 @@
 
 Public repo `0x63616c/dotfiles` (so the plain chezmoi one-liner works; **never commit secrets**). It manages Calum's MacBook Pro (Apple Silicon, zsh) with chezmoi. Agents operate it; Calum does not maintain it by hand. `CLAUDE.md` contains only `@AGENTS.md` (keep exactly). The previous repo is `0x63616c/dotfiles-old`: read-only reference; port pieces only when Calum chooses.
 
-## Layout
-The repo root holds docs and tooling; `.chezmoiroot` is `home`, so chezmoi's source state is `home/` (nothing at the root is deployed to `$HOME`). Source dir on the Mac: `~/.local/share/chezmoi`.
-
-| Path | Deploys to / does |
-|---|---|
-| `.chezmoiroot` | contains `home` |
-| `home/.chezmoi.toml.tmpl` | per-machine config: name, email (GitHub noreply default), hostname, `secrets` flag; autoCommit/autoPush off |
-| `home/dot_zshrc`, `home/dot_zprofile` | `~/.zshrc`, `~/.zprofile` (zsh, no Oh My Zsh; every integration guarded) |
-| `home/dot_config/brewfile/Brewfile` | `~/.config/brewfile/Brewfile`: core Brewfile (formulae, casks, mas) |
-| `home/.chezmoiscripts/run_before_00-ensure-homebrew.sh` | installs Homebrew + Xcode CLT if missing (sudo password once) |
-| `home/.chezmoiscripts/run_onchange_before_10-brew-bundle.sh.tmpl` | `brew bundle` from the SOURCE Brewfile (it deploys after before-scripts) when its hash changes |
-| `home/.chezmoiscripts/run_once_after_05-git-hooks.sh.tmpl` | sets `core.hooksPath=.githooks` on the repo |
-| `home/prefs/manifest.toml` | the ONE list of synced macOS preference domains (+ deny/allow globs, restart target); not deployed |
-| `home/prefs/<domain>.plist` | captured snapshot per domain (sorted XML, `$HOME` as `@HOME@`); written by `prefsync capture`, not deployed |
-| `home/dot_local/bin/executable_prefsync` | `~/.local/bin/prefsync`: capture / apply / status / diff / add / doctor (stdlib Python 3.9+) |
-| `home/private_Library/LaunchAgents/dev.0x63616c.prefsync.plist.tmpl` | LaunchAgent generated from the manifest: WatchPaths per domain + hourly + `ThrottleInterval` 5 |
-| `home/.chezmoiscripts/run_onchange_after_30-prefsync-apply.sh.tmpl` | `prefsync apply` when the manifest/snapshots change (merge; restarts only on change) |
-| `home/.chezmoiscripts/run_onchange_after_40-prefsync-agent.sh.tmpl` | `launchctl bootout`+`bootstrap` of the agent (idempotent) |
-| `home/dot_config/starship.toml` | one-line Starship prompt |
-| `tests/` | `python3 -m unittest discover -s tests` (prefsync) and `tests/render-test.sh` |
-| `.githooks/pre-commit` | gitleaks secret scan on staged changes |
-
-Bootstrap on a new Mac (one line): `sh -c "$(curl -fsLS get.chezmoi.io)" -- init --apply 0x63616c`. Scripts are numbered; apps install (before) then settings apply (after). All scripts are idempotent, `set -eu`.
 
 ## The loop (follow strictly, in order)
 1. Edit the **source** (`chezmoi cd` or `~/.local/share/chezmoi`). Never edit deployed files in `$HOME` directly. If an app changed its own file, use `chezmoi re-add`/`chezmoi merge` deliberately.
