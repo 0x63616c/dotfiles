@@ -1,0 +1,8 @@
+# Global defaults used outside projects. Projects pin their own versions in mise.toml.
+[tools]
+node = "lts"
+python = "latest"
+rust = "stable"
+
+[settings]
+experimental = false
