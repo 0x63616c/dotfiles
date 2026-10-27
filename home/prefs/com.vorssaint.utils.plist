@@ -34,6 +34,8 @@
 	<integer>20</integer>
 	<key>clipboardHistoryRetentionDays</key>
 	<integer>0</integer>
+	<key>colorPickerShortcut</key>
+	<string>control+option+shift+command:34</string>
 	<key>colorPickerShortcutEnabled</key>
 	<true/>
 	<key>commandBarASCIILayoutEnabled</key>
