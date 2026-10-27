@@ -553,6 +553,9 @@ def capture_domain(ctx: Ctx, dom: Domain, force: bool = False, commit: bool = Tr
             return "empty"
         new_snap = live
     else:
+        if snap is None and not live:
+            log.info("%s: nothing to capture (no non-denied keys)", dom.name)
+            return "empty"
         if live == base and snap is not None and not force:
             if commit and os.path.exists(os.path.join(STATE_DIR, "commit-failed")):
                 commit_paths(ctx, [snap_p], "prefs(%s): commit pending snapshot (earlier commit failed)" % dom.name)
