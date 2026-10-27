@@ -244,6 +244,8 @@
 	<string>control+option+shift+command:1</string>
 	<key>scratchpadShortcutEnabled</key>
 	<true/>
+	<key>screenshotAddToShelf</key>
+	<true/>
 	<key>screenshotCopyToClipboard</key>
 	<true/>
 	<key>screenshotDownscale</key>
