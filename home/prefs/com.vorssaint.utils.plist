@@ -216,6 +216,10 @@
 	<false/>
 	<key>restoredScreenCaptureShortcutsMigrated</key>
 	<true/>
+	<key>scratchpadShortcut</key>
+	<string>control+option+shift+command:1</string>
+	<key>scratchpadShortcutEnabled</key>
+	<true/>
 	<key>screenshotCopyToClipboard</key>
 	<true/>
 	<key>screenshotFileNamePattern</key>
