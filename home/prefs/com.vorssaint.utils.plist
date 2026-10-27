@@ -280,6 +280,14 @@
 	<true/>
 	<key>urlCleanerEnabled</key>
 	<true/>
+	<key>whatsAppDownloadsAccessConfirmed</key>
+	<true/>
+	<key>whatsAppDownloadsEnabled</key>
+	<true/>
+	<key>whatsAppDownloadsRetentionDays</key>
+	<integer>7</integer>
+	<key>whatsAppOrganizerDelayMinutes</key>
+	<integer>5</integer>
 	<key>windowEdgeSnapEnabled</key>
 	<true/>
 	<key>windowGestureEnabled</key>
