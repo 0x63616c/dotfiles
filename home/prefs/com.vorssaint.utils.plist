@@ -29,7 +29,7 @@
 	<key>clipboardHistoryEnabled</key>
 	<true/>
 	<key>clipboardHistoryLimit</key>
-	<integer>50</integer>
+	<integer>0</integer>
 	<key>clipboardHistoryMenuBarPreviewLength</key>
 	<integer>20</integer>
 	<key>clipboardHistoryRetentionDays</key>
