@@ -24,4 +24,11 @@ cask "tailscale-app"
 cask "vorssaint"
 cask "wispr-flow"
 
-# Not on Homebrew, manage manually: Voxelite, SponsorBlock (Safari ext), Grok Bot, 1Password for Safari (App Store/bundled)
+# Installed manually, not yet adopted by Homebrew. Adopt with: brew install --cask --adopt grok-bot
+cask "grok-bot"
+
+# --- Mac App Store (mas): needs App Store sign-in; apps must already be on the Apple ID ---
+mas "1Password for Safari", id: 1569813296
+mas "SponsorBlock", id: 1573461917
+
+# No cask and no App Store entry, manage manually: Voxelite (co.worldwidewebb.voxelite)
