@@ -95,3 +95,8 @@ name = "com.apple.screencapture"
 restart = "killall:SystemUIServer"
 mkdir = ["$HOME/Documents/Screenshots"]
 deny = ["*analytics*", "*stamp*"]
+
+[[domain]]
+name = "com.apple.WindowManager"
+restart = "none"
+allow = ["EnableStandardClickToShowDesktop", "EnableTiling*", "StandardHideDesktopIcons", "HideDesktop", "GloballyEnabled"]
