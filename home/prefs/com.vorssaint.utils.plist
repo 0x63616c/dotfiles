@@ -78,6 +78,8 @@
 	<false/>
 	<key>keepAwakeMouseJiggleIntervalMinutes</key>
 	<integer>5</integer>
+	<key>keepAwakeShortcut</key>
+	<string>control+option+shift+command:40</string>
 	<key>keepAwakeSwitchUsesUntil</key>
 	<false/>
 	<key>launchAtLoginWanted</key>
