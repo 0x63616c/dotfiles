@@ -100,3 +100,8 @@ deny = ["*analytics*", "*stamp*"]
 name = "com.apple.WindowManager"
 restart = "none"
 allow = ["EnableStandardClickToShowDesktop", "EnableTiling*", "StandardHideDesktopIcons", "HideDesktop", "GloballyEnabled"]
+
+[[domain]]
+name = "com.apple.menuextra.clock"
+restart = "killall:ControlCenter"
+allow = ["Show*", "IsAnalog", "FlashDateSeparators"]
