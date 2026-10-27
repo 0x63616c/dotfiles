@@ -1,0 +1,4 @@
+# Repo-level files that must NOT be deployed into $HOME
+AGENTS.md
+CLAUDE.md
+README.md

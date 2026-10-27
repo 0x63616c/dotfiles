@@ -1,0 +1,8 @@
+#!/bin/sh
+# Point the chezmoi source repo at the tracked .githooks dir (gitleaks pre-commit).
+set -eu
+src="{{ .chezmoi.sourceDir }}"
+if [ -d "$src/.git" ]; then
+  git -C "$src" config core.hooksPath .githooks
+  echo "git hooks enabled in $src"
+fi

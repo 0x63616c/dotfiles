@@ -1,0 +1,8 @@
+#!/bin/sh
+# Blocks commits containing secrets. Enabled by: git config core.hooksPath .githooks
+# (run_once script run_once_after_05-git-hooks.sh.tmpl sets this automatically)
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed (brew install gitleaks). Refusing to commit unscanned." >&2
+  exit 1
+fi
+exec gitleaks protect --staged --redact --verbose

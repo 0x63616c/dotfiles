@@ -1,0 +1,27 @@
+# Core Brewfile. Applied by run_onchange_after_10-brew-bundle.sh.tmpl whenever this file changes.
+# Deployed to ~/.config/brewfile/Brewfile. Edit it HERE in the chezmoi source, never in place.
+# Deliberately excluded: mole (replaced by Vorssaint), alfred (uninstalled), mactap, 1password installer.
+
+# --- Dotfile / dev tooling ---
+brew "chezmoi"
+brew "git"
+brew "gh"
+brew "gitleaks"
+brew "mise"
+brew "mas"
+
+# --- Shell (zsh, no Oh My Zsh) ---
+brew "starship"
+brew "zsh-autosuggestions"
+brew "zsh-syntax-highlighting"
+
+# --- Apps installed on this Mac (all verified to exist as casks) ---
+cask "1password"
+cask "1password-cli"
+cask "cmux"
+cask "spotify"
+cask "tailscale-app"
+cask "vorssaint"
+cask "wispr-flow"
+
+# Not on Homebrew, manage manually: Voxelite, SponsorBlock (Safari ext), Grok Bot, 1Password for Safari (App Store/bundled)

@@ -1,0 +1,31 @@
+#!/bin/sh
+# Vorssaint settings (defaults domain com.vorssaint.utils). Writes ONLY the keys below; never copies the plist.
+# Re-runs whenever this script changes. To change a setting: edit the value here, then chezmoi apply.
+set -eu
+DOMAIN="com.vorssaint.utils"
+SHOT_DIR="$HOME/Documents/Screenshots"
+
+mkdir -p "$SHOT_DIR"
+
+# Vorssaint caches prefs and may rewrite them on quit, so quit it first, write, then relaunch.
+was_running=0
+if pgrep -f "Vorssaint.app/Contents/MacOS" >/dev/null 2>&1; then
+  was_running=1
+  osascript -e 'tell application "Vorssaint" to quit' >/dev/null 2>&1 || true
+  i=0
+  while pgrep -f "Vorssaint.app/Contents/MacOS" >/dev/null 2>&1 && [ "$i" -lt 20 ]; do
+    sleep 0.5; i=$((i + 1))
+  done
+fi
+
+defaults write "$DOMAIN" screenshotCopyToClipboard -bool true
+defaults write "$DOMAIN" screenshotSaveFolder -string "$SHOT_DIR"
+defaults write "$DOMAIN" screenshotShortcut -string "control+option+command:21"
+defaults write "$DOMAIN" screenshotShortcutEnabled -bool true
+defaults write "$DOMAIN" clipboardHistoryEnabled -bool true
+defaults write "$DOMAIN" clipboardHistoryLimit -int 50
+
+if [ "$was_running" -eq 1 ]; then
+  open -a Vorssaint
+fi
+echo "Vorssaint defaults applied."

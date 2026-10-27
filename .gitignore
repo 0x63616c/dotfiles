@@ -1,0 +1,8 @@
+.DS_Store
+*.log
+.env
+.env.*
+*.pem
+*.key
+id_*
+!*.pub

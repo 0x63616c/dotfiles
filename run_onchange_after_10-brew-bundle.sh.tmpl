@@ -1,0 +1,12 @@
+#!/bin/sh
+# Re-runs whenever the Brewfile content changes.
+# Brewfile hash: {{ include "dot_config/brewfile/Brewfile" | sha256sum }}
+set -eu
+for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  [ -x "$b" ] && eval "$("$b" shellenv)" && break
+done
+if ! command -v brew >/dev/null 2>&1; then
+  echo "ERROR: Homebrew is not installed. Install it first (needs sudo): https://brew.sh" >&2
+  exit 1
+fi
+brew bundle --file "$HOME/.config/brewfile/Brewfile"

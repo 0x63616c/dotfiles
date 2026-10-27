@@ -1,0 +1,11 @@
+# ~/.zprofile (managed by chezmoi: edit in the source repo)
+# Homebrew (Apple Silicon: /opt/homebrew, Intel: /usr/local). Safe if brew is not installed yet.
+for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  if [ -x "$brew_bin" ]; then
+    eval "$("$brew_bin" shellenv)"
+    break
+  fi
+done
+
+# chezmoi installed outside Homebrew (bootstrap) lives here
+[ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"
