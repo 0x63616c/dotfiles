@@ -1,0 +1,29 @@
+{{- /* Machine config, generated on `chezmoi init`. Prompts only when run in a terminal. */ -}}
+{{- $interactive := stdinIsATTY -}}
+{{- $name := "Calum Webb" -}}
+{{- $email := "6991398+0x63616c@users.noreply.github.com" -}}
+{{- $secrets := false -}}
+{{- if $interactive -}}
+{{-   $name = promptStringOnce . "name" "Full name" $name -}}
+{{-   $email = promptStringOnce . "email" "Email address (git)" $email -}}
+{{-   $secrets = promptBoolOnce . "secrets" "Enable 1Password secrets (needs `op` signed in)" $secrets -}}
+{{- else -}}
+{{- /* Non-interactive: keep any previously stored answers, else defaults. */ -}}
+{{-   if hasKey . "name" }}{{ $name = .name }}{{ end -}}
+{{-   if hasKey . "email" }}{{ $email = .email }}{{ end -}}
+{{-   if hasKey . "secrets" }}{{ $secrets = .secrets }}{{ end -}}
+{{- end -}}
+
+[data]
+  name = {{ $name | quote }}
+  email = {{ $email | quote }}
+{{- if eq .chezmoi.os "darwin" }}
+  hostname = {{ output "scutil" "--get" "LocalHostName" | trim | quote }}
+{{- else }}
+  hostname = {{ .chezmoi.hostname | quote }}
+{{- end }}
+  secrets = {{ $secrets }}
+
+[git]
+  autoCommit = false
+  autoPush = false

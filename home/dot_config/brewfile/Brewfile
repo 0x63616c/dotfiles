@@ -1,4 +1,4 @@
-# Core Brewfile. Applied by run_onchange_after_10-brew-bundle.sh.tmpl whenever this file changes.
+# Core Brewfile. Applied by .chezmoiscripts/run_onchange_before_10-brew-bundle.sh.tmpl whenever this file changes.
 # Deployed to ~/.config/brewfile/Brewfile. Edit it HERE in the chezmoi source, never in place.
 # Deliberately excluded: mole (replaced by Vorssaint), alfred (uninstalled), mactap, 1password installer.
 

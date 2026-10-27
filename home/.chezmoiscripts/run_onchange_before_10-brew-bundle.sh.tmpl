@@ -1,0 +1,16 @@
+#!/bin/sh
+# Installs everything in the Brewfile. Re-runs only when the Brewfile changes.
+# The Brewfile is deployed to ~/.config after before-scripts run, so read it from the source dir.
+# Brewfile hash: {{ include "dot_config/brewfile/Brewfile" | sha256sum }}
+set -eu
+for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  if [ -x "$b" ]; then
+    eval "$("$b" shellenv)"
+    break
+  fi
+done
+if ! command -v brew >/dev/null 2>&1; then
+  echo "ERROR: Homebrew is not installed (run_before_00-ensure-homebrew.sh should have installed it)." >&2
+  exit 1
+fi
+brew bundle --file "{{ .chezmoi.sourceDir }}/dot_config/brewfile/Brewfile"
