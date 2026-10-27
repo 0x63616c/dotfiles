@@ -314,6 +314,8 @@
 	<false/>
 	<key>windowLayoutShortcutLeft</key>
 	<string>control+option+shift+command:123</string>
+	<key>windowLayoutShortcutRight</key>
+	<string>control+option+shift+command:124</string>
 	<key>windowLayoutShortcutsEnabled</key>
 	<true/>
 	<key>windowMaximizeEnabled</key>
