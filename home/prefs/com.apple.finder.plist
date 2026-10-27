@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>FK_AppCentricShowSidebar</key>
+	<true/>
+	<key>FXArrangeGroupViewBy</key>
+	<string>Name</string>
+	<key>FXPreferredGroupBy</key>
+	<string>Kind</string>
+	<key>FXPreferredViewStyle</key>
+	<string>Nlsv</string>
+	<key>ShowExternalHardDrivesOnDesktop</key>
+	<true/>
+	<key>ShowHardDrivesOnDesktop</key>
+	<false/>
+	<key>ShowRemovableMediaOnDesktop</key>
+	<true/>
+</dict>
+</plist>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AppleAntiAliasingThreshold</key>
+	<integer>4</integer>
+	<key>AppleInterfaceStyle</key>
+	<string>Dark</string>
+	<key>AppleKeyboardUIMode</key>
+	<integer>0</integer>
+	<key>AppleMiniaturizeOnDoubleClick</key>
+	<false/>
+	<key>KB_DoubleQuoteOption</key>
+	<string>“abc”</string>
+	<key>KB_SingleQuoteOption</key>
+	<string>‘abc’</string>
+	<key>KB_SpellingLanguage</key>
+	<dict>
+		<key>KB_SpellingLanguageIsAutomatic</key>
+		<true/>
+	</dict>
+	<key>NSAutomaticCapitalizationEnabled</key>
+	<true/>
+	<key>NSAutomaticPeriodSubstitutionEnabled</key>
+	<true/>
+	<key>NSUserQuotesArray</key>
+	<array>
+		<string>“</string>
+		<string>”</string>
+		<string>‘</string>
+		<string>’</string>
+	</array>
+	<key>com.apple.sound.beep.flash</key>
+	<integer>0</integer>
+	<key>com.apple.springing.delay</key>
+	<real>0.5</real>
+	<key>com.apple.springing.enabled</key>
+	<true/>
+	<key>com.apple.trackpad.forceClick</key>
+	<true/>
+</dict>
+</plist>
