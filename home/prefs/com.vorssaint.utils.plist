@@ -156,8 +156,12 @@
 	<true/>
 	<key>notchHiddenControls</key>
 	<string>commandBar,microphone,panel,recording,scratchpad,screenshot,speedTest</string>
+	<key>notchHideUntilHover</key>
+	<false/>
 	<key>notchHidesMenuBarIcon</key>
 	<false/>
+	<key>notchHoverExpands</key>
+	<true/>
 	<key>notchInitialExtensionsInstalled</key>
 	<true/>
 	<key>notchKeyboardLightControlHidden</key>
@@ -171,6 +175,8 @@
 	<key>notchMascotEnabled</key>
 	<true/>
 	<key>notchNotificationsEnabled</key>
+	<true/>
+	<key>notchOpenOnHover</key>
 	<true/>
 	<key>notchOutlineEnabled</key>
 	<false/>
