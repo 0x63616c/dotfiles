@@ -223,7 +223,7 @@
 	<key>screenshotSaveFolder</key>
 	<string>@HOME@/Documents/Screenshots</string>
 	<key>screenshotShortcut</key>
-	<string>control+option+command:21</string>
+	<string>shift+command:21</string>
 	<key>screenshotShortcutEnabled</key>
 	<true/>
 	<key>scrollInverterHorizontalEnabled</key>
@@ -255,7 +255,9 @@
 	<key>switcherPreviewSize</key>
 	<string>normal</string>
 	<key>systemShortcutTakeOverKeys</key>
-	<array/>
+	<array>
+		<string>screenshotShortcut</string>
+	</array>
 	<key>temperatureUnit</key>
 	<string>celsius</string>
 	<key>unifiedScreenCaptureShortcutMigrated</key>
