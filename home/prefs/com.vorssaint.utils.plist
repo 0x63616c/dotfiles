@@ -178,6 +178,10 @@
 	<true/>
 	<key>notchMascotEnabled</key>
 	<true/>
+	<key>notchMascotSide</key>
+	<string>right</string>
+	<key>notchMascotVisitFrequency</key>
+	<string>frequent</string>
 	<key>notchNotificationsEnabled</key>
 	<true/>
 	<key>notchOpenOnHover</key>
