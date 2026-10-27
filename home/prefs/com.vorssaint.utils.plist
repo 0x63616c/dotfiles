@@ -15,7 +15,7 @@
 	<key>brightnessUpdatePromptState</key>
 	<string>handled</string>
 	<key>cameraPreviewShortcut</key>
-	<string>control+option+shift+command:1</string>
+	<string>control+option+shift+command:8</string>
 	<key>cameraPreviewShortcutEnabled</key>
 	<true/>
 	<key>clamshellPreferred</key>
