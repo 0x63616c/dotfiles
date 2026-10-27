@@ -184,6 +184,8 @@
 	<string>spacious</string>
 	<key>notchTimerEnabled</key>
 	<true/>
+	<key>notchTimerMode</key>
+	<string>pomodoro</string>
 	<key>notchWatchEnabled</key>
 	<true/>
 	<key>orphanedCaptureShortcutMigrated</key>
