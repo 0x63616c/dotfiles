@@ -142,6 +142,8 @@
 	<true/>
 	<key>notchAccessoriesEnabled</key>
 	<true/>
+	<key>notchAgentsEnabled</key>
+	<true/>
 	<key>notchAgentsOptInMigrated</key>
 	<true/>
 	<key>notchCalendarEnabled</key>
@@ -200,6 +202,8 @@
 	<true/>
 	<key>notchTimerMode</key>
 	<string>pomodoro</string>
+	<key>notchTranslucentBackground</key>
+	<false/>
 	<key>notchWatchEnabled</key>
 	<true/>
 	<key>orphanedCaptureShortcutMigrated</key>
