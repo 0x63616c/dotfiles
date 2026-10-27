@@ -146,6 +146,8 @@
 	<true/>
 	<key>notchCalendarEnabled</key>
 	<true/>
+	<key>notchCloseDelay</key>
+	<real>0.2</real>
 	<key>notchDefaultProfileInitialized</key>
 	<true/>
 	<key>notchDownloadsEnabled</key>
@@ -177,7 +179,7 @@
 	<key>notchNotificationsEnabled</key>
 	<true/>
 	<key>notchOpenOnHover</key>
-	<true/>
+	<false/>
 	<key>notchOutlineEnabled</key>
 	<false/>
 	<key>notchQueueEnabled</key>
