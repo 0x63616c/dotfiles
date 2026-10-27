@@ -292,6 +292,10 @@
 	<array>
 		<string>screenshotShortcut</string>
 	</array>
+	<key>systemShortcutsSuppressed</key>
+	<array>
+		<integer>30</integer>
+	</array>
 	<key>temperatureUnit</key>
 	<string>celsius</string>
 	<key>unifiedScreenCaptureShortcutMigrated</key>
@@ -312,11 +316,15 @@
 	<true/>
 	<key>windowGestureEnabled</key>
 	<false/>
+	<key>windowLayoutShortcutCenterHalf</key>
+	<string>control+option+shift+command:36</string>
 	<key>windowLayoutShortcutLeft</key>
 	<string>control+option+shift+command:123</string>
 	<key>windowLayoutShortcutRight</key>
 	<string>control+option+shift+command:124</string>
 	<key>windowLayoutShortcutsEnabled</key>
+	<true/>
+	<key>windowLayoutSideRepeatCyclesThirds</key>
 	<true/>
 	<key>windowMaximizeEnabled</key>
 	<true/>
