@@ -253,7 +253,7 @@
 	<key>screenshotFileNamePattern</key>
 	<string></string>
 	<key>screenshotLastBlurLevel</key>
-	<integer>3</integer>
+	<integer>5</integer>
 	<key>screenshotLastBlurStyle</key>
 	<string>pixelate</string>
 	<key>screenshotLastBlurTextOnly</key>
