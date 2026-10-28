@@ -261,7 +261,7 @@
 	<key>screenshotLastBlurTextOnly</key>
 	<true/>
 	<key>screenshotLastTool</key>
-	<string>pixelate</string>
+	<string>sticker</string>
 	<key>screenshotSaveFolder</key>
 	<string>@HOME@/Documents/Screenshots</string>
 	<key>screenshotShortcut</key>
