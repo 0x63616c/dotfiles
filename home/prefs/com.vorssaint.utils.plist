@@ -257,11 +257,11 @@
 	<key>screenshotLastBlurLevel</key>
 	<integer>3</integer>
 	<key>screenshotLastBlurStyle</key>
-	<string>blur</string>
+	<string>pixelate</string>
 	<key>screenshotLastBlurTextOnly</key>
-	<true/>
+	<false/>
 	<key>screenshotLastTool</key>
-	<string>sticker</string>
+	<string>select</string>
 	<key>screenshotSaveFolder</key>
 	<string>@HOME@/Documents/Screenshots</string>
 	<key>screenshotShortcut</key>
