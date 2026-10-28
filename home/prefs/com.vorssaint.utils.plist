@@ -302,10 +302,6 @@
 	<array>
 		<string>screenshotShortcut</string>
 	</array>
-	<key>systemShortcutsSuppressed</key>
-	<array>
-		<integer>30</integer>
-	</array>
 	<key>temperatureUnit</key>
 	<string>celsius</string>
 	<key>unifiedScreenCaptureShortcutMigrated</key>
