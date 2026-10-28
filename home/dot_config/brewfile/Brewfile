@@ -20,7 +20,6 @@ brew "zsh-syntax-highlighting"
 # --- Apps installed on this Mac (all verified to exist as casks) ---
 cask "1password"
 cask "1password-cli"
-cask "cmux"
 cask "spotify"
 cask "tailscale-app"
 cask "vorssaint"
