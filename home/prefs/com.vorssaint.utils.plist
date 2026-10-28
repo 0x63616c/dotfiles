@@ -73,7 +73,7 @@
 	<key>keepAwakeAutoStart</key>
 	<false/>
 	<key>keepAwakeIconTint</key>
-	<string>none</string>
+	<string>green</string>
 	<key>keepAwakeMouseJiggleEnabled</key>
 	<false/>
 	<key>keepAwakeMouseJiggleIntervalMinutes</key>
