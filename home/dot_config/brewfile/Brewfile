@@ -34,3 +34,5 @@ mas "SponsorBlock", id: 1573461917
 
 # No cask and no App Store entry, manage manually: Voxelite (co.worldwidewebb.voxelite)
 cask "cursor"
+tap "stablyai/orca"
+cask "stablyai/orca/orca"
