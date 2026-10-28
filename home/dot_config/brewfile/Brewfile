@@ -34,3 +34,4 @@ mas "1Password for Safari", id: 1569813296
 mas "SponsorBlock", id: 1573461917
 
 # No cask and no App Store entry, manage manually: Voxelite (co.worldwidewebb.voxelite)
+cask "cursor"
