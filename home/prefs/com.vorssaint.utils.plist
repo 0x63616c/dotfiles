@@ -246,6 +246,8 @@
 	<true/>
 	<key>screenshotAddToShelf</key>
 	<true/>
+	<key>screenshotAnnotationShadows</key>
+	<false/>
 	<key>screenshotCopyToClipboard</key>
 	<true/>
 	<key>screenshotDownscale</key>
@@ -253,11 +255,11 @@
 	<key>screenshotFileNamePattern</key>
 	<string></string>
 	<key>screenshotLastBlurLevel</key>
-	<integer>5</integer>
+	<integer>3</integer>
 	<key>screenshotLastBlurStyle</key>
-	<string>pixelate</string>
+	<string>blur</string>
 	<key>screenshotLastBlurTextOnly</key>
-	<false/>
+	<true/>
 	<key>screenshotLastTool</key>
 	<string>pixelate</string>
 	<key>screenshotSaveFolder</key>
