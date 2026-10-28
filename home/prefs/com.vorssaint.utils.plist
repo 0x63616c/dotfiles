@@ -285,11 +285,11 @@
 	<key>soundOutputSwitcherEnabled</key>
 	<true/>
 	<key>superKeyEnabled</key>
-	<true/>
-	<key>superKeyMappedSource</key>
-	<string>capsLock</string>
+	<false/>
 	<key>superKeyMappingApplied</key>
-	<true/>
+	<false/>
+	<key>superKeyModifiers</key>
+	<string>control+option+shift+command</string>
 	<key>superKeySoloAction</key>
 	<string>none</string>
 	<key>switcherEnabled</key>
