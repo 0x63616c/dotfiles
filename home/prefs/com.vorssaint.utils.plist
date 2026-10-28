@@ -159,7 +159,7 @@
 	<key>notchGesturesEnabled</key>
 	<true/>
 	<key>notchHiddenControls</key>
-	<string>commandBar,microphone,panel,recording,scratchpad,screenshot,speedTest</string>
+	<string>commandBar,microphone,recording,scratchpad,screenshot,speedTest</string>
 	<key>notchHideInFullscreen</key>
 	<false/>
 	<key>notchHideUntilHover</key>
