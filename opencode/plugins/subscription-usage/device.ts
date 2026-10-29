@@ -1,0 +1,137 @@
+import { Database } from "bun:sqlite"
+import { createHash, randomUUID } from "node:crypto"
+import { chmod, mkdir } from "node:fs/promises"
+import { homedir } from "node:os"
+import { join } from "node:path"
+import { fetchUsage, loadCredential, UsageError, withTimeout, type Provider, type Snapshot, type State } from "./usage"
+
+type Entry = {
+  snapshot?: Snapshot
+  error?: string
+  retryAt?: number
+  nextAttemptAt: number
+  rateLimits: number
+  attemptID?: string
+}
+type Claim = { kind: "cached"; state: State } | { kind: "reserved"; previous: Entry }
+
+function view(entry: Entry): State {
+  return {
+    snapshot: entry.snapshot,
+    error: entry.error ?? (entry.snapshot ? undefined : "Refresh pending"),
+    retryAt: entry.retryAt,
+    loading: false,
+  }
+}
+
+/** One durable request budget per device/login, shared by independent CLI processes. */
+export function createDeviceUsage(options: {
+  directory?: string
+  interval?: number
+  credentials?: typeof loadCredential
+  fetch?: typeof fetchUsage
+  now?: () => number
+  requestTimeout?: number
+} = {}) {
+  const directory = options.directory ?? join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "opencode", "subscription-usage")
+  const interval = Math.max(60_000, options.interval ?? 120_000)
+  const credentials = options.credentials ?? loadCredential
+  const fetch = options.fetch ?? fetchUsage
+  const now = options.now ?? Date.now
+  const requestTimeout = options.requestTimeout ?? 20_000
+
+  return async (provider: Provider, signal: AbortSignal): Promise<State> => {
+    const credential = await credentials(provider, signal)
+    signal.throwIfAborted()
+    // No credentials are persisted. Different accounts/profiles never see each
+    // other's readings, while identical logins share the same request budget.
+    const key = `${provider}:${createHash("sha256").update(JSON.stringify([credential.token, credential.accountID])).digest("hex")}`
+    let opened: Database | undefined
+    try {
+      await mkdir(directory, { recursive: true, mode: 0o700 })
+      await chmod(directory, 0o700)
+      opened = new Database(join(directory, "usage.sqlite"), { create: true })
+      await chmod(join(directory, "usage.sqlite"), 0o600)
+      opened.exec("PRAGMA busy_timeout = 5000")
+      opened.exec("CREATE TABLE IF NOT EXISTS usage (key TEXT PRIMARY KEY, entry TEXT NOT NULL)")
+    } catch {
+      opened?.close()
+      // Fail closed: falling back to an independent poller would recreate the bug.
+      throw new UsageError("Device usage cache unavailable")
+    }
+    const db = opened
+
+    const read = () => {
+      const row = db.query<{ entry: string }, [string]>("SELECT entry FROM usage WHERE key = ?").get(key)
+      return row ? JSON.parse(row.entry) as Entry : { nextAttemptAt: 0, rateLimits: 0 }
+    }
+    const write = (entry: Entry) => {
+      db.query("INSERT INTO usage (key, entry) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET entry = excluded.entry")
+        .run(key, JSON.stringify(entry))
+    }
+    const id = randomUUID()
+    try {
+      signal.throwIfAborted()
+      // Reserve the next request time in a brief atomic transaction, then release
+      // SQLite before any network work. There is no owner/PID lock or waiting loop.
+      const claim = db.transaction((): Claim => {
+        const entry = read()
+        if (entry.nextAttemptAt > now()) return { kind: "cached", state: view(entry) }
+        write({
+          snapshot: entry.snapshot, error: entry.error, retryAt: entry.retryAt,
+          nextAttemptAt: now() + interval, rateLimits: entry.rateLimits, attemptID: id,
+        })
+        return { kind: "reserved", previous: entry }
+      }).immediate()
+      if (claim.kind === "cached") return claim.state
+      const previous = claim.previous
+
+      let entry: Entry
+      try {
+        const snapshot = await withTimeout(signal, requestTimeout, (requestSignal) => fetch(provider, requestSignal, {
+          credentials: async () => credential,
+          fetch: globalThis.fetch,
+          resetCredits: previous.snapshot?.resetCredits,
+          resetCreditsRetryAt: previous.snapshot?.resetCreditsRetryAt,
+        }))
+        signal.throwIfAborted()
+        entry = { snapshot, nextAttemptAt: now() + interval, rateLimits: 0 }
+      } catch (error) {
+        signal.throwIfAborted()
+        const failure = error instanceof UsageError ? error : new UsageError("Usage unavailable")
+        const rateLimits = failure.message === "Rate limited" ? previous.rateLimits + 1 : 0
+        // A missing/zero Retry-After is not evidence that the limit has reset.
+        // Repeated 429s progressively back off, up to 30 minutes, device-wide.
+        const retryAt = rateLimits ? Math.max(failure.retryAt ?? 0,
+          now() + Math.min(1_800_000, 300_000 * 2 ** Math.min(rateLimits - 1, 3))) : failure.retryAt
+        entry = {
+          snapshot: failure.auth ? undefined : previous.snapshot,
+          error: failure.message,
+          retryAt,
+          nextAttemptAt: Math.max(now() + interval, retryAt ?? 0),
+          rateLimits,
+        }
+      }
+      return db.transaction(() => {
+        if (read().attemptID === id) write(entry)
+        // This ID only fences writes: it never blocks a later reservation.
+        // A superseded attempt cannot overwrite newer readings or cooldowns.
+        return view(read())
+      }).immediate()
+    } finally {
+      try {
+        // Cancellation records the interruption but keeps the reserved budget.
+        // A killed/frozen process needs no cleanup: nextAttemptAt permits recovery.
+        db.transaction(() => {
+          const entry = read()
+          if (entry.attemptID !== id) return
+          delete entry.attemptID
+          entry.error ??= "Refresh interrupted"
+          write(entry)
+        }).immediate()
+      } finally {
+        db.close()
+      }
+    }
+  }
+}

@@ -1,0 +1,340 @@
+import { Database } from "bun:sqlite"
+import { describe, expect, test } from "bun:test"
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
+import { createDeviceUsage } from "./device"
+import { fetchUsage, UsageError, type Snapshot } from "./usage"
+
+const now = Date.parse("2026-10-02T12:00:00Z")
+const snapshot: Snapshot = { fetchedAt: now, windows: [{ label: "Week", used: 29 }] }
+const signal = () => new AbortController().signal
+const credentials = async () => ({ token: "fixture-secret", accountID: "fixture-account" })
+
+async function temporary(run: (directory: string) => Promise<void>) {
+  const directory = await mkdtemp(join(tmpdir(), "opencode-device-usage-test-"))
+  try {
+    await run(directory)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}
+
+describe("device-wide usage budget", () => {
+  test("Codex usage and reset inventory are each read once across simultaneous instances", () => temporary(async (directory) => {
+    const requests: string[] = []
+    const fetch: typeof fetchUsage = (provider, signal, dependencies) => fetchUsage(provider, signal, {
+      credentials,
+      ...dependencies,
+      fetch: async (url) => {
+        requests.push(url)
+        await sleep(20)
+        return Response.json(url.endsWith("/usage")
+          ? { rate_limit: { primary_window: { used_percent: 2, limit_window_seconds: 604800 } } }
+          : { available_count: 2 })
+      },
+    })
+    const instance = () => createDeviceUsage({ directory, credentials, fetch })
+    const states = await Promise.all(Array.from({ length: 8 }, () => instance()("codex", signal())))
+    expect(requests.filter((url) => url.endsWith("/usage")).length).toBe(1)
+    expect(requests.filter((url) => url.endsWith("/rate-limit-reset-credits")).length).toBe(1)
+    expect(states.some((state) => state.snapshot?.resetCredits?.available === 2)).toBe(true)
+    expect(states.every((state) => state.snapshot || state.error === "Refresh pending")).toBe(true)
+    expect((await instance()("codex", signal())).snapshot?.resetCredits?.available).toBe(2)
+    expect(requests.length).toBe(2)
+  }))
+
+  test("simultaneous instances share one fetch and cached startup/manual refreshes", () => temporary(async (directory) => {
+    let calls = 0
+    const fetch = async () => {
+      calls++
+      await sleep(50)
+      return snapshot
+    }
+    const instance = () => createDeviceUsage({ directory, credentials, fetch, now: () => now })
+    const states = await Promise.all(Array.from({ length: 12 }, () => instance()("claude", signal())))
+    expect(calls).toBe(1)
+    expect(states.some((state) => state.snapshot?.windows[0].used === 29)).toBe(true)
+    expect(states.every((state) => state.snapshot || state.error === "Refresh pending")).toBe(true)
+    await instance()("claude", signal())
+    expect(calls).toBe(1)
+    expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    expect((await stat(join(directory, "usage.sqlite"))).mode & 0o777).toBe(0o600)
+    expect((await readFile(join(directory, "usage.sqlite"))).includes(Buffer.from("fixture-secret"))).toBe(false)
+  }))
+
+  test("rate-limit cooldown persists across restarts and backs off 5 → 10 → 20 → 30 minutes", () => temporary(async (directory) => {
+    let time = now
+    let calls = 0
+    const fetch = async () => {
+      calls++
+      throw new UsageError("Rate limited", time + 60_000)
+    }
+    const instance = () => createDeviceUsage({ directory, credentials, fetch, now: () => time })
+    for (const minutes of [5, 10, 20, 30, 30]) {
+      const state = await instance()("claude", signal())
+      expect(state.error).toBe("Rate limited")
+      expect(state.retryAt).toBe(time + minutes * 60_000)
+      const count = calls
+      expect(await instance()("claude", signal())).toEqual(state)
+      expect(calls).toBe(count)
+      time = state.retryAt!
+    }
+    expect(calls).toBe(5)
+  }))
+
+  test("server Retry-After wins over the fallback cooldown", () => temporary(async (directory) => {
+    const load = createDeviceUsage({ directory, credentials, now: () => now,
+      fetch: async () => { throw new UsageError("Rate limited", now + 3_600_000) },
+    })
+    expect((await load("claude", signal())).retryAt).toBe(now + 3_600_000)
+  }))
+
+  test("all instances see the same polling boundary and success resets the next budget", () => temporary(async (directory) => {
+    let time = now
+    let calls = 0
+    const instance = () => createDeviceUsage({ directory, credentials, now: () => time,
+      fetch: async () => { calls++; await sleep(20); return { ...snapshot, fetchedAt: time } },
+    })
+    await instance()("codex", signal())
+    time += 119_999
+    await Promise.all(Array.from({ length: 5 }, () => instance()("codex", signal())))
+    expect(calls).toBe(1)
+    time++
+    await Promise.all(Array.from({ length: 5 }, () => instance()("codex", signal())))
+    expect(calls).toBe(2)
+  }))
+
+  test("other instances return immediately while a request is pending", () => temporary(async (directory) => {
+    let calls = 0
+    let release!: (value: Snapshot) => void
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => { started = resolve })
+    const instance = () => createDeviceUsage({ directory, credentials, now: () => now,
+      fetch: async () => {
+        calls++
+        started()
+        return new Promise<Snapshot>((resolve) => { release = resolve })
+      },
+    })
+    const owner = instance()("claude", signal())
+    await ready
+    const other = await instance()("claude", signal())
+    expect(other.error).toBe("Refresh pending")
+    expect(other.loading).toBe(false)
+    expect(calls).toBe(1)
+    release(snapshot)
+    expect((await owner).snapshot).toEqual(snapshot)
+    expect((await instance()("claude", signal())).snapshot).toEqual(snapshot)
+  }))
+
+  test("cancellation preserves the device's request budget", () => temporary(async (directory) => {
+    let calls = 0
+    const controller = new AbortController()
+    const owner = createDeviceUsage({ directory, credentials, now: () => now,
+      fetch: async () => { calls++; controller.abort(); throw controller.signal.reason },
+    })
+    await expect(owner("claude", controller.signal)).rejects.toThrow()
+    const next = createDeviceUsage({ directory, credentials, now: () => now,
+      fetch: async () => { calls++; return snapshot },
+    })
+    expect((await next("claude", signal())).error).toBe("Refresh interrupted")
+    expect(calls).toBe(1)
+  }))
+
+  test("stale readings and errors are shared; recovery resets the backoff; auth clears readings", () => temporary(async (directory) => {
+    let time = now
+    let failure: UsageError | undefined
+    let calls = 0
+    const fetch = async () => {
+      calls++
+      if (failure) throw failure
+      return snapshot
+    }
+    const instance = () => createDeviceUsage({ directory, credentials, fetch, now: () => time })
+    await instance()("claude", signal())
+    time += 120_000
+    failure = new UsageError("Rate limited")
+    const stale = await instance()("claude", signal())
+    expect(stale.snapshot).toEqual(snapshot)
+    expect(await instance()("claude", signal())).toEqual(stale)
+    expect(calls).toBe(2)
+    time = stale.retryAt!
+    failure = undefined
+    expect((await instance()("claude", signal())).error).toBeUndefined()
+    time += 120_000
+    failure = new UsageError("Rate limited")
+    expect((await instance()("claude", signal())).retryAt).toBe(time + 300_000)
+    time += 300_000
+    failure = new UsageError("Refresh login", undefined, true)
+    expect((await instance()("claude", signal())).snapshot).toBeUndefined()
+    expect((await instance()("claude", signal())).snapshot).toBeUndefined()
+  }))
+
+  test("providers and different logins do not share readings or block each other", () => temporary(async (directory) => {
+    let calls = 0
+    const fetch = async () => { calls++; return snapshot }
+    const a = createDeviceUsage({ directory, credentials, fetch, now: () => now })
+    const b = createDeviceUsage({ directory, fetch, now: () => now,
+      credentials: async () => ({ token: "another-profile" }),
+    })
+    await Promise.all([a("claude", signal()), a("codex", signal()), b("claude", signal())])
+    expect(calls).toBe(3)
+    await Promise.all([a("claude", signal()), a("codex", signal()), b("claude", signal())])
+    expect(calls).toBe(3)
+  }))
+
+  test("cache failures fail closed instead of starting an independent poller", () => temporary(async (directory) => {
+    const path = join(directory, "not-a-directory")
+    await writeFile(path, "fixture")
+    let calls = 0
+    const load = createDeviceUsage({ directory: path, credentials,
+      fetch: async () => { calls++; return snapshot },
+    })
+    await expect(load("claude", signal())).rejects.toThrow("Device usage cache unavailable")
+    expect(calls).toBe(0)
+  }))
+
+  test("independent OS processes racing at startup make exactly one provider request", () => temporary(async (directory) => {
+    const log = join(directory, "requests")
+    const script = `
+      import { appendFile } from "node:fs/promises"
+      import { createDeviceUsage } from ${JSON.stringify(new URL("./device.ts", import.meta.url).href)}
+      const load = createDeviceUsage({
+        directory: ${JSON.stringify(directory)},
+        credentials: async () => ({ token: "process-fixture" }),
+        fetch: async () => {
+          await appendFile(${JSON.stringify(log)}, "request\\n")
+          await Bun.sleep(200)
+          return ${JSON.stringify(snapshot)}
+        }
+      })
+      const state = await load("claude", new AbortController().signal)
+      if (state.snapshot?.windows[0].used !== 29 && state.error !== "Refresh pending") process.exit(1)
+    `
+    const children = Array.from({ length: 8 }, () => Bun.spawn([process.execPath, "--eval", script], {
+      stdout: "pipe", stderr: "pipe",
+    }))
+    const results = await Promise.all(children.map(async (child) => ({
+      exit: await child.exited, error: await new Response(child.stderr).text(),
+    })))
+    expect(results).toEqual(Array.from({ length: 8 }, () => ({ exit: 0, error: "" })))
+    expect(await readFile(log, "utf8")).toBe("request\n")
+  }))
+
+  test("a killed request needs no cleanup and cannot block the next polling boundary", () => temporary(async (directory) => {
+    const script = `
+      import { createDeviceUsage } from ${JSON.stringify(new URL("./device.ts", import.meta.url).href)}
+      const load = createDeviceUsage({
+        directory: ${JSON.stringify(directory)}, now: () => ${now},
+        credentials: async () => ({ token: "fixture-secret", accountID: "fixture-account" }),
+        fetch: async () => { console.log("started"); await Bun.sleep(60000); return ${JSON.stringify(snapshot)} }
+      })
+      await load("claude", new AbortController().signal)
+    `
+    const child = Bun.spawn([process.execPath, "--eval", script], { stdout: "pipe", stderr: "pipe" })
+    try {
+      const output = await child.stdout.getReader().read()
+      expect(new TextDecoder().decode(output.value)).toContain("started")
+      child.kill()
+      await child.exited
+      let calls = 0
+      let time = now
+      const load = createDeviceUsage({ directory, credentials, now: () => time,
+        fetch: async () => { calls++; return snapshot },
+      })
+      expect((await load("claude", signal())).error).toBe("Refresh pending")
+      expect(calls).toBe(0)
+      time += 120_000
+      expect((await load("claude", signal())).snapshot).toEqual(snapshot)
+      expect(calls).toBe(1)
+      const db = new Database(join(directory, "usage.sqlite"))
+      try {
+        const row = db.query<{ entry: string }, []>("SELECT entry FROM usage").get()!
+        expect(JSON.parse(row.entry).owner).toBeUndefined()
+        expect(JSON.parse(row.entry).attemptID).toBeUndefined()
+      } finally { db.close() }
+    } finally {
+      child.kill()
+      await child.exited
+    }
+  }), 10_000)
+
+  test("a live legacy owner never blocks a due request", () => temporary(async (directory) => {
+    let time = now
+    let calls = 0
+    const load = createDeviceUsage({ directory, credentials, now: () => time,
+      fetch: async () => { calls++; return snapshot },
+    })
+    await load("codex", signal())
+    const db = new Database(join(directory, "usage.sqlite"))
+    try {
+      const row = db.query<{ key: string; entry: string }, []>("SELECT key, entry FROM usage").get()!
+      const entry = JSON.parse(row.entry)
+      entry.owner = { pid: process.pid, id: "abandoned-legacy-request" }
+      db.query("UPDATE usage SET entry = ? WHERE key = ?").run(JSON.stringify(entry), row.key)
+      time += 120_000
+      expect((await load("codex", signal())).snapshot).toEqual(snapshot)
+      expect(calls).toBe(2)
+      expect(JSON.parse(db.query<{ entry: string }, []>("SELECT entry FROM usage").get()!.entry).owner).toBeUndefined()
+    } finally { db.close() }
+  }))
+
+  test("cached readings stay visible during refresh; late results cannot replace newer cooldowns", () => temporary(async (directory) => {
+    let time = now
+    let release!: (value: Snapshot) => void
+    let started!: () => void
+    const ready = new Promise<void>((resolve) => { started = resolve })
+    let calls = 0
+    const load = createDeviceUsage({ directory, credentials, now: () => time,
+      fetch: async () => {
+        calls++
+        if (calls === 1) return snapshot
+        if (calls === 2) {
+          started()
+          return new Promise<Snapshot>((resolve) => { release = resolve })
+        }
+        throw new UsageError("Rate limited")
+      },
+    })
+    await load("codex", signal())
+    time += 120_000
+    const stalled = load("codex", signal())
+    await ready
+    expect((await load("codex", signal())).snapshot).toEqual(snapshot)
+    expect(calls).toBe(2)
+    time += 120_000
+    const newer = await load("codex", signal())
+    expect(newer.error).toBe("Rate limited")
+    release({ ...snapshot, windows: [{ label: "Week", used: 99 }] })
+    expect(await stalled).toEqual(newer)
+    expect(await load("codex", signal())).toEqual(newer)
+    expect(calls).toBe(3)
+  }))
+
+  test("a transport ignoring abort times out, retains cached data and can recover later", () => temporary(async (directory) => {
+    let time = now
+    let calls = 0
+    let requestSignal: AbortSignal | undefined
+    const load = createDeviceUsage({ directory, credentials, now: () => time, requestTimeout: 20,
+      fetch: async (_provider, signal) => {
+        calls++
+        if (calls !== 2) return snapshot
+        requestSignal = signal
+        return new Promise<Snapshot>(() => {})
+      },
+    })
+    await load("codex", signal())
+    time += 120_000
+    const failed = await load("codex", signal())
+    expect(failed.error).toBe("Offline / request timed out")
+    expect(failed.snapshot).toEqual(snapshot)
+    expect(requestSignal?.aborted).toBe(true)
+    expect(await load("codex", signal())).toEqual(failed)
+    expect(calls).toBe(2)
+    time += 120_000
+    expect((await load("codex", signal())).error).toBeUndefined()
+    expect(calls).toBe(3)
+  }))
+})

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    {
+      "action": "*",
+      "resource": "*",
+      "effect": "allow"
+    }
+  ],
+  "mcp": {
+    "servers": {
+      "open-computer-use": {
+        "type": "local",
+        "command": [
+          "open-computer-use",
+          "mcp"
+        ]
+      },
+      "jev": {
+        "type": "local",
+        "command": [
+          "/bin/sh",
+          "-c",
+          "exec /usr/bin/python3 \"${XDG_CONFIG_HOME:-$HOME/.config}/opencode/jev-launcher.py\""
+        ]
+      }
+    }
+  }
+}

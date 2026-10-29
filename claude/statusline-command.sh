@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# Tokyo Night statusline for Claude Code
+
+input=$(cat)
+
+# One jq call for every field (this script re-runs on a timer, see refreshInterval).
+# @sh quotes each value so eval is safe; missing fields become empty strings.
+eval "$(echo "$input" | jq -r '
+  (.context_window.current_usage.cache_read_input_tokens) as $r
+  | (.context_window.total_input_tokens // 0) as $t
+  | ((.context_window.total_input_tokens // 0) + (.context_window.total_output_tokens // 0)) as $tok
+  | @sh "model=\(.model.display_name // "Claude")
+         cwd=\(.workspace.current_dir // .cwd // "")
+         used=\(.context_window.used_percentage // "")
+         tokens=\(if $tok > 0 then $tok else "" end)
+         cache_read=\($r // "")
+         cache_pct=\(if $r != null and $t > 0 then (($r * 100) / $t | floor) else "" end)
+         five_h=\(.rate_limits.five_hour.used_percentage // "")
+         seven_d=\(.rate_limits.seven_day.used_percentage // "")
+         effort_level=\(.effort.level // "")
+         pc_observed=\(.prompt_cache.caching_observed // "")
+         pc_warm=\(.prompt_cache.warm // "")
+         pc_ttl=\(.prompt_cache.ttl // "")
+         pc_expires=\(.prompt_cache.expires_at // "")"
+')"
+
+# Shorten model name: "Claude 3.5 Sonnet" -> "Sonnet", "Claude Opus 4.5" -> "Opus", etc.
+short_model=$(echo "$model" | sed -E 's/^Claude //; s/ \(default\)//g; s/\(([0-9]+[KMG]) context\)/[\1]/g')
+
+# Show only the directory name (basename of the current path)
+short_cwd=$(basename "$cwd")
+
+# Git branch (skip optional lock to avoid blocking)
+branch=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" symbolic-ref --short HEAD 2>/dev/null)
+
+# Tokyo Night ANSI colors (using 256-color approximations that map well)
+# We use \e[38;2;R;G;Bm for true color
+RESET='\e[0m'
+DIM='\e[2m'
+
+# Colors
+PURPLE='\e[38;2;187;154;247m'   # #bb9af7 — model name
+BLUE='\e[38;2;122;162;247m'     # #7aa2f7 — cwd
+GREEN='\e[38;2;158;206;106m'    # #9ece6a — git branch
+CYAN='\e[38;2;125;207;255m'     # #7dcfff — branch parens
+FG='\e[38;2;169;177;214m'       # #a9b1d6 — separators / $
+YELLOW='\e[38;2;224;175;104m'   # #e0af68 — context %
+RED='\e[38;2;247;118;142m'      # #f7768e — context % when high (>80)
+ORANGE='\e[38;2;255;158;100m'   # #ff9e64 — xhigh effort
+BRIGHT='\e[38;2;192;202;245m'   # #c0caf5 — clock (brighter fg)
+
+# Check git dirty status
+dirty=""
+if [ -n "$cwd" ]; then
+  porcelain=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" status --porcelain 2>/dev/null)
+  [ -n "$porcelain" ] && dirty="*"
+fi
+
+# Make the cwd name an OSC 8 hyperlink to the GitHub remote. Ghostty (and most
+# modern terminals) render ESC]8;;<url>ST <text> ESC]8;;ST as just <text>,
+# clickable + underlined, URL hidden. Keeps the blue cwd color.
+# Normalize git@github.com:owner/repo.git and ssh:// forms to a clean https URL.
+cwd_display="$short_cwd"
+if [ -n "$cwd" ]; then
+  origin=$(GIT_OPTIONAL_LOCKS=0 git -C "$cwd" remote get-url origin 2>/dev/null)
+  if [ -n "$origin" ]; then
+    repo_path=$(echo "$origin" | sed -E 's#^git@[^:]+:#https://github.com/#; s#^ssh://git@([^/]+)/#https://\1/#; s#\.git$##')
+    OSC_OPEN='\e]8;;'"${repo_path}"'\e\\'
+    OSC_CLOSE='\e]8;;\e\\'
+    cwd_display="${OSC_OPEN}${short_cwd}${OSC_CLOSE}"
+  fi
+fi
+
+# Build Ctx[n%, 5h:n%, Wk:n%] segment — color per-number by usage
+pct_color() {
+  local pct_int=${1%.*}
+  pct_int=${pct_int:-0}
+  if [ "$pct_int" -ge 80 ]; then
+    echo -en "$RED"
+  elif [ "$pct_int" -ge 50 ]; then
+    echo -en "$YELLOW"
+  else
+    echo -en "$CYAN"
+  fi
+}
+
+# Same shape as pct_color, thresholds inverted: for a cache hit rate high is GOOD
+cache_color() {
+  local pct_int=${1%.*}
+  pct_int=${pct_int:-0}
+  if [ "$pct_int" -ge 80 ]; then
+    echo -en "$CYAN"
+  elif [ "$pct_int" -ge 50 ]; then
+    echo -en "$YELLOW"
+  else
+    echo -en "$RED"
+  fi
+}
+
+# Format a raw token count as e.g. 950, 12.3k, 1.2m
+fmt_tokens() {
+  local n="$1"
+  if [ "$n" -ge 1000000 ]; then
+    awk -v n="$n" 'BEGIN { printf "%.1fm", n/1000000 }'
+  elif [ "$n" -ge 1000 ]; then
+    awk -v n="$n" 'BEGIN { printf "%.1fk", n/1000 }'
+  else
+    echo "$n"
+  fi
+}
+
+# Prompt-cache countdown from `prompt_cache` (Claude Code >= 2.1.251). The cache
+# is cold once expires_at passes; the timer only ticks because settings.json sets
+# statusLine.refreshInterval. Green > half the TTL left, yellow > 20%, red below.
+cache_timer() {
+  [ "$pc_observed" = "true" ] || return
+  local left=0 ttl_s=300 mark color
+  [ "$pc_ttl" = "1h" ] && ttl_s=3600
+  [ "$pc_warm" = "true" ] && [ -n "$pc_expires" ] && left=$(( ${pc_expires%.*} - $(date +%s) ))
+  if [ "$left" -le 0 ]; then
+    echo -en "${FG} ❄${RESET}"
+    return
+  fi
+  if [ "$left" -ge 3600 ]; then mark="$((left / 3600))h$(printf '%02d' $((left % 3600 / 60)))m"
+  elif [ "$left" -ge 300 ]; then mark="$((left / 60))m"
+  else mark="$((left / 60)):$(printf '%02d' $((left % 60)))"; fi
+  if [ $((left * 2)) -gt "$ttl_s" ]; then color="$GREEN"
+  elif [ $((left * 5)) -gt "$ttl_s" ]; then color="$YELLOW"
+  else color="$RED"; fi
+  echo -en " ${color}${mark}${RESET}"
+}
+
+ctx_segment=""
+if [ -n "$tokens" ] || [ -n "$used" ] || [ -n "$cache_pct" ] || [ -n "$five_h" ] || [ -n "$seven_d" ]; then
+  ctx_segment=" ${FG}·${RESET} ${FG}[${RESET}"
+  first=1
+  if [ -n "$used" ]; then
+    used_int=${used%.*}
+    ctx_segment="${ctx_segment}${FG}Ctx: ${RESET}$(pct_color "$used")${used_int}%%${RESET}"
+    first=0
+  fi
+  if [ -n "$tokens" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
+    tok_fmt=$(fmt_tokens "$tokens")
+    ctx_segment="${ctx_segment}${FG}Tkns: ${RESET}${CYAN}${tok_fmt}${RESET}"
+    first=0
+  fi
+  if [ -n "$cache_pct" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
+    if [ "${cache_read:-0}" -gt 0 ]; then cache_mark="✓"; else cache_mark="✗"; fi
+    ctx_segment="${ctx_segment}${FG}Cache: ${RESET}$(cache_color "$cache_pct")${cache_mark}${cache_pct}%%${RESET}$(cache_timer)"
+    first=0
+  fi
+  if { [ -n "$five_h" ] || [ -n "$seven_d" ]; } && [ "$first" -eq 0 ]; then
+    ctx_segment="${ctx_segment}${ORANGE} // ${RESET}"
+    first=1
+  fi
+  if [ -n "$five_h" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
+    five_h_int=${five_h%.*}
+    ctx_segment="${ctx_segment}${FG}5h: ${RESET}$(pct_color "$five_h")${five_h_int}%%${RESET}"
+    first=0
+  fi
+  if [ -n "$seven_d" ]; then
+    [ "$first" -eq 0 ] && ctx_segment="${ctx_segment}${FG}, ${RESET}"
+    seven_d_int=${seven_d%.*}
+    ctx_segment="${ctx_segment}${FG}Wk: ${RESET}$(pct_color "$seven_d")${seven_d_int}%%${RESET}"
+  fi
+  ctx_segment="${ctx_segment}${FG}]${RESET}"
+fi
+
+# Build effort segment — wrapped in parens, all gray
+effort_segment=""
+if [ -n "$effort_level" ]; then
+  effort_segment=" ${FG}(${effort_level})${RESET}"
+fi
+
+# Build branch segment
+branch_segment=""
+if [ -n "$branch" ]; then
+  branch_segment="${CYAN}(${RESET}${GREEN}${branch}${RESET}"
+  [ -n "$dirty" ] && branch_segment="${branch_segment}${YELLOW}*${RESET}"
+  branch_segment="${branch_segment}${CYAN})${RESET}"
+fi
+
+printf "${PURPLE}${short_model}${RESET}${effort_segment} ${FG}·${RESET} ${BLUE}${cwd_display}${RESET}${branch_segment}${ctx_segment}\n"

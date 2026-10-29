@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.calum.restic-maintain</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/calum/.local/bin/restic-backup</string>
+        <string>maintain</string>
+    </array>
+
+    <!-- Sundays at 12:30 — half an hour after the daily backup, so the two
+         don't contend for the repo lock. The script takes its own lock anyway
+         and would skip rather than stack up, but a skipped weekly prune means
+         waiting another seven days for space to be reclaimed.
+
+         Weekday 0 = Sunday. Runs `prune` + `check`; on the first week of each
+         month it also verifies a twelfth of the actual pack data, so the whole
+         repo is cryptographically verified once a year. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>12</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/calum/.cache/restic-backup/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/calum/.cache/restic-backup/launchd.log</string>
+</dict>
+</plist>

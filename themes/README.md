@@ -1,0 +1,110 @@
+# themes
+
+Custom themes for Cursor, VS Code, OpenCode, Claude, Neovim, presenterm, k9s, and Antinote.
+
+## Structure
+
+```
+cursor/         → Cursor & VS Code themes (package.json, install script, build pipeline)
+opencode/       → OpenCode desktop and TUI theme files
+../k9s/         → k9s TUI skin files
+antinote/       → Antinote (notes app) theme files
+```
+
+## Cursor / VS Code — Blackout
+
+A true-black, shadow-free dark theme for Cursor & VS Code. Hand-picked syntax colors, a Vercel-blue accent, and subtle bracket-pair colors. Designed for [Geist Mono](https://vercel.com/font), but works with any font.
+
+### Install
+
+```bash
+cd cursor
+./scripts/install.sh
+```
+
+Then reload the window and pick **Blackout** from the theme picker (`Cmd+K Cmd+T`). The installer links into Cursor and VS Code if it finds them.
+
+### Font (optional)
+
+The theme is tuned for Geist Mono with ligatures. Install [Geist Mono](https://vercel.com/font), then add to your settings (or copy from `settings.recommended.json`):
+
+```json
+"editor.fontFamily": "Geist Mono, ui-monospace, monospace",
+"editor.fontLigatures": true
+```
+
+### Tweak the colors
+
+Every color comes from one file: `palette/palette.json`. Edit it, rebuild, reload.
+
+```bash
+cd cursor
+bun run build
+```
+
+## OpenCode — Blackout (TUI)
+
+A true-black TUI theme for OpenCode with subtle gray (`#101010`) user-message backgrounds. OpenCode shares this raised-surface color with other panels; the main background stays `#000000`. Installed in `~/.config/opencode/themes/`; select `blackout` with `/themes`.
+
+## OpenCode — Lucent Orng++ (TUI)
+
+Opaque-solid variant of the built-in `lucent-orng` theme, with transparent surfaces removed.
+
+| File | Purpose |
+|---|---|
+| `opencode/blackout.json` | True-black TUI theme with subtle gray raised surfaces |
+| `opencode/lucent-orng-plusplus.json` | TUI variant with opaque surfaces |
+
+Install both through `/usr/bin/python3 -B opencode/install.py` from the dotfiles
+root. It links `themes/opencode/` to `~/.config/opencode/themes/`; V2 discovers
+the JSON files directly, with no theme plugin or package manifest required.
+
+To select Lucent Orng++ in `~/.config/opencode/cli.json`:
+```json
+{
+  "theme": { "name": "lucent-orng-plusplus", "mode": "system" }
+}
+```
+
+## k9s — Blackout
+
+A true-black skin for [k9s](https://k9scli.io). k9s loads skins from
+`~/Library/Application Support/k9s/skins` (macOS) / `~/.config/k9s/skins`
+(Linux).
+
+```bash
+mkdir -p ~/Library/Application\ Support/k9s/skins
+ln -sf /Users/calum/code/github.com/0x63616c/dotfiles/k9s/themes/blackout.yaml \
+  ~/Library/Application\ Support/k9s/skins/blackout.yaml
+```
+
+Then set the default in `~/Library/Application Support/k9s/config.yaml`:
+
+```yaml
+k9s:
+  ui:
+    skin: blackout
+```
+
+## Antinote — Blackout
+
+A true-black theme for [Antinote](https://antinote.io). Same Blackout palette as the editor themes.
+
+| File | Purpose |
+|---|---|
+| `blackout.json` | The Blackout theme |
+| `example.json` | Stock theme schema, kept as a field reference |
+| `sync.sh` | Copies themes into the Antinote container |
+
+Antinote is sandboxed and won't follow symlinks out of its container, so themes are **copied**, not linked:
+
+```bash
+cd antinote
+./sync.sh
+```
+
+Then reload the theme in Antinote. Edit `blackout.json`, re-run `sync.sh`, reload.
+
+## License
+
+MIT

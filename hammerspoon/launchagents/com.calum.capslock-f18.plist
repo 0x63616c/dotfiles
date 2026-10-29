@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Remap Caps Lock (HID usage 0x700000039) to F18 (0x70000006D) on every
+    keyboard, at login. hidutil mappings don't survive a reboot on their own,
+    so this reapplies it. hammerspoon/capslock.lua watches the resulting F18
+    and turns a hold into Hyper; see its header for why F18 and not Caps Lock.
+
+    Install:  ln -s <repo>/hammerspoon/launchagents/com.calum.capslock-f18.plist ~/Library/LaunchAgents/
+              launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.calum.capslock-f18.plist
+    Undo now: hidutil property --set '{"UserKeyMapping":[]}'
+  -->
+  <key>Label</key>
+  <string>com.calum.capslock-f18</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/hidutil</string>
+    <string>property</string>
+    <string>--set</string>
+    <string>{"UserKeyMapping":[{"HIDKeyboardModifierMappingSrc":0x700000039,"HIDKeyboardModifierMappingDst":0x70000006D}]}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>

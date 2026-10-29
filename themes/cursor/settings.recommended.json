@@ -1,0 +1,11 @@
+{
+  "workbench.colorTheme": "Blackout",
+  "editor.fontFamily": "Geist Mono, ui-monospace, SF Mono, monospace",
+  "editor.fontLigatures": true,
+  "editor.fontSize": 13,
+  "editor.lineHeight": 1.7,
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": "active",
+  "editor.semanticHighlighting.enabled": true,
+  "workbench.fontAliasing": "antialiased"
+}

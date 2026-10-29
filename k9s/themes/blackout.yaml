@@ -1,0 +1,128 @@
+# -----------------------------------------------------------------------------
+# Blackout skin — true-black, ported from themes/cursor/palette/palette.json.
+# Single source of truth for colors is that palette; keep this file in sync.
+# -----------------------------------------------------------------------------
+
+# Styles...
+foreground: &foreground "#ededed"
+background: &background "#000000"
+panel: &panel "#0d0d0d"
+current_line: &current_line "#0a0a0a"
+selection: &selection "#232323"
+border: &border "#1a1a1a"
+border_strong: &border_strong "#2a2a2a"
+comment: &comment "#6a6a6a"
+fg_muted: &fg_muted "#8a8a8a"
+fg_faint: &fg_faint "#5a5a5a"
+accent: &accent "#0a84ff"
+accent_bright: &accent_bright "#3b9bff"
+success: &success "#34d399"
+warning: &warning "#ffb454"
+error: &error "#fb5a4b"
+error_bright: &error_bright "#ff7a6e"
+kw: &kw "#9a86ff"
+type: &type "#57cdef"
+num: &num "#f47ea0"
+
+# Skin...
+k9s:
+  # General K9s styles
+  body:
+    fgColor: *foreground
+    bgColor: *background
+    logoColor: *accent
+  # Command prompt styles
+  prompt:
+    fgColor: *foreground
+    bgColor: *background
+    suggestColor: *accent_bright
+  # ClusterInfoView styles.
+  info:
+    fgColor: *accent
+    sectionColor: *foreground
+  # Dialog styles.
+  dialog:
+    fgColor: *foreground
+    bgColor: *panel
+    buttonFgColor: *background
+    buttonBgColor: *accent
+    buttonFocusFgColor: *background
+    buttonFocusBgColor: *accent_bright
+    labelFgColor: *warning
+    fieldFgColor: *foreground
+  frame:
+    # Borders styles.
+    border:
+      fgColor: *border
+      focusColor: *accent
+    menu:
+      fgColor: *foreground
+      keyColor: *accent
+      # Used for favorite namespaces
+      numKeyColor: *accent_bright
+    # CrumbView attributes for history navigation.
+    crumbs:
+      fgColor: *foreground
+      bgColor: *panel
+      activeColor: *selection
+    # Resource status and update styles
+    status:
+      newColor: *type
+      modifyColor: *kw
+      addColor: *success
+      errorColor: *error
+      highlightColor: *warning
+      killColor: *comment
+      completedColor: *comment
+    # Border title styles.
+    title:
+      fgColor: *foreground
+      bgColor: *panel
+      highlightColor: *warning
+      counterColor: *accent
+      filterColor: *accent_bright
+  views:
+    # Charts skins...
+    charts:
+      bgColor: default
+      defaultDialColors:
+        - *accent
+        - *error
+      defaultChartColors:
+        - *accent
+        - *error
+    # TableView attributes.
+    table:
+      fgColor: *foreground
+      bgColor: *background
+      # Header row styles.
+      header:
+        fgColor: *foreground
+        bgColor: *background
+        sorterColor: *accent
+    # Xray view attributes.
+    xray:
+      fgColor: *foreground
+      bgColor: *background
+      cursorColor: *selection
+      graphicColor: *accent
+      showIcons: false
+    # YAML info styles.
+    yaml:
+      keyColor: *kw
+      colonColor: *accent
+      valueColor: *foreground
+    # Logs styles.
+    logs:
+      fgColor: *foreground
+      bgColor: *background
+      indicator:
+        fgColor: *foreground
+        bgColor: *accent
+        toggleOnColor: *success
+        toggleOffColor: *type
+    help:
+      fgColor: *foreground
+      bgColor: *panel
+      indicator:
+        fgColor: *error
