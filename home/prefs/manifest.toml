@@ -30,7 +30,7 @@ deny = [
   "commandBarQuery*", "commandBarUsage", "fanControlHelperVersion", "featureAvailable.*",
   "mic*Saved*", "micMuteActive", "micMuteMutedDevices", "settingsWindow*", "shelfItems",
   "whatsNew*", "*IntroVersion", "updateHighlightsSeenVersion", "vorssDisabledSleep",
-  "onboardingStep", "*LastZoom",
+  "onboardingStep", "*LastZoom", "cleanerLastAuto*",
 ]
 
 [[domain]]

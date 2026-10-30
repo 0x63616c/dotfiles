@@ -6,3 +6,4 @@
 *.key
 id_*
 !*.pub
+__pycache__/
