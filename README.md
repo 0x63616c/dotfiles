@@ -14,7 +14,7 @@ That one line sets up the whole machine. In order, it:
 2. Asks your name and email once (defaults are filled in; press Enter to accept).
 3. Installs Homebrew if missing. This asks for your password **once** and also installs the Xcode Command Line Tools.
 4. Runs `brew bundle` on [`home/dot_config/brewfile/Brewfile`](home/dot_config/brewfile/Brewfile): every CLI tool and app, including chezmoi itself, so Homebrew takes over updating it.
-5. Deploys the dotfiles (`~/.zshrc`, `~/.zprofile`, `~/.config/brewfile/Brewfile`).
+5. Deploys the dotfiles (zsh, git, SSH, starship and mise config, the Brewfile, `prefsync`).
 6. Applies synced macOS settings (see [Settings sync](#settings-sync)), installs the settings watcher, and enables the repo's gitleaks pre-commit hook.
 
 Every step is safe to re-run.

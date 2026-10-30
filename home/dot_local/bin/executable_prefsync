@@ -41,7 +41,7 @@ import time
 
 LABEL = "dev.0x63616c.prefsync"
 HOME = os.path.expanduser("~")
-DEFAULTS = os.environ.get("PREFSYNC_DEFAULTS", "/usr/bin/defaults")
+DEFAULTS = "/usr/bin/defaults"
 STATE_DIR = os.environ.get("PREFSYNC_STATE_DIR", os.path.join(HOME, ".local", "state", "prefsync"))
 LOG_FILE = os.environ.get("PREFSYNC_LOG", os.path.join(HOME, "Library", "Logs", "prefsync.log"))
 HOME_TOKEN = "@HOME@"
@@ -205,7 +205,7 @@ class Ctx:
     def __init__(self, repo: str | None = None):
         self.repo = find_repo(repo)
         self.root = source_root(self.repo)
-        self.prefs_dir = os.environ.get("PREFSYNC_PREFS_DIR") or os.path.join(self.root, "prefs")
+        self.prefs_dir = os.path.join(self.root, "prefs")
         self.manifest_path = os.path.join(self.prefs_dir, "manifest.toml")
         if not os.path.exists(self.manifest_path):
             raise PrefsyncError("manifest not found: " + self.manifest_path)
@@ -952,13 +952,24 @@ def cmd_doctor(ctx: Ctx, args) -> int:
     if os.path.exists(LOG_FILE):
         cutoff = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
         with open(LOG_FILE, errors="replace") as f:
-            errs = [ln.rstrip() for ln in f if " ERROR " in ln and ln[:19] >= cutoff]
+            errs = recent_errors(f, cutoff)
         if errs:
             warn("%d error(s) in the last 24h; latest: %s" % (len(errs), errs[-1][:200]))
         else:
             ok("no errors in the last 24h (%s)" % LOG_FILE)
     print("%s" % ("all good" if not problems else "%d problem(s)" % problems))
     return 1 if problems else 0
+
+
+def recent_errors(lines, cutoff: str) -> list[str]:
+    """ERROR log lines since cutoff, minus commit failures that a later successful commit has already resolved."""
+    errs, last_commit = [], ""
+    for ln in lines:
+        if " INFO committed: " in ln:
+            last_commit = ln[:19]
+        elif " ERROR " in ln and ln[:19] >= cutoff:
+            errs.append(ln.rstrip())
+    return [e for e in errs if not (" git commit failed " in e and e[:19] < last_commit)]
 
 
 def watch_file(dom: Domain) -> str:

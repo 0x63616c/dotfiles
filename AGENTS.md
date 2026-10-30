@@ -10,16 +10,15 @@ Public repo `0x63616c/dotfiles` (so the plain chezmoi one-liner works; **never c
 4. `chezmoi apply --dry-run -v`: confirm the plan. Scripts do NOT run in dry-run, so read the scripts you changed.
 5. `chezmoi apply -v`.
 6. `chezmoi verify --exclude=scripts`: deployed files match the source.
-7. `python3 -m unittest discover -s tests`, `prefsync doctor`, `brew bundle check --file ~/.config/brewfile/Brewfile`, plus app checks (`defaults read com.vorssaint.utils`, fresh `zsh -i -c 'echo ok'`). Report what you checked.
-8. `shellcheck` the scripts and `ruff check home/dot_local/bin/executable_prefsync tests` (`tests/render-test.sh` renders and shellchecks the `.tmpl` scripts too).
-9. Render test, before every commit: `tests/render-test.sh` (renders everything to a temp dir, validates the LaunchAgent, runs shellcheck).
-10. Commit (gitleaks hook runs) and push to `main`. Auto-commit/auto-push stay off.
+7. `python3 -m unittest discover -s tests`, `prefsync doctor`, `brew bundle check --file ~/.config/brewfile/Brewfile`, plus app checks (`prefsync status`, fresh `zsh -i -c 'echo ok'`). Report what you checked.
+8. Before every commit: `tests/render-test.sh` (renders everything to a temp dir, validates the LaunchAgent, shellchecks every script) and `ruff check` + `ruff format --check` on `home/dot_local/bin/executable_prefsync tests`.
+9. Commit (gitleaks hook runs) and push to `main`. Auto-commit/auto-push stay off.
 
 ## Rules
 - **No secrets in the repo.** Reference 1Password with `op://vault/item/field` (read at apply time via `onepasswordRead` / `op read`). API keys for MCP live in the macOS Keychain. Never paste tokens, keys, or full app plists.
-- **Apps that rewrite their own config** (OpenCode `cli.json`, Claude `settings.json`, KiCad, cmux, etc.): use `modify_` scripts that patch only the keys we own; do not commit whole files.
+- **Apps that rewrite their own config** (OpenCode `cli.json`, Claude `settings.json`, KiCad, etc.): use `modify_` scripts that patch only the keys we own; do not commit whole files.
 - **Preferences go through `prefsync`**, never ad-hoc `defaults write` scripts and never hand-copied plists. To add an app or system area: `prefsync add <domain>` (see below).
-- **Brewfile / macOS defaults** are applied by `run_onchange_` scripts under `home/.chezmoiscripts/` so they re-run only when their content changes. Add apps to the Brewfile instead of installing by hand; manually installed apps get "brewified" later.
+- **Brewfile and preference snapshots** are applied by `run_onchange_` scripts under `home/.chezmoiscripts/` so they re-run only when their content changes. Add apps to the Brewfile instead of installing by hand; manually installed apps get "brewified" later.
 - Deliberately excluded: Mole (Vorssaint replaces it), Alfred (uninstalled), MacTap, 1Password Installer.
 - Don't delete or migrate anything from the old repo without Calum choosing it.
 - Keep scripts idempotent and loud on failure (non-zero exit with a clear message).
@@ -32,7 +31,7 @@ Calum changes settings in the apps/System Settings; the LaunchAgent captures the
 1. `git log --stat origin/main..HEAD` then `git diff origin/main -- home/prefs` and read every value. Look for paths, names, emails, phone numbers, device or network names, tokens. `prefsync diff` also lists keys the safety nets auto-denied.
 2. If something private/volatile slipped in: add a deny glob to that domain in `home/prefs/manifest.toml`, run `prefsync capture --force <domain>`, and rewrite the unpushed commit(s) (`git rebase -i origin/main`; the history is unpushed so this is fine). If it was already pushed, tell Calum.
 3. gitleaks runs on every commit (hook); a failed hook leaves the snapshot uncommitted and logs an error (`prefsync doctor` warns). Fix and `prefsync capture`.
-4. Push: `git push origin main` (Mac git has no GitHub credentials: pull the commits to the box clone and push with `gh` from the box).
+4. Push: `git push origin main` from the Mac (SSH via the 1Password agent).
 
 **Add a domain:** `prefsync add <domain> [--restart app:Name | killall:Proc | cmd:...] [--deny GLOB]` (domain list: `defaults domains | tr ',' '\n'`). It edits the manifest, takes the first snapshot, and runs `chezmoi apply` so the watcher includes it. Then review the plist, add deny globs, commit. NSGlobalDomain is allow-listed (keyboard/appearance); add keys to its `allow` list.
 

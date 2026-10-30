@@ -39,12 +39,12 @@ defaults_keys = ["screenshotSaveFolder"]
 mkdir = ["$HOME/Documents/Screenshots"]
 allow_data = ["radialMenuProfiles", "notchQuickAccessLayout", "recorderEditorPresets"]
 deny = [
-  "NS*", "appUpdatesLast*", "appUpdatesNotifiedIDs", "appVolumes*", "audioPriority*", "brightness*Paths", "brightnessDDC*",
-  "commandBarQuery*", "commandBarUsage", "fanControlHelperVersion", "featureAvailable.*",
-  "mic*Saved*", "micMuteActive", "micMuteMutedDevices", "settingsWindow*", "shelfItems",
-  "whatsNew*", "*IntroVersion", "updateHighlightsSeenVersion", "vorssDisabledSleep",
-  "onboardingStep", "*LastZoom", "cleanerLastAuto*",
-  "screenshotFileNumberNext", "mediaLastTool", "keepAwakeUntilTime",
+  # in the export: per-device, runtime or "seen" state
+  "appVolumes*", "audioPriority*", "featureAvailable.*", "*IntroVersion", "updateHighlightsSeenVersion",
+  "onboardingStep", "screenshotFileNumberNext", "mediaLastTool", "keepAwakeUntilTime",
+  # not in the export today; kept so device names, paths and queries can never leak if a Vorssaint update adds them
+  "brightness*Paths", "brightnessDDC*", "commandBarQuery*", "commandBarUsage", "mic*Saved*", "micMuteMutedDevices",
+  "shelfItems",
 ]
 
 [[domain]]

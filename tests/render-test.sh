@@ -1,5 +1,5 @@
 #!/bin/sh
-# Render test (AGENTS.md step 9): the whole source state renders, templates produce valid files, scripts parse.
+# Render test (AGENTS.md step 8): the whole source state renders, templates produce valid files, scripts parse.
 # Usage: tests/render-test.sh   (run from anywhere)
 set -eu
 repo="$(cd "$(dirname "$0")/.." && pwd)"

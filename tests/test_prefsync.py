@@ -16,6 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(ROOT, "home", "dot_local", "bin", "executable_prefsync")
 MANIFEST = os.path.join(ROOT, "home", "prefs", "manifest.toml")
 
+sys.dont_write_bytecode = True  # no __pycache__ next to the deployed script
 os.environ.setdefault("PREFSYNC_STATE_DIR", tempfile.mkdtemp(prefix="prefsync-test-state-"))
 os.environ.setdefault("PREFSYNC_LOG", os.path.join(os.environ["PREFSYNC_STATE_DIR"], "test.log"))
 _loader = importlib.machinery.SourceFileLoader("prefsync", SCRIPT)
@@ -123,6 +124,19 @@ class CanonicalJsonTests(unittest.TestCase):
         self.assertEqual(d.export_key, "settings")
         self.assertEqual(d.defaults_keys, ["folder"])
         self.assertFalse(dom().cli)
+
+
+class DoctorTests(unittest.TestCase):
+    def test_resolved_commit_failures_not_reported(self):
+        lines = [
+            "2026-10-29 09:00:00 ERROR git commit failed (left uncommitted): hook\n",
+            "2026-10-29 09:30:00 ERROR com.x: settings export failed\n",
+            "2026-10-30 05:00:00 INFO committed: prefs(com.x): a 1→2\n",
+            "2026-10-30 05:10:00 ERROR git commit failed (left uncommitted): hook\n",
+            "2026-10-27 09:00:00 ERROR too old\n",
+        ]
+        errs = ps.recent_errors(lines, "2026-10-29 00:00:00")
+        self.assertEqual([e[:19] for e in errs], ["2026-10-29 09:30:00", "2026-10-30 05:10:00"])
 
 
 class MergeTests(unittest.TestCase):
