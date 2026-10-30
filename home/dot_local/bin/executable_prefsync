@@ -513,7 +513,7 @@ def commit_paths(ctx: Ctx, paths: list[str], message: str) -> bool:
     if not st.stdout.strip():
         return False
     git(ctx, "add", "--", *rel)
-    r = git(ctx, "commit", "-m", message, "--", *rel)
+    r = git(ctx, "-c", "commit.gpgsign=false", "commit", "-m", message, "--", *rel)
     if r.returncode != 0:
         git(ctx, "reset", "-q", "--", *rel)
         write_atomic(fail_marker, b"")

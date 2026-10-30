@@ -29,6 +29,7 @@ cask "wispr-flow"
 cask "grok-bot"
 
 # --- Mac App Store (mas): needs App Store sign-in; apps must already be on the Apple ID ---
+mas "AdBlock", id: 1402042596
 mas "1Password for Safari", id: 1569813296
 mas "SponsorBlock", id: 1573461917
 mas "TestFlight", id: 899247664

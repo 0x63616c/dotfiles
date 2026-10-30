@@ -161,7 +161,7 @@ class CliIntegrationTests(unittest.TestCase):
             ["add", "-A"],
             ["commit", "-q", "-m", "init"],
         ):
-            subprocess.run(["git", "-C", self.repo, *cmd], check=True, capture_output=True)
+            subprocess.run(["git", "-C", self.repo, "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *cmd], check=True, capture_output=True)
         self.env = dict(
             os.environ,
             PREFSYNC_SRC=self.repo,
