@@ -8,8 +8,11 @@
   prefsync add <domain>          add a domain to the manifest, snapshot it, regenerate the LaunchAgent
   prefsync doctor                health check (agent loaded, manifest, git, logs)
 
-Design: home/prefs/manifest.toml lists domains + deny globs. A LaunchAgent (generated from the manifest by
-chezmoi) runs `capture --watch` whenever a watched plist changes, plus hourly. Capture never pushes.
+Design: home/prefs/manifest.toml lists domains + deny globs. A domain is read with `defaults export` unless it sets
+`export_cmd`/`import_cmd` (the app's own settings backup CLI, e.g. Vorssaint --export-settings): then the snapshot is
+the filtered export and apply goes through the app's importer (app quit first, relaunched after).
+A LaunchAgent (generated from the manifest by chezmoi) runs `capture --watch` whenever a watched plist changes,
+plus hourly. Capture never pushes.
 Three-way sync per domain: "base" (last synced state, kept in ~/.local/state/prefsync) vs live vs snapshot,
 so a change made on the Mac and a change pulled from git are both kept.
 Stdlib only, Python 3.9+ (the Xcode CLT python3), so it works on a fresh Mac.
@@ -185,6 +188,15 @@ class Domain:
         self.restart: str = d.get("restart", "none")
         self.mkdir: list[str] = list(d.get("mkdir", []))
         self.watch: str | None = d.get("watch")
+        # App-CLI mode: the app's own settings export/import instead of `defaults` ("{file}" = temp plist path).
+        self.export_cmd: list[str] = list(d.get("export_cmd", []))
+        self.import_cmd: list[str] = list(d.get("import_cmd", []))
+        self.export_key: str = d.get("export_key", "settings")  # where the settings dict lives in the export
+        self.defaults_keys: list[str] = list(d.get("defaults_keys", []))  # real settings the export omits
+
+    @property
+    def cli(self) -> bool:
+        return bool(self.export_cmd)
 
 
 class Ctx:
@@ -250,6 +262,20 @@ def map_strings(v, fn):
     if isinstance(v, list):
         return [map_strings(x, fn) for x in v]
     return v
+
+
+def canonical_json(doc: dict) -> dict:
+    """Top-level string values holding a JSON object/array -> sorted, compact JSON (apps re-serialise them in
+    random key order, which would otherwise make every export a spurious change)."""
+    out = {}
+    for k, v in doc.items():
+        if isinstance(v, str) and v[:1] in ("[", "{"):
+            try:
+                v = json.dumps(json.loads(v), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            except ValueError:
+                pass
+        out[k] = v
+    return out
 
 
 def to_template(v):
@@ -429,6 +455,50 @@ def defaults_import(domain: str, doc: dict) -> None:
         os.unlink(tmp)
 
 
+# ----------------------------------------------------------------------------- app settings CLI (export_cmd/import_cmd)
+def _run_cli(cmd: list[str], path: str, what: str) -> None:
+    if not os.path.exists(cmd[0]):
+        raise PrefsyncError("%s: %s not installed" % (what, cmd[0]))
+    argv = [a.replace("{file}", path) for a in cmd]
+    r = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+    if r.returncode != 0:
+        raise PrefsyncError("%s failed (rc %d): %s" % (what, r.returncode, (r.stderr or r.stdout).strip()[:300]))
+
+
+def cli_export(dom: Domain) -> dict:
+    """The app's full settings backup (envelope dict; settings under dom.export_key)."""
+    with tempfile.TemporaryDirectory(prefix="prefsync-") as tmp:
+        path = os.path.join(tmp, "export.plist")
+        _run_cli(dom.export_cmd, path, "settings export")
+        try:
+            with open(path, "rb") as f:
+                env = plistlib.load(f)
+        except (OSError, plistlib.InvalidFileException, ValueError) as e:
+            raise PrefsyncError("settings export unreadable: %s" % e) from None
+    if not isinstance(env.get(dom.export_key), dict):
+        raise PrefsyncError("settings export has no %r dict" % dom.export_key)
+    return env
+
+
+def cli_import(dom: Domain, env: dict) -> None:
+    with tempfile.TemporaryDirectory(prefix="prefsync-") as tmp:
+        path = os.path.join(tmp, "import.plist")
+        with open(path, "wb") as f:
+            f.write(plistlib.dumps(env, fmt=plistlib.FMT_XML, sort_keys=True))
+        _run_cli(dom.import_cmd, path, "settings import")
+
+
+def read_live(dom: Domain) -> dict:
+    """Unfiltered live settings: `defaults export`, or the app's export (+ defaults_keys) for CLI domains."""
+    if not dom.cli:
+        return defaults_export(dom.name)
+    doc = canonical_json(cli_export(dom)[dom.export_key])
+    if dom.defaults_keys:
+        raw = defaults_export(dom.name)
+        doc.update({k: raw[k] for k in dom.defaults_keys if k in raw})
+    return doc
+
+
 # ----------------------------------------------------------------------------- state + lock
 def state_path(kind: str, name: str, ext: str = "plist") -> str:
     return os.path.join(STATE_DIR, kind, "%s.%s" % (name, ext))
@@ -456,7 +526,7 @@ def locked(wait: float = 30.0):
 
 
 def live_filtered(ctx: Ctx, dom: Domain, track: bool = False):
-    doc = defaults_export(dom.name)
+    doc = read_live(dom)
     kept, denied = filter_doc(doc, dom, ctx.private)
     if not track:
         return kept, denied
@@ -635,6 +705,8 @@ def apply_domain(ctx: Ctx, dom: Domain, dry_run: bool = False) -> bool:
     if snap is None:
         log.info("%s: no snapshot in repo; nothing to apply", dom.name)
         return False
+    if dom.cli:
+        return apply_cli_domain(ctx, dom, snap, dry_run)
     live_full = defaults_export(dom.name)
     desired = from_template(snap)
     changed = {}
@@ -658,6 +730,67 @@ def apply_domain(ctx: Ctx, dom: Domain, dry_run: bool = False) -> bool:
     was = restart_before(dom.restart)
     defaults_import(dom.name, changed)
     restart_after(dom.restart, was)
+    kept, _ = live_filtered(ctx, dom, track=True)
+    write_atomic(state_path("base", dom.name), dump_plist(kept))
+    return True
+
+
+def apply_cli_domain(ctx: Ctx, dom: Domain, snap: dict, dry_run: bool) -> bool:
+    """Apply through the app's importer. The importer REPLACES every setting it knows (missing = reset to default),
+    so we import the app's own full export with the changed keys overlaid, then put back any key the import touched
+    that we did not mean to change (device-specific keys the export reshapes, e.g. paths it strips)."""
+    env = cli_export(dom)
+    live = canonical_json(env[dom.export_key])
+    raw = defaults_export(dom.name)
+    for k in dom.defaults_keys:
+        if k in raw:
+            live[k] = raw[k]
+    desired = from_template(snap)
+    changed = {}
+    for k, v in desired.items():
+        merged = deep_merge(live[k], v) if k in live else v
+        if merged != live.get(k):
+            changed[k] = merged
+    if not changed:
+        log.info("%s: already in sync (%d keys)", dom.name, len(snap))
+        if not dry_run:
+            kept, _ = live_filtered(ctx, dom, track=True)
+            write_atomic(state_path("base", dom.name), dump_plist(kept))
+        return False
+    desc = "; ".join(fmt_change(c) for k in sorted(changed) for c in diff_paths({k: live.get(k)}, {k: changed[k]})[:3])
+    if dry_run:
+        print("%s: would change %d key(s) via the app's importer: %s" % (dom.name, len(changed), desc))
+        return True
+    log.info("%s: importing %d key(s): %s", dom.name, len(changed), desc[:600])
+    via_cli = {k: v for k, v in changed.items() if k not in dom.defaults_keys}
+    via_defaults = {k: v for k, v in changed.items() if k in dom.defaults_keys}
+    was = restart_before(dom.restart)
+    try:
+        if dom.restart.startswith("app:") and app_running(dom.restart[4:]):
+            raise PrefsyncError("%s is still running; its importer needs it quit" % dom.restart[4:])
+        if via_cli:
+            before = defaults_export(dom.name)
+            settings = dict(env[dom.export_key])
+            settings.update(via_cli)
+            cli_import(dom, dict(env, **{dom.export_key: settings}))
+            after = defaults_export(dom.name)
+            repair = {k: v for k, v in before.items() if k not in via_cli and after.get(k) != v}
+            extra = [k for k in after if k not in before and k not in via_cli]
+            if repair:
+                defaults_import(dom.name, repair)
+            for k in extra:  # the importer writes defaults out explicitly; keep the plist as it was
+                subprocess.run([DEFAULTS, "delete", dom.name, k], capture_output=True, timeout=30)
+            if repair or extra:
+                log.info(
+                    "%s: restored %d key(s) the importer touched, dropped %d it added",
+                    dom.name,
+                    len(repair),
+                    len(extra),
+                )
+        if via_defaults:
+            defaults_import(dom.name, via_defaults)
+    finally:
+        restart_after(dom.restart, was)
     kept, _ = live_filtered(ctx, dom, track=True)
     write_atomic(state_path("base", dom.name), dump_plist(kept))
     return True

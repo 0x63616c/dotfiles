@@ -14,23 +14,37 @@
 #                 "none"
 #   mkdir       directories (may use $HOME) created before apply
 #   watch       optional: plist file to watch (default ~/Library/Preferences/<name>.plist)
+#   export_cmd  optional: read settings with the app's own backup CLI instead of `defaults export`
+#               ("{file}" = temp plist). The snapshot is the filtered `export_key` dict of that export.
+#   import_cmd  with export_cmd: apply through the app's importer (app quit first via restart = "app:...")
+#   export_key  where the settings dict sits in the export (default "settings")
+#   defaults_keys  real settings the app's export leaves out: read/written with `defaults` instead
+# String values holding JSON are stored canonically (sorted keys) for CLI domains.
 # Safety nets applied to every domain regardless of globs: $HOME in string values is stored as @HOME@;
 # keys whose values contain an email, phone number, UUID-only string, username or machine name are dropped.
 
 [settings]
 commit = true   # auto-commit captured changes locally (never pushes)
 
+# Vorssaint 3.4.3+: captured with its official settings backup (--export-settings) and restored with
+# --import-settings (needs the app quit: prefsync quits it and relaunches it). The export leaves out the
+# screenshot folder, so that one key still goes through `defaults`.
 [[domain]]
 name = "com.vorssaint.utils"
 restart = "app:Vorssaint"
+export_cmd = ["/Applications/Vorssaint.app/Contents/MacOS/Vorssaint", "--export-settings", "{file}"]
+import_cmd = ["/Applications/Vorssaint.app/Contents/MacOS/Vorssaint", "--import-settings", "{file}"]
+export_key = "settings"
+defaults_keys = ["screenshotSaveFolder"]
 mkdir = ["$HOME/Documents/Screenshots"]
-allow_data = ["radialMenuProfiles"]
+allow_data = ["radialMenuProfiles", "notchQuickAccessLayout", "recorderEditorPresets"]
 deny = [
-  "NS*", "appUpdates*", "appVolumes*", "audioPriority*", "brightness*Paths", "brightnessDDC*",
+  "NS*", "appUpdatesLast*", "appUpdatesNotifiedIDs", "appVolumes*", "audioPriority*", "brightness*Paths", "brightnessDDC*",
   "commandBarQuery*", "commandBarUsage", "fanControlHelperVersion", "featureAvailable.*",
   "mic*Saved*", "micMuteActive", "micMuteMutedDevices", "settingsWindow*", "shelfItems",
   "whatsNew*", "*IntroVersion", "updateHighlightsSeenVersion", "vorssDisabledSleep",
   "onboardingStep", "*LastZoom", "cleanerLastAuto*",
+  "screenshotFileNumberNext", "mediaLastTool", "keepAwakeUntilTime",
 ]
 
 [[domain]]
