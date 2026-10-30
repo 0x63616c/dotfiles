@@ -40,3 +40,5 @@ cask "chatgpt"   # ChatGPT desktop app with Codex built in (codex-app cask is de
 tap "stablyai/orca"
 cask "stablyai/orca/orca"
 cask "bambu-studio"
+tap "saffsanity/sill"
+cask "saffsanity/sill/sill"
