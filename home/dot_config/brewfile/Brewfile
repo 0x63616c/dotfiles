@@ -38,3 +38,4 @@ mas "TestFlight", id: 899247664
 cask "cursor"
 tap "stablyai/orca"
 cask "stablyai/orca/orca"
+cask "bambu-studio"
