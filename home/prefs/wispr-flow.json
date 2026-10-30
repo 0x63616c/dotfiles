@@ -1,0 +1,178 @@
+{
+  "aiFormatting": true,
+  "appTranscriptionFormats": [],
+  "autoCleanup": {
+    "level": "none"
+  },
+  "autoDetectMeetingsEnabled": true,
+  "autoPolishAfterDictation": {
+    "active": false,
+    "promptName": "polish"
+  },
+  "cloudSync": true,
+  "commandModeEnabled": false,
+  "creatorMode": false,
+  "cursorIdeIntegration": false,
+  "defaultNoteVisibility": "anyone_with_link",
+  "defaultTranscriptionFormat": "Apply AI formatting",
+  "dictionarySort": "Newest",
+  "emailAutoSignature": false,
+  "emailSignatureOption": "written_with_flow",
+  "enableSounds": true,
+  "focusModeBlockedApps": [
+    {
+      "bundleId": "com.tinyspeck.slackmacgap",
+      "name": "Slack"
+    },
+    {
+      "bundleId": "com.superhuman.electron",
+      "name": "Superhuman"
+    }
+  ],
+  "focusModeBlockedUrls": [
+    "app.hex.tech",
+    "app.slack.com",
+    "mail.google.com",
+    "mail.superhuman.com",
+    "x.com",
+    "twitter.com"
+  ],
+  "focusModeEnabled": false,
+  "handsFreeShortcutRemoved": false,
+  "hideAppInDock": false,
+  "hideFlowBarPermanently": false,
+  "hideMeetingRecorderInScreenShare": false,
+  "ideFileTagging": true,
+  "internalDataSharingEnabled": false,
+  "jabraWearDetectionEnabled": false,
+  "localDataPolicy": "store_normally",
+  "meetingRecorderShortcutRemoved": false,
+  "modifierShortcut": "48",
+  "notesViewType": "grid",
+  "notetakerAttributeNamesEnabled": true,
+  "notetakerAutoDetectParticipantNamesEnabled": true,
+  "notetakerAutoEndEnabled": true,
+  "notetakerAutoOpenSummaryEnabled": false,
+  "notetakerAutoShareNotes": "off",
+  "notetakerAutoShareNotesType": "all",
+  "notetakerAutoStartEnabled": false,
+  "notetakerCalendarNotice": "off",
+  "notetakerCalendarNotificationTiming": "15_seconds_before",
+  "notetakerCalendarNotificationsEnabled": true,
+  "notetakerLiveTranscriptEnabled": true,
+  "notetakerLongMeetingCheckInEnabled": true,
+  "notetakerMaxRecordingLength": "2hr",
+  "notetakerMenuBarMeetingEnabled": true,
+  "notetakerNotepadOnStart": "open",
+  "notetakerOpenWindowOnRecord": true,
+  "notetakerOrgInsightsDefault": true,
+  "notetakerSplitScreenJoinEnabled": false,
+  "notetakerTranscriptRetention": "never_delete",
+  "notetakerTripleTapShortcutEnabled": true,
+  "notificationSettings": {
+    "featureHighlights": true,
+    "milestonesAndProgress": true,
+    "teamLeaderboardUpdates": true,
+    "teamUpdates": true,
+    "tipsAndSuggestions": true
+  },
+  "openAtLogin": true,
+  "personalizationStyles": {
+    "email": "excited",
+    "other": "excited",
+    "personal": "veryCasual",
+    "unset": "default",
+    "work": "excited"
+  },
+  "polishAutoPaste": true,
+  "polishEnabled": true,
+  "polishInstructions": {
+    "custom": {},
+    "default": {
+      "Add structure for readability": true,
+      "Clarify main point": false,
+      "Maintain your tone": true,
+      "Make more concise": true,
+      "Refine phrasing for impact": false,
+      "Reorder for readability": true,
+      "Reword for clarity": true
+    }
+  },
+  "pressEnterCommandEnabled": false,
+  "processingDelayNotificationEnabled": true,
+  "scratchpadInFlowBar": false,
+  "selectedLanguages": [
+    "en"
+  ],
+  "selectedSoundFolder": null,
+  "shareUsageData": false,
+  "shortcuts": {
+    "46+58": "open_meeting_recorder",
+    "53": "dismiss",
+    "55+59+8": "copy_last_text",
+    "55+59+9": "paste_last_text",
+    "59+63": "lens",
+    "62": "popo",
+    "63": "ptt"
+  },
+  "shouldAutoLearnWords": true,
+  "shouldMuteAudio": false,
+  "shouldOCRScreenCapture": false,
+  "shouldPauseAudio": false,
+  "stackedMessagesEnabled": false,
+  "stashedMeetingRecorderShortcuts": {},
+  "stashedPolishShortcuts": {},
+  "stashedScratchpadShortcuts": {},
+  "statusDockEdge": "bottom",
+  "streamAudio": false,
+  "styleDetectionEnabled": true,
+  "theme": "dark",
+  "uiLocale": null,
+  "useAxContext": true,
+  "userVoices": {
+    "email": {
+      "appNames": [
+        "Gmail",
+        "Microsoft Outlook",
+        "Superhuman"
+      ],
+      "autoCleanupLevel": "light",
+      "id": "email",
+      "name": "Email",
+      "source": "builtIn",
+      "stylePreference": "formal"
+    },
+    "other": {
+      "appNames": [],
+      "autoCleanupLevel": "light",
+      "id": "other",
+      "name": "Others",
+      "source": "builtIn",
+      "stylePreference": "formal"
+    },
+    "personal": {
+      "appNames": [
+        "Messages",
+        "WhatsApp",
+        "WeChat",
+        "Messenger"
+      ],
+      "autoCleanupLevel": "light",
+      "id": "personal",
+      "name": "Messages",
+      "source": "builtIn",
+      "stylePreference": "formal"
+    },
+    "work": {
+      "appNames": [
+        "Slack",
+        "Microsoft Teams"
+      ],
+      "autoCleanupLevel": "light",
+      "id": "work",
+      "name": "Work messages",
+      "source": "builtIn",
+      "stylePreference": "formal"
+    }
+  }
+}
