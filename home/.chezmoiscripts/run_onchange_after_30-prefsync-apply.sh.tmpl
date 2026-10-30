@@ -5,7 +5,7 @@
 # manifest: {{ include "prefs/manifest.toml" | sha256sum }}
 # prefsync: {{ include "dot_local/bin/executable_prefsync" | sha256sum }}
 {{- range $m.domain }}
-{{- $f := printf "prefs/%s.plist" .name }}
+{{- $f := printf "prefs/%s.%s" .name (ternary "json" "plist" (hasKey . "json_file")) }}
 {{- if stat (joinPath $.chezmoi.sourceDir $f) }}
 # {{ .name }}: {{ include $f | sha256sum }}
 {{- end }}

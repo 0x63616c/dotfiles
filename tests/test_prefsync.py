@@ -4,8 +4,10 @@ Run: python3 -m unittest discover -s tests -v   (macOS-only integration tests ar
 
 import importlib.machinery
 import importlib.util
+import json
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -377,6 +379,263 @@ class AppCliIntegrationTests(_RepoCase):
         self.assertEqual(live["runtimeJunk"], 1)  # non-schema key untouched
         self.assertNotIn("b", live)  # defaults the importer wrote out are dropped again
         self.assertIn("in sync", self.run_ps("status").stdout)
+
+
+class JsonFileUnitTests(unittest.TestCase):
+    def test_domain_fields(self):
+        d = dom(json_file="~/x/config.json", json_key="prefs.user", deny_paths=["a.b"])
+        self.assertTrue(d.is_json)
+        self.assertEqual(d.ext, "json")
+        self.assertEqual(ps.watch_file(d), ps.HOME + "/x/config.json")
+        self.assertFalse(dom().is_json)
+        self.assertEqual(dom().ext, "plist")
+
+    def test_json_section(self):
+        doc = {"prefs": {"user": {"a": 1}}}
+        self.assertIs(ps.json_section(doc, "prefs.user"), doc["prefs"]["user"])
+        self.assertIs(ps.json_section(doc, ""), doc)
+        with self.assertRaises(ps.PrefsyncError):
+            ps.json_section(doc, "prefs.nope")
+        ps.json_section(doc, "prefs.new", create=True)["k"] = 1
+        self.assertEqual(doc["prefs"]["new"], {"k": 1})
+
+    def test_strip_paths(self):
+        doc = {"auto": {"level": "x", "diffShownCount": 3}, "n": {"a": {"seenAt": 1, "v": 2}}, "keep": 1}
+        out = ps.strip_paths(doc, ["auto.diffShownCount", "*.*.*At"])
+        self.assertEqual(out, {"auto": {"level": "x"}, "n": {"a": {"v": 2}}, "keep": 1})
+        self.assertEqual(doc["auto"]["diffShownCount"], 3)  # input untouched
+
+    def test_detect_indent(self):
+        self.assertEqual(ps.detect_indent('{\n\t"a": 1\n}'), "\t")
+        self.assertEqual(ps.detect_indent('{\n    "a": 1\n}'), 4)
+        self.assertIsNone(ps.detect_indent('{"a":1}'))
+
+    def test_snapshot_is_sorted_json_with_nulls(self):
+        p = "/x/wispr-flow.json"
+        out = ps.dump_doc(p, {"b": None, "a": {"y": 1, "x": True}})
+        self.assertEqual(out.decode(), '{\n  "a": {\n    "x": true,\n    "y": 1\n  },\n  "b": null\n}\n')
+
+    def test_wispr_manifest_is_allow_listed_and_safe(self):
+        with open(MANIFEST) as f:
+            m = ps.mini_toml(f.read())
+        w = [d for d in m["domain"] if d["name"] == "wispr-flow"][0]
+        self.assertEqual(w["json_key"], "prefs.user")
+        self.assertEqual(w["restart"], "app:Wispr Flow")
+        allow = w["allow"]
+        for k in ("shortcuts", "modifierShortcut", "notetakerTripleTapShortcutEnabled"):
+            self.assertIn(k, allow)
+        self.assertTrue(all("*" not in k for k in allow), "Wispr allow list must be exact keys, not globs")
+        never = (
+            "email",
+            "firstName",
+            "lastName",
+            "uuid",
+            "subscription",
+            "enterprise",
+            "avatarUrl",
+            "globalProfileSharingUserId",
+            "rankedAudioDevices",
+            "overrideAudioDeviceId",
+            "renderOptions",
+            "userInformation",
+            "userJourney",
+            "notetakerQuota",
+            "registeredDevices",
+        )
+        for k in never:
+            self.assertNotIn(k, allow)
+        bad = re.compile(r"(Id|Ids|At|Time|Ts|Count|Seen|Dismissed|Completed|Shown)$")
+        self.assertEqual([k for k in allow if bad.search(k)], [])
+
+
+# Wispr-Flow-shaped app config: the synced dict sits next to identity, session and cache data.
+APP_CONFIG = {
+    "voiceProfile": {"superpower_title": "x"},
+    "prefs": {
+        "sessionId": "1E6D9F9E-0000-0000-0B23-0104B5682C78",
+        "cache": {"token": "abc"},
+        "user": {
+            "shortcuts": {"63": "ptt", "59+63": "lens"},
+            "modifierShortcut": "48",
+            "tripleTap": True,
+            "auto": {"level": "none", "diffShownCount": 4},
+            "voice": None,
+            "email": "someone@example.com",
+            "uuid": "1E6D9F9E-0000-0000-0B23-0104B5682C78",
+            "lastSyncTime": 1793381984204,
+        },
+    },
+}
+
+
+class JsonFileIntegrationTests(unittest.TestCase):
+    """json_file domains end to end in a temp repo, against a temp copy of an app config (never the real one)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="prefsync-json-")
+        self.repo = os.path.join(self.tmp, "repo")
+        os.makedirs(os.path.join(self.repo, "home", "prefs"))
+        with open(os.path.join(self.repo, ".chezmoiroot"), "w") as f:
+            f.write("home\n")
+        self.cfg = os.path.join(self.tmp, "app", "config.json")
+        os.makedirs(os.path.dirname(self.cfg))
+        self.write_cfg(APP_CONFIG)
+        os.chmod(self.cfg, 0o666)
+        with open(os.path.join(self.repo, "home", "prefs", "manifest.toml"), "w") as f:
+            f.write(
+                '[settings]\ncommit = true\n[[domain]]\nname = "co.test.json"\njson_file = "%s"\n'
+                'json_key = "prefs.user"\nrestart = "none"\n'
+                'allow = ["shortcuts", "modifierShortcut", "tripleTap", "auto", "voice", "email", "uuid"]\n'
+                'deny_paths = ["auto.diffShownCount"]\n' % self.cfg
+            )
+        for cmd in (
+            ["init", "-q", "-b", "main"],
+            ["config", "user.email", "t@users.noreply.github.com"],
+            ["config", "user.name", "T"],
+            ["add", "-A"],
+            ["commit", "-q", "-m", "init"],
+        ):
+            subprocess.run(
+                ["git", "-C", self.repo, "-c", "commit.gpgsign=false", *cmd], check=True, capture_output=True
+            )
+        self.state = os.path.join(self.tmp, "state")
+        self.env = dict(
+            os.environ,
+            PREFSYNC_SRC=self.repo,
+            PREFSYNC_STATE_DIR=self.state,
+            PREFSYNC_LOG=os.path.join(self.tmp, "log"),
+        )
+        self.snap_p = os.path.join(self.repo, "home", "prefs", "co.test.json.json")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write_cfg(self, doc):
+        with open(self.cfg, "w") as f:
+            json.dump(doc, f, indent="\t")
+
+    def read_cfg(self):
+        with open(self.cfg) as f:
+            return json.load(f)
+
+    def run_ps(self, *args):
+        return subprocess.run([sys.executable, SCRIPT, *args], env=self.env, capture_output=True, text=True)
+
+    def snap(self):
+        with open(self.snap_p) as f:
+            return json.load(f)
+
+    def commits(self):
+        r = subprocess.run(["git", "-C", self.repo, "log", "--format=%s"], capture_output=True, text=True)
+        return r.stdout.splitlines()
+
+    def test_capture_only_allowed_safe_keys(self):
+        r = self.run_ps("capture")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(
+            self.snap(),
+            {
+                "shortcuts": {"63": "ptt", "59+63": "lens"},
+                "modifierShortcut": "48",
+                "tripleTap": True,
+                "auto": {"level": "none"},
+                "voice": None,
+            },
+        )  # email + UUID dropped by the safety nets, lastSyncTime not allowed, counter stripped
+        with open(self.snap_p) as f:
+            text = f.read()
+        for leak in ("example.com", "1E6D9F9E", "token", "superpower"):
+            self.assertNotIn(leak, text)
+        self.assertTrue(self.commits()[0].startswith("prefs(co.test.json)"))
+        n = len(self.commits())
+        cfg = self.read_cfg()
+        cfg["prefs"]["user"]["lastSyncTime"] += 1  # churn in non-synced keys is not a change
+        cfg["prefs"]["user"]["auto"]["diffShownCount"] += 1
+        self.write_cfg(cfg)
+        self.run_ps("capture")
+        self.assertEqual(len(self.commits()), n)
+        cfg["prefs"]["user"]["shortcuts"]["53"] = "dismiss"  # a shortcut change is
+        self.write_cfg(cfg)
+        self.run_ps("capture")
+        self.assertEqual(self.snap()["shortcuts"]["53"], "dismiss")
+        self.assertEqual(len(self.commits()), n + 1)
+
+    def test_apply_merges_backs_up_and_keeps_everything_else(self):
+        self.run_ps("capture")
+        snap = self.snap()
+        snap["shortcuts"] = {"61": "ptt"}
+        snap["modifierShortcut"] = "49"
+        snap["auto"] = {"level": "light"}
+        snap["newPref"] = [1, 2]
+        with open(self.snap_p, "w") as f:
+            json.dump(snap, f)
+        with open(self.cfg) as f:
+            before_text = f.read()
+        r = self.run_ps("apply")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cfg = self.read_cfg()
+        u = cfg["prefs"]["user"]
+        self.assertEqual(u["shortcuts"], {"61": "ptt", "63": "ptt", "59+63": "lens"})  # dicts merge, never wipe
+        self.assertEqual((u["modifierShortcut"], u["newPref"]), ("49", [1, 2]))
+        self.assertEqual(u["auto"], {"level": "light", "diffShownCount": 4})
+        for k in ("email", "uuid", "lastSyncTime"):
+            self.assertEqual(u[k], APP_CONFIG["prefs"]["user"][k])
+        self.assertEqual(cfg["prefs"]["cache"], APP_CONFIG["prefs"]["cache"])
+        self.assertEqual(cfg["voiceProfile"], APP_CONFIG["voiceProfile"])
+        with open(self.cfg) as f:
+            self.assertTrue(f.read().startswith('{\n\t"voiceProfile"'))  # indentation kept
+        self.assertEqual(os.stat(self.cfg).st_mode & 0o777, 0o666)  # mode kept
+        bdir = os.path.join(self.state, "backups", "co.test.json")
+        baks = os.listdir(bdir)
+        self.assertEqual(len(baks), 1)
+        with open(os.path.join(bdir, baks[0])) as f:
+            self.assertEqual(f.read(), before_text)
+        self.assertEqual(os.stat(os.path.join(bdir, baks[0])).st_mode & 0o777, 0o600)
+        self.assertEqual(self.run_ps("apply").returncode, 0)  # second apply: no-op, no new backup
+        self.assertEqual(len(os.listdir(bdir)), 1)
+        with open(self.env["PREFSYNC_LOG"]) as f:
+            self.assertIn("co.test.json: already in sync", f.read())
+
+    def test_apply_refuses_while_app_runs(self):
+        self.run_ps("capture")
+        snap = self.snap()
+        snap["modifierShortcut"] = "49"
+        with open(self.snap_p, "w") as f:
+            json.dump(snap, f)
+        with open(self.cfg) as f:
+            before = f.read()
+        old_env = {k: os.environ.get(k) for k in ("PREFSYNC_SRC",)}
+        os.environ["PREFSYNC_SRC"] = self.repo
+        saved = (ps.STATE_DIR, ps.app_running, ps.restart_before, ps.restart_after)
+        ps.STATE_DIR = self.state
+        ps.app_running = lambda name: True
+        ps.restart_before = lambda spec: False
+        ps.restart_after = lambda spec, was: None
+        try:
+            ctx = ps.Ctx()
+            d = ctx.domain("co.test.json")
+            d.restart = "app:Fake App"
+            with self.assertRaises(ps.PrefsyncError):
+                ps.apply_domain(ctx, d)
+        finally:
+            ps.STATE_DIR, ps.app_running, ps.restart_before, ps.restart_after = saved
+            for k, v in old_env.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        with open(self.cfg) as f:
+            self.assertEqual(f.read(), before)
+
+    def test_missing_config_is_a_noop(self):
+        os.remove(self.cfg)
+        r = self.run_ps("capture")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertFalse(os.path.exists(self.snap_p))
+        with open(self.snap_p, "w") as f:
+            json.dump({"modifierShortcut": "49"}, f)
+        self.assertEqual(self.run_ps("apply").returncode, 0)
+        self.assertFalse(os.path.exists(self.cfg))  # never creates the app's config from scratch
 
 
 if __name__ == "__main__":

@@ -36,6 +36,7 @@ mas "TestFlight", id: 899247664
 
 # No cask and no App Store entry, manage manually: Voxelite (co.worldwidewebb.voxelite)
 cask "cursor"
+cask "chatgpt"   # ChatGPT desktop app with Codex built in (codex-app cask is deprecated, it became this app)
 tap "stablyai/orca"
 cask "stablyai/orca/orca"
 cask "bambu-studio"

@@ -19,6 +19,11 @@
 #   import_cmd  with export_cmd: apply through the app's importer (app quit first via restart = "app:...")
 #   export_key  where the settings dict sits in the export (default "settings")
 #   defaults_keys  real settings the app's export leaves out: read/written with `defaults` instead
+#   json_file   optional: sync a dict inside an app's own JSON config file instead of a defaults domain
+#               (snapshot is prefs/<name>.json; also the watched file). Apply quits the app (restart = "app:...")
+#               backs the file up to ~/.local/state/prefsync/backups/ and merges keys, leaving all others untouched.
+#   json_key    with json_file: dotted path of the settings dict in that file (e.g. "prefs.user")
+#   deny_paths  dotted globs of nested keys never captured (e.g. "autoCleanup.diffShownCount", "*.*At")
 # String values holding JSON are stored canonically (sorted keys) for CLI domains.
 # Safety nets applied to every domain regardless of globs: $HOME in string values is stored as @HOME@;
 # keys whose values contain an email, phone number, UUID-only string, username or machine name are dropped.
@@ -119,3 +124,48 @@ allow = ["EnableStandardClickToShowDesktop", "EnableTiling*", "StandardHideDeskt
 name = "com.apple.menuextra.clock"
 restart = "killall:ControlCenter"
 allow = ["Show*", "IsAnalog", "FlashDateSeparators"]
+
+# Wispr Flow (Electron) keeps its settings in ~/Library/Application Support/Wispr Flow/config.json, under prefs.user,
+# next to device IDs, session state, account data and caches. Its account sync does NOT cover keyboard shortcuts
+# and most app preferences, so they are synced here as JSON (home/prefs/wispr-flow.json).
+# ALLOW-LISTED (deny-by-default): only real user preferences. Never add identity/account keys (email, firstName,
+# lastName, uuid, *UserId, subscription, enterprise), *Id/*Ids, timestamps (*At, *Time, *Ts), counters, caches,
+# onboarding/coachmark/banner/tutorial "seen" state, audio device IDs or window geometry.
+# The app keeps the config in memory and rewrites the whole file, so apply quits it, backs the file up to
+# ~/.local/state/prefsync/backups/, merges only these keys and relaunches it if it was running.
+[[domain]]
+name = "wispr-flow"
+json_file = "~/Library/Application Support/Wispr Flow/config.json"
+json_key = "prefs.user"
+restart = "app:Wispr Flow"
+allow = [
+  # keyboard shortcuts (key-code combos -> action)
+  "shortcuts", "modifierShortcut", "notetakerTripleTapShortcutEnabled", "handsFreeShortcutRemoved",
+  "meetingRecorderShortcutRemoved", "stashedMeetingRecorderShortcuts", "stashedPolishShortcuts",
+  "stashedScratchpadShortcuts",
+  # dictation, formatting, polish, style
+  "aiFormatting", "autoCleanup", "autoPolishAfterDictation", "polishEnabled", "polishAutoPaste", "polishInstructions",
+  "commandModeEnabled", "pressEnterCommandEnabled", "personalizationStyles", "styleDetectionEnabled", "userVoices",
+  "selectedLanguages", "shouldAutoLearnWords", "useAxContext", "ideFileTagging", "cursorIdeIntegration",
+  "creatorMode", "appTranscriptionFormats", "defaultTranscriptionFormat", "emailAutoSignature", "emailSignatureOption",
+  # audio, sounds, focus mode
+  "enableSounds", "selectedSoundFolder", "shouldMuteAudio", "shouldPauseAudio", "streamAudio",
+  "focusModeEnabled", "focusModeBlockedApps", "focusModeBlockedUrls", "shouldOCRScreenCapture",
+  # app chrome and notifications
+  "theme", "uiLocale", "openAtLogin", "hideAppInDock", "hideFlowBarPermanently", "statusDockEdge",
+  "scratchpadInFlowBar", "stackedMessagesEnabled", "notificationSettings", "processingDelayNotificationEnabled",
+  "dictionarySort", "notesViewType",
+  # privacy and data
+  "cloudSync", "shareUsageData", "internalDataSharingEnabled", "localDataPolicy",
+  # meetings / notetaker preferences
+  "autoDetectMeetingsEnabled", "hideMeetingRecorderInScreenShare", "jabraWearDetectionEnabled",
+  "defaultNoteVisibility", "notetakerAttributeNamesEnabled", "notetakerAutoDetectParticipantNamesEnabled",
+  "notetakerAutoEndEnabled", "notetakerAutoOpenSummaryEnabled", "notetakerAutoShareNotes",
+  "notetakerAutoShareNotesType", "notetakerAutoStartEnabled", "notetakerCalendarNotice",
+  "notetakerCalendarNotificationTiming", "notetakerCalendarNotificationsEnabled", "notetakerLiveTranscriptEnabled",
+  "notetakerLongMeetingCheckInEnabled", "notetakerMaxRecordingLength", "notetakerMenuBarMeetingEnabled",
+  "notetakerNotepadOnStart", "notetakerOpenWindowOnRecord", "notetakerOrgInsightsDefault",
+  "notetakerSplitScreenJoinEnabled", "notetakerTranscriptRetention",
+]
+# counters / migration state nested inside allowed keys
+deny_paths = ["autoCleanup.diffShownCount", "autoCleanup.migrated", "*.*Count", "*.*At", "*.*Time"]

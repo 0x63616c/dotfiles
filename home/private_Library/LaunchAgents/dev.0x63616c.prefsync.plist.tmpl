@@ -23,7 +23,7 @@
 	<key>WatchPaths</key>
 	<array>
 {{- range $m.domain }}
-{{- $f := get . "watch" | default (printf "~/Library/Preferences/%s.plist" .name) }}
+{{- $f := get . "watch" | default (get . "json_file") | default (printf "~/Library/Preferences/%s.plist" .name) }}
 		<string>{{ $f | replace "~" $.chezmoi.homeDir }}</string>
 {{- end }}
 	</array>

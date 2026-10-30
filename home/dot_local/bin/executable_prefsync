@@ -11,6 +11,9 @@
 Design: home/prefs/manifest.toml lists domains + deny globs. A domain is read with `defaults export` unless it sets
 `export_cmd`/`import_cmd` (the app's own settings backup CLI, e.g. Vorssaint --export-settings): then the snapshot is
 the filtered export and apply goes through the app's importer (app quit first, relaunched after).
+A domain that sets `json_file` (+ `json_key`) syncs one dict inside an app's own JSON config instead (e.g. Wispr Flow's
+config.json prefs.user): the snapshot is home/prefs/<name>.json, and apply merges keys into the file only while the app
+is quit, after backing it up to ~/.local/state/prefsync/backups.
 A LaunchAgent (generated from the manifest by chezmoi) runs `capture --watch` whenever a watched plist changes,
 plus hourly. Capture never pushes.
 Three-way sync per domain: "base" (last synced state, kept in ~/.local/state/prefsync) vs live vs snapshot,
@@ -193,10 +196,22 @@ class Domain:
         self.import_cmd: list[str] = list(d.get("import_cmd", []))
         self.export_key: str = d.get("export_key", "settings")  # where the settings dict lives in the export
         self.defaults_keys: list[str] = list(d.get("defaults_keys", []))  # real settings the export omits
+        # JSON-file mode: one dict (dotted json_key) inside an app's own JSON config file.
+        self.json_file: str | None = d.get("json_file")
+        self.json_key: str = d.get("json_key", "")
+        self.deny_paths: list[str] = list(d.get("deny_paths", []))  # dotted globs of nested keys never captured
 
     @property
     def cli(self) -> bool:
         return bool(self.export_cmd)
+
+    @property
+    def is_json(self) -> bool:
+        return bool(self.json_file)
+
+    @property
+    def ext(self) -> str:
+        return "json" if self.is_json else "plist"
 
 
 class Ctx:
@@ -225,7 +240,7 @@ class Ctx:
         return [self.domain(n) for n in names] if names else list(self.domains)
 
     def snap_path(self, d: Domain) -> str:
-        return os.path.join(self.prefs_dir, d.name + ".plist")
+        return os.path.join(self.prefs_dir, d.name + "." + d.ext)
 
     def relpath(self, path: str) -> str:
         return os.path.relpath(path, self.repo)
@@ -404,6 +419,23 @@ def dump_plist(doc: dict) -> bytes:
     return plistlib.dumps(doc, fmt=plistlib.FMT_XML, sort_keys=True)
 
 
+def read_doc(path: str):
+    """A snapshot/base file: JSON for .json paths (JSON-file domains), plist otherwise."""
+    if path.endswith(".json"):
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return None
+    return read_plist(path)
+
+
+def dump_doc(path: str, doc: dict) -> bytes:
+    if path.endswith(".json"):
+        return (json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
+    return dump_plist(doc)
+
+
 def read_plist(path: str):
     try:
         with open(path, "rb") as f:
@@ -488,8 +520,117 @@ def cli_import(dom: Domain, env: dict) -> None:
         _run_cli(dom.import_cmd, path, "settings import")
 
 
+# ----------------------------------------------------------------------------- app JSON config file (json_file)
+def expand(path: str) -> str:
+    return os.path.expandvars(path.replace("~", HOME, 1) if path.startswith("~") else path)
+
+
+def json_load_file(path: str, retries: int = 3):
+    """The whole app config, or None if the file does not exist yet. Retries a half-written file."""
+    err = "unknown"
+    for attempt in range(retries):
+        try:
+            with open(path, encoding="utf-8") as f:
+                doc = json.load(f)
+            if not isinstance(doc, dict):
+                raise PrefsyncError("%s: top level is not a JSON object" % path)
+            return doc
+        except FileNotFoundError:
+            return None
+        except ValueError as e:
+            err = str(e)
+        if attempt < retries - 1:
+            time.sleep(1)
+    raise PrefsyncError("%s is not valid JSON: %s" % (path, err))
+
+
+def json_section(doc: dict, key: str, create: bool = False) -> dict:
+    """The (mutable) dict at dotted `key` inside doc ("" = the whole doc)."""
+    cur = doc
+    for part in [p for p in key.split(".") if p]:
+        if not isinstance(cur.get(part), dict):
+            if not create:
+                raise PrefsyncError("JSON config has no %r dict" % key)
+            cur[part] = {}
+        cur = cur[part]
+    return cur
+
+
+def strip_paths(doc: dict, globs: list[str]) -> dict:
+    """Copy of doc without nested keys matching dotted globs (e.g. "autoCleanup.diffShownCount", "a.*Count")."""
+    out = copy.deepcopy(doc)
+    for g in globs:
+        _strip(out, g.split("."))
+    return out
+
+
+def _strip(d, parts: list[str]) -> None:
+    if not isinstance(d, dict):
+        return
+    for k in [k for k in d if fnmatch.fnmatchcase(str(k), parts[0])]:
+        if len(parts) == 1:
+            del d[k]
+        else:
+            _strip(d[k], parts[1:])
+
+
+def json_read_live(dom: Domain) -> dict:
+    doc = json_load_file(expand(dom.json_file))
+    if doc is None:
+        return {}
+    return strip_paths(json_section(doc, dom.json_key), dom.deny_paths)
+
+
+def detect_indent(text: str):
+    m = re.match(r"\{\r?\n([ \t]+)\S", text)
+    if not m:
+        return None if not text.startswith("{\n") else 2
+    ws = m.group(1)
+    return "\t" if ws.startswith("\t") else len(ws)
+
+
+def backup_file(path: str, name: str, keep: int = 10) -> str:
+    """Private copy (0600) in the state dir before prefsync rewrites an app's config; keeps the newest `keep`."""
+    bdir = os.path.join(STATE_DIR, "backups", name)
+    os.makedirs(bdir, mode=0o700, exist_ok=True)
+    dest = os.path.join(bdir, "%s.%s" % (time.strftime("%Y%m%d-%H%M%S"), os.path.basename(path)))
+    with open(path, "rb") as src:
+        data = src.read()
+    fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    for old in sorted(os.listdir(bdir))[:-keep]:
+        with contextlib.suppress(OSError):
+            os.unlink(os.path.join(bdir, old))
+    return dest
+
+
+def json_write_file(path: str, doc: dict, like: str) -> None:
+    """Atomic rewrite keeping the original indentation and file mode; refuses to write anything unparseable."""
+    indent = detect_indent(like)
+    text = json.dumps(doc, indent=indent, ensure_ascii=False)
+    if like.endswith("\n"):
+        text += "\n"
+    if json.loads(text) != doc:
+        raise PrefsyncError("refusing to write %s: JSON round-trip mismatch" % path)
+    mode = os.stat(path).st_mode & 0o777
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".prefsync-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
 def read_live(dom: Domain) -> dict:
-    """Unfiltered live settings: `defaults export`, or the app's export (+ defaults_keys) for CLI domains."""
+    """Unfiltered live settings: `defaults export`, the app's export (+ defaults_keys) for CLI domains, or the
+    json_key dict of the app's JSON config for JSON-file domains."""
+    if dom.is_json:
+        return json_read_live(dom)
     if not dom.cli:
         return defaults_export(dom.name)
     doc = canonical_json(cli_export(dom)[dom.export_key])
@@ -523,6 +664,10 @@ def locked(wait: float = 30.0):
     finally:
         fcntl.flock(f, fcntl.LOCK_UN)
         f.close()
+
+
+def base_path(dom: Domain) -> str:
+    return state_path("base", dom.name, dom.ext)
 
 
 def live_filtered(ctx: Ctx, dom: Domain, track: bool = False):
@@ -610,9 +755,9 @@ def build_message(domain: str, changes: list) -> str:
 def capture_domain(ctx: Ctx, dom: Domain, force: bool = False, commit: bool = True) -> str:
     live, _denied = live_filtered(ctx, dom, track=True)
     snap_p = ctx.snap_path(dom)
-    snap = read_plist(snap_p)
-    base_p = state_path("base", dom.name)
-    base = read_plist(base_p)
+    snap = read_doc(snap_p)
+    base_p = base_path(dom)
+    base = read_doc(base_p)
 
     if base is None:
         if snap is not None:
@@ -644,14 +789,14 @@ def capture_domain(ctx: Ctx, dom: Domain, force: bool = False, commit: bool = Tr
     result = "unchanged"
     if snap != new_snap:
         changes = diff_paths(snap or {}, new_snap)
-        write_atomic(snap_p, dump_plist(new_snap))
+        write_atomic(snap_p, dump_doc(snap_p, new_snap))
         log.info("%s: captured %d change(s): %s", dom.name, len(changes), "; ".join(fmt_change(c) for c in changes[:6]))
         if commit:
             commit_paths(ctx, [snap_p], build_message(dom.name, changes))
         result = "captured"
     elif commit:
         commit_paths(ctx, [snap_p], "prefs(%s): commit pending snapshot (earlier commit failed)" % dom.name)
-    write_atomic(base_p, dump_plist(live))
+    write_atomic(base_p, dump_doc(base_p, live))
     return result
 
 
@@ -701,10 +846,12 @@ def restart_after(spec: str, was_running: bool) -> None:
 def apply_domain(ctx: Ctx, dom: Domain, dry_run: bool = False) -> bool:
     for d in dom.mkdir:
         os.makedirs(os.path.expandvars(d.replace("~", HOME, 1) if d.startswith("~") else d), exist_ok=True)
-    snap = read_plist(ctx.snap_path(dom))
+    snap = read_doc(ctx.snap_path(dom))
     if snap is None:
         log.info("%s: no snapshot in repo; nothing to apply", dom.name)
         return False
+    if dom.is_json:
+        return apply_json_domain(ctx, dom, snap, dry_run)
     if dom.cli:
         return apply_cli_domain(ctx, dom, snap, dry_run)
     live_full = defaults_export(dom.name)
@@ -718,7 +865,7 @@ def apply_domain(ctx: Ctx, dom: Domain, dry_run: bool = False) -> bool:
         log.info("%s: already in sync (%d keys)", dom.name, len(snap))
         if not dry_run:
             kept, _ = live_filtered(ctx, dom, track=True)
-            write_atomic(state_path("base", dom.name), dump_plist(kept))
+            write_atomic(base_path(dom), dump_doc(base_path(dom), kept))
         return False
     desc = "; ".join(
         fmt_change(c) for k in sorted(changed) for c in diff_paths({k: live_full.get(k)}, {k: changed[k]})[:3]
@@ -731,7 +878,7 @@ def apply_domain(ctx: Ctx, dom: Domain, dry_run: bool = False) -> bool:
     defaults_import(dom.name, changed)
     restart_after(dom.restart, was)
     kept, _ = live_filtered(ctx, dom, track=True)
-    write_atomic(state_path("base", dom.name), dump_plist(kept))
+    write_atomic(base_path(dom), dump_doc(base_path(dom), kept))
     return True
 
 
@@ -755,7 +902,7 @@ def apply_cli_domain(ctx: Ctx, dom: Domain, snap: dict, dry_run: bool) -> bool:
         log.info("%s: already in sync (%d keys)", dom.name, len(snap))
         if not dry_run:
             kept, _ = live_filtered(ctx, dom, track=True)
-            write_atomic(state_path("base", dom.name), dump_plist(kept))
+            write_atomic(base_path(dom), dump_doc(base_path(dom), kept))
         return False
     desc = "; ".join(fmt_change(c) for k in sorted(changed) for c in diff_paths({k: live.get(k)}, {k: changed[k]})[:3])
     if dry_run:
@@ -792,7 +939,57 @@ def apply_cli_domain(ctx: Ctx, dom: Domain, snap: dict, dry_run: bool) -> bool:
     finally:
         restart_after(dom.restart, was)
     kept, _ = live_filtered(ctx, dom, track=True)
-    write_atomic(state_path("base", dom.name), dump_plist(kept))
+    write_atomic(base_path(dom), dump_doc(base_path(dom), kept))
+    return True
+
+
+def apply_json_domain(ctx: Ctx, dom: Domain, snap: dict, dry_run: bool) -> bool:
+    """Merge the snapshot's keys into the app's JSON config. Only while the app is quit (it keeps the config in memory
+    and rewrites the whole file), after a backup; every other key in the file is left exactly as it was."""
+    path = expand(dom.json_file)
+    doc = json_load_file(path)
+    if doc is None:
+        log.info("%s: %s does not exist yet (open the app once, then: prefsync apply %s)", dom.name, path, dom.name)
+        return False
+    live = json_section(doc, dom.json_key, create=True)
+    desired = from_template(snap)
+
+    def changes(cur: dict) -> dict:
+        out = {}
+        for k, v in desired.items():
+            merged = deep_merge(cur[k], v) if k in cur else copy.deepcopy(v)
+            if merged != cur.get(k):
+                out[k] = merged
+        return out
+
+    changed = changes(live)
+    if not changed:
+        log.info("%s: already in sync (%d keys)", dom.name, len(snap))
+        if not dry_run:
+            kept, _ = live_filtered(ctx, dom, track=True)
+            write_atomic(base_path(dom), dump_doc(base_path(dom), kept))
+        return False
+    desc = "; ".join(fmt_change(c) for k in sorted(changed) for c in diff_paths({k: live.get(k)}, {k: changed[k]})[:3])
+    if dry_run:
+        print("%s: would change %d key(s) in %s: %s" % (dom.name, len(changed), path, desc))
+        return True
+    log.info("%s: merging %d key(s) into %s: %s", dom.name, len(changed), path, desc[:600])
+    was = restart_before(dom.restart)
+    try:
+        if dom.restart.startswith("app:") and app_running(dom.restart[4:]):
+            raise PrefsyncError("%s is still running; not touching its config while it runs" % dom.restart[4:])
+        with open(path, encoding="utf-8") as f:
+            text = f.read()  # re-read: the app may have rewritten the file on quit
+        doc = json.loads(text)
+        section = json_section(doc, dom.json_key, create=True)
+        section.update(changes(section))
+        bak = backup_file(path, dom.name)
+        json_write_file(path, doc, text)
+        log.info("%s: wrote %s (backup: %s)", dom.name, path, bak)
+    finally:
+        restart_after(dom.restart, was)
+    kept, _ = live_filtered(ctx, dom, track=True)
+    write_atomic(base_path(dom), dump_doc(base_path(dom), kept))
     return True
 
 
@@ -819,8 +1016,8 @@ def cmd_status(ctx: Ctx, args, verbose: bool = False) -> int:
         except PrefsyncError as e:
             print("%-52s ERROR %s" % (dom.name, e))
             continue
-        snap = read_plist(ctx.snap_path(dom))
-        base = read_plist(state_path("base", dom.name))
+        snap = read_doc(ctx.snap_path(dom))
+        base = read_doc(base_path(dom))
         local = diff_paths(base, live) if base is not None else []
         repo = diff_paths(live, snap) if snap is not None and base is not None else []
         if snap is None:
@@ -938,7 +1135,7 @@ def cmd_doctor(ctx: Ctx, args) -> int:
         except PrefsyncError as e:
             bad("%s: %s" % (dom.name, e))
             continue
-        snap = read_plist(ctx.snap_path(dom))
+        snap = read_doc(ctx.snap_path(dom))
         if snap is None and not live:
             ok("%s: nothing customised yet (captured automatically once you change a setting)" % dom.name)
         elif snap is None:
@@ -973,8 +1170,8 @@ def recent_errors(lines, cutoff: str) -> list[str]:
 
 
 def watch_file(dom: Domain) -> str:
-    if dom.watch:
-        return dom.watch.replace("~", HOME, 1) if dom.watch.startswith("~") else dom.watch
+    if dom.watch or dom.json_file:
+        return expand(dom.watch or dom.json_file)
     return os.path.join(HOME, "Library", "Preferences", dom.name + ".plist")
 
 
