@@ -1,7 +1,9 @@
 theme = GitHub Dark
+background = #000000
 font-family = "Geist Mono"
 macos-icon = "xray"
 window-padding-x = 8
 window-padding-y = 8
 window-width = 165
 window-height = 38
+split-divider-color = #3a3a3a

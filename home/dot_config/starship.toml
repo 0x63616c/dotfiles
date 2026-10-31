@@ -1,7 +1,44 @@
-# Starship prompt: default modules, but one line (no blank line before the prompt, no line break before the ❯).
+# Starship prompt: minimal, one line, modelled on the old clean-russell zsh theme.
+# folder git:(branch) ✗        time on the right
 "$schema" = 'https://starship.rs/config-schema.json'
 
 add_newline = false
+format = "$hostname$directory$git_branch$git_status$character"
+right_format = "$time"
 
-[line_break]
-disabled = true
+[hostname]
+ssh_only = true
+format = "[\\[$hostname\\]]($style) "
+style = "fg:160"
+
+[directory]
+truncation_length = 1
+truncate_to_repo = false
+format = "[$path]($style) "
+style = "fg:45"
+
+[git_branch]
+format = "[git:\\(](fg:69)[$branch](fg:141)[\\)](fg:69) "
+
+[git_status]
+format = "([✗](fg:178) )"
+conflicted = "x"
+ahead = "x"
+behind = "x"
+diverged = "x"
+untracked = "x"
+stashed = ""
+modified = "x"
+staged = "x"
+renamed = "x"
+deleted = "x"
+
+[character]
+success_symbol = "[›](fg:242)"
+error_symbol = "[›](fg:160)"
+
+[time]
+disabled = false
+format = "[$time]($style)"
+style = "fg:242"
+time_format = "%T"
