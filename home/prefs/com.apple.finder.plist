@@ -4,6 +4,30 @@
 <dict>
 	<key>FK_AppCentricShowSidebar</key>
 	<true/>
+	<key>FK_StandardViewOptions2</key>
+	<dict>
+		<key>ColumnViewOptions</key>
+		<dict>
+			<key>ArrangeBy</key>
+			<string>dnam</string>
+			<key>ColumnShowFolderArrow</key>
+			<true/>
+			<key>ColumnShowIcons</key>
+			<true/>
+			<key>ColumnWidth</key>
+			<integer>245</integer>
+			<key>FontSize</key>
+			<integer>13</integer>
+			<key>PreviewDisclosureState</key>
+			<true/>
+			<key>SharedArrangeBy</key>
+			<string>kipl</string>
+			<key>ShowIconThumbnails</key>
+			<true/>
+			<key>ShowPreview</key>
+			<true/>
+		</dict>
+	</dict>
 	<key>FXArrangeGroupViewBy</key>
 	<string>Name</string>
 	<key>FXPreferredGroupBy</key>
