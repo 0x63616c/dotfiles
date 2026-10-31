@@ -10,6 +10,8 @@
 	<string>Kind</string>
 	<key>FXPreferredViewStyle</key>
 	<string>Nlsv</string>
+	<key>FXRemoveOldTrashItems</key>
+	<true/>
 	<key>ShowExternalHardDrivesOnDesktop</key>
 	<true/>
 	<key>ShowHardDrivesOnDesktop</key>
