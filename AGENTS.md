@@ -19,7 +19,7 @@ Public repo `0x63616c/dotfiles` (so the plain chezmoi one-liner works; **never c
 - **Apps that rewrite their own config** (OpenCode `cli.json`, Claude `settings.json`, KiCad, etc.): use `modify_` scripts that patch only the keys we own; do not commit whole files.
 - **Preferences go through `prefsync`**, never ad-hoc `defaults write` scripts and never hand-copied plists. To add an app or system area: `prefsync add <domain>` (see below).
 - **Brewfile and preference snapshots** are applied by `run_onchange_` scripts under `home/.chezmoiscripts/` so they re-run only when their content changes. Add apps to the Brewfile instead of installing by hand; manually installed apps get "brewified" later.
-- Deliberately excluded: Mole (Vorssaint replaces it), Alfred (uninstalled), MacTap, 1Password Installer.
+- Deliberately excluded: Alfred (uninstalled), MacTap, 1Password Installer, Tart, runner-pool and their taps. Mole is installed and tracked (Calum changed his mind Oct 31, 2026).
 - Don't delete or migrate anything from the old repo without Calum choosing it.
 - Keep scripts idempotent and loud on failure (non-zero exit with a clear message).
 

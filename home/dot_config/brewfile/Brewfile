@@ -35,6 +35,7 @@ mas "SponsorBlock", id: 1573461917
 mas "TestFlight", id: 899247664
 
 # No cask and no App Store entry, manage manually: Voxelite (co.worldwidewebb.voxelite)
+# Calum's own apps, managed manually: Callkeep (co.calum.callkeep, dev build), WWW Control Center (co.worldwidewebb.theworkflowengine, iOS app via App Store)
 cask "cursor"
 cask "chatgpt"   # ChatGPT desktop app with Codex built in (codex-app cask is deprecated, it became this app)
 cask "bambu-studio"
