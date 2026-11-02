@@ -6,6 +6,8 @@
 	<real>16.0</real>
 	<key>magnification</key>
 	<false/>
+	<key>show-recents</key>
+	<true/>
 	<key>tilesize</key>
 	<real>71.0</real>
 	<key>wvous-br-corner</key>
