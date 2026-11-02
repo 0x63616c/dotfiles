@@ -45,3 +45,4 @@ cask "font-geist-mono"
 brew "mole"
 tap "0x63616c/tap"
 brew "0x63616c/tap/runner-pool"
+mas "Xcode", id: 497799835
