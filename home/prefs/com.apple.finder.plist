@@ -36,31 +36,39 @@
 	<string>Nlsv</string>
 	<key>FXRemoveOldTrashItems</key>
 	<true/>
-	<key>MeetingRoomViewSetting</key>
-	<dict>
-		<key>CustomViewStyleVersion</key>
-		<integer>1</integer>
-		<key>WindowState</key>
-		<dict>
-			<key>ContainerShowSidebar</key>
-			<true/>
-			<key>ShowSidebar</key>
-			<true/>
-			<key>ShowStatusBar</key>
-			<false/>
-			<key>ShowTabView</key>
-			<false/>
-			<key>ShowToolbar</key>
-			<true/>
-			<key>WindowBounds</key>
-			<string>{{840, 105}, {1279, 721}}</string>
-		</dict>
-	</dict>
+	<key>PreviewPaneGalleryWidth</key>
+	<real>250.0</real>
+	<key>PreviewPaneWidth</key>
+	<real>250.0</real>
 	<key>ShowExternalHardDrivesOnDesktop</key>
 	<true/>
 	<key>ShowHardDrivesOnDesktop</key>
 	<false/>
 	<key>ShowRemovableMediaOnDesktop</key>
 	<true/>
+	<key>StandardViewOptions</key>
+	<dict>
+		<key>ColumnViewOptions</key>
+		<dict>
+			<key>ArrangeBy</key>
+			<string>dnam</string>
+			<key>ColumnShowFolderArrow</key>
+			<true/>
+			<key>ColumnShowIcons</key>
+			<true/>
+			<key>ColumnWidth</key>
+			<integer>245</integer>
+			<key>FontSize</key>
+			<integer>13</integer>
+			<key>PreviewDisclosureState</key>
+			<true/>
+			<key>SharedArrangeBy</key>
+			<string>kipl</string>
+			<key>ShowIconThumbnails</key>
+			<true/>
+			<key>ShowPreview</key>
+			<true/>
+		</dict>
+	</dict>
 </dict>
 </plist>

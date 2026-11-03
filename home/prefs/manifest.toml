@@ -74,6 +74,8 @@ deny = [
   "TagsCloudSerialNumber", "FavoriteTagNames", "LastTrashState", "NS*", "*ViewSettings*",
   "*SidebarWidth*", "Sidebar*DisclosedState", "*Version", "FXPreferredSearchViewStyleVersion",
   "*Window*", "*Bounds", "ComputerViewSettings", "ShowSidebar",
+  # Navigation history, server addresses and nested window state are local to this Mac.
+  "GoToField*", "FXConnectToLastURL", "MeetingRoomViewSetting",
 ]
 
 # Keyboard, appearance and gestures only. NSGlobalDomain is shared by every app on the Mac,

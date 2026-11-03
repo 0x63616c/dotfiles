@@ -21,7 +21,7 @@
 	<key>autoQuitDockApps</key>
 	<array/>
 	<key>autoQuitEnabled</key>
-	<true/>
+	<false/>
 	<key>autoQuitExceptions</key>
 	<array>
 		<string>com.apple.finder</string>
@@ -1177,7 +1177,7 @@
 	<key>screenshotOpenEditorDirectly</key>
 	<false/>
 	<key>screenshotPreviewDuration</key>
-	<integer>3</integer>
+	<integer>2</integer>
 	<key>screenshotPreviewEnabled</key>
 	<true/>
 	<key>screenshotPreviewPosition</key>
