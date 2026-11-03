@@ -1123,7 +1123,7 @@
 	<key>screenshotCopyToClipboard</key>
 	<true/>
 	<key>screenshotDefaultAction</key>
-	<string></string>
+	<string>saveAndCopy</string>
 	<key>screenshotDelay</key>
 	<integer>0</integer>
 	<key>screenshotDownscale</key>
