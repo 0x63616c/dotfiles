@@ -1185,7 +1185,7 @@
 	<key>screenshotPreviewTakesFocus</key>
 	<true/>
 	<key>screenshotSaveFolder</key>
-	<string>@HOME@/Desktop/Screenshots</string>
+	<string>@HOME@/Documents/Screenshots</string>
 	<key>screenshotSaveSubfolder</key>
 	<string></string>
 	<key>screenshotSharingEnabled</key>
