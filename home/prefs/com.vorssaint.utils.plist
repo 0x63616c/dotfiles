@@ -244,7 +244,7 @@
 	<key>keyboardBrightnessIncreaseShortcut</key>
 	<string>option+command:24</string>
 	<key>keyboardBrightnessShortcutsEnabled</key>
-	<false/>
+	<true/>
 	<key>keyboardDebounceEnabled</key>
 	<false/>
 	<key>keyboardDebounceKeyWindows</key>
