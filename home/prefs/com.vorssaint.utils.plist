@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>appAppearance</key>
-	<string>dark</string>
+	<string>system</string>
 	<key>appUpdatesCheckFrequency</key>
 	<string>daily</string>
 	<key>appUpdatesIncludeAppStore</key>
