@@ -762,7 +762,7 @@
 	<key>notchOpensActivity</key>
 	<true/>
 	<key>notchOutlineEnabled</key>
-	<false/>
+	<true/>
 	<key>notchPomodoroFocusMinutes</key>
 	<integer>25</integer>
 	<key>notchPomodoroLongBreakInterval</key>
