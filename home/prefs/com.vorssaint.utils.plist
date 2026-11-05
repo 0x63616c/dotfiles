@@ -712,9 +712,9 @@
 	<key>notchLiveEqualizer</key>
 	<false/>
 	<key>notchLockScreen</key>
-	<false/>
+	<true/>
 	<key>notchLockSounds</key>
-	<false/>
+	<true/>
 	<key>notchLowBatteryEarly</key>
 	<false/>
 	<key>notchLowBatteryEarlyThreshold</key>
