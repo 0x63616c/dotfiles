@@ -116,7 +116,7 @@
     "63": "ptt"
   },
   "shouldAutoLearnWords": true,
-  "shouldMuteAudio": false,
+  "shouldMuteAudio": true,
   "shouldOCRScreenCapture": false,
   "shouldPauseAudio": false,
   "stackedMessagesEnabled": false,
