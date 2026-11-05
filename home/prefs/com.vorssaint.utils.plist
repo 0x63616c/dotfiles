@@ -819,7 +819,7 @@
 	<key>notchTimerMinutes</key>
 	<integer>15</integer>
 	<key>notchTimerMode</key>
-	<string>pomodoro</string>
+	<string>timer</string>
 	<key>notchTimerSoundEnabled</key>
 	<true/>
 	<key>notchTrackChange</key>
