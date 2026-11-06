@@ -42,3 +42,11 @@ Calum changes settings in the apps/System Settings; the LaunchAgent captures the
 **Debug:** `prefsync doctor` (agent loaded, WatchPaths match the manifest, git identity, gitleaks, per-domain export, recent errors), `prefsync status` / `prefsync diff`, `tail -f ~/Library/Logs/prefsync.log` (new keys, captures, commits, errors; rotated 3x256 KB), `launchctl print gui/$(id -u)/dev.0x63616c.prefsync`, agent stderr in `~/Library/Logs/prefsync.launchd.log`. State (last-synced base copies, seen keys, lock) lives in `~/.local/state/prefsync/`; deleting a domain's `base/<domain>.plist` makes the next `prefsync apply` re-baseline it.
 
 **Rules:** capture never overwrites an unapplied pulled snapshot (three-way by key); apply merges and never deletes live keys; the shrink guard refuses a capture that loses more than half the keys (`--force` to override); a domain is only captured after being applied on that Mac. To change a value from the repo side, edit the snapshot value and `chezmoi apply`. Dock layout and Finder per-folder view state are deliberately not synced (bookmark data with local paths). Text replacements (contain a phone number) are not synced.
+
+## Mail app-icon badge (manual)
+
+Apple Mail's notification badge on the app icon is off: System Settings → Notifications → Mail → "Badge application icon", bundle `com.apple.mail`. The record is `home/prefs/manual.toml` (`apply = "manual"`, `value = false`). It is already off on Calum's Mac. Leave it off.
+
+prefsync does not manage it. There is no supported defaults key, so do not add a domain and do not write `MailDockBadge` (that key selects which mailboxes contribute to the unread count). Do not edit `com.apple.ncprefs`, the usernoted database, or any Mail store. Do not install a `com.apple.notificationsettings` profile: Apple's payload enforces the settings it covers, the schema supplies defaults for omitted keys, and a profile would lock Mail's notification controls. Do not restart Mail or kill `usernoted`.
+
+Bootstrap, on a new Mac only: open `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.apple.mail` and turn off "Badge application icon" if it is on. Leave banners, sounds, previews, accounts, messages, and every other app as they are. No script clicks that control.

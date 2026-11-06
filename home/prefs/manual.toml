@@ -1,0 +1,24 @@
+# Preferences with no safe automatic apply path.
+# prefsync loads only manifest.toml. chezmoi does not deploy home/prefs/ (see home/.chezmoiignore).
+# Nothing in this file is written to the Mac by capture, apply, or brew bundle.
+# Do not promote an entry here into a [[domain]], a defaults write, a configuration profile,
+# a notification-database edit, or a System Settings clicker.
+
+[[preference]]
+id = "mail-notification-badge"
+bundle_id = "com.apple.mail"
+setting = "notifications.badge-application-icon"
+control = "Badge application icon"
+value = false
+apply = "manual"
+open = "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.apple.mail"
+untouched = [
+  "Mail banners",
+  "Mail sounds",
+  "Mail previews",
+  "Mail accounts",
+  "Mail messages",
+  "other apps' notification settings",
+]
+why_manual = "macOS has no supported per-app defaults key for this one toggle. MailDockBadge is Mail's unread-count mailbox selection, not the Notifications switch. com.apple.ncprefs is not present on current macOS, and the usernoted database is per-machine. A com.apple.notificationsettings profile is a restriction: Apple's schema says those settings will always be enforced, and omitted keys have documented defaults, so a profile can reset or lock banners, sounds, and previews. It is not installed."
+bootstrap = "Already off on Calum's Mac; leave it off. On a new Mac, open the open URL and turn off Badge application icon only if that control is on. Do not change any other control on the page."
