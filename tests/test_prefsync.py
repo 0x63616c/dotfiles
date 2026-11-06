@@ -638,5 +638,90 @@ class JsonFileIntegrationTests(unittest.TestCase):
         self.assertFalse(os.path.exists(self.cfg))  # never creates the app's config from scratch
 
 
+class ManualPreferenceTests(unittest.TestCase):
+    """Mail's app-icon badge is recorded, not applied. Numbers is a Brewfile mas entry."""
+
+    def test_mail_badge_is_manual_and_off(self):
+        path = os.path.join(ROOT, "home", "prefs", "manual.toml")
+        with open(path) as f:
+            text = f.read()
+        doc = ps.mini_toml(text)
+        try:
+            import tomllib
+        except ImportError:
+            tomllib = None
+        if tomllib is not None:
+            self.assertEqual(doc, tomllib.loads(text))
+        prefs = doc["preference"]
+        self.assertEqual([p["id"] for p in prefs], ["mail-notification-badge"])
+        pref = prefs[0]
+        self.assertEqual(pref["bundle_id"], "com.apple.mail")
+        self.assertEqual(pref["setting"], "notifications.badge-application-icon")
+        self.assertEqual(pref["control"], "Badge application icon")
+        self.assertIs(pref["value"], False)
+        self.assertEqual(pref["apply"], "manual")
+        self.assertEqual(
+            pref["open"],
+            "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.apple.mail",
+        )
+        for item in (
+            "Mail banners",
+            "Mail sounds",
+            "Mail previews",
+            "Mail accounts",
+            "Mail messages",
+            "other apps' notification settings",
+        ):
+            self.assertIn(item, pref["untouched"])
+        self.assertIn("MailDockBadge", pref["why_manual"])
+        self.assertIn("always be enforced", pref["why_manual"])
+        self.assertIn("leave it off", pref["bootstrap"])
+
+    def test_prefsync_does_not_load_manual_preferences(self):
+        old = os.environ.get("PREFSYNC_SRC")
+        os.environ["PREFSYNC_SRC"] = ROOT
+        try:
+            ctx = ps.Ctx()
+        finally:
+            if old is None:
+                os.environ.pop("PREFSYNC_SRC", None)
+            else:
+                os.environ["PREFSYNC_SRC"] = old
+        names = [d.name for d in ctx.domains]
+        self.assertNotIn("com.apple.mail", names)
+        self.assertNotIn("com.apple.ncprefs", names)
+        self.assertFalse(any("notification" in name for name in names))
+        self.assertIn("com.vorssaint.utils", names)
+        self.assertIn("wispr-flow", names)
+
+    def test_no_profile_or_mail_dock_badge_in_deployed_source(self):
+        root = os.path.join(ROOT, "home")
+        for dirpath, _, files in os.walk(root):
+            for name in files:
+                self.assertFalse(name.endswith(".mobileconfig"), name)
+                if name == "manual.toml":
+                    continue
+                with open(os.path.join(dirpath, name), errors="replace") as f:
+                    text = f.read()
+                self.assertNotIn("MailDockBadge", text, name)
+                self.assertNotIn("com.apple.notificationsettings", text, name)
+                self.assertNotIn("BadgesEnabled", text, name)
+
+    def test_agents_point_at_the_manual_record(self):
+        with open(os.path.join(ROOT, "AGENTS.md")) as f:
+            text = f.read()
+        self.assertIn("home/prefs/manual.toml", text)
+        self.assertIn("Badge application icon", text)
+        self.assertIn("MailDockBadge", text)
+
+    def test_numbers_uses_the_current_app_store_id(self):
+        path = os.path.join(ROOT, "home", "dot_config", "brewfile", "Brewfile")
+        with open(path) as f:
+            brew = f.read()
+        self.assertEqual(brew.count('mas "Numbers"'), 1)
+        self.assertIn('mas "Numbers", id: 361304891\n', brew)
+        self.assertNotRegex(brew, r"id:\s*409203825")
+
+
 if __name__ == "__main__":
     unittest.main()
