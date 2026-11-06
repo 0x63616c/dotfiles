@@ -38,6 +38,8 @@
 		<true/>
 		<key>Name</key>
 		<false/>
+		<key>Privileges</key>
+		<true/>
 	</dict>
 	<key>FXPreferredGroupBy</key>
 	<string>Kind</string>
