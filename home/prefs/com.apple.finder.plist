@@ -30,6 +30,15 @@
 	</dict>
 	<key>FXArrangeGroupViewBy</key>
 	<string>Name</string>
+	<key>FXInfoPanesExpanded</key>
+	<dict>
+		<key>Comments</key>
+		<true/>
+		<key>MetaData</key>
+		<true/>
+		<key>Name</key>
+		<false/>
+	</dict>
 	<key>FXPreferredGroupBy</key>
 	<string>Kind</string>
 	<key>FXPreferredViewStyle</key>
