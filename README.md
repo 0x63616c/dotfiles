@@ -32,7 +32,7 @@ Edit the source (`chezmoi cd`), never the deployed files in `$HOME`.
 
 ## Settings sync
 
-Change settings the normal way (System Settings, Vorssaint, Finder, Dock, trackpad). Within seconds they land in this repo as a local commit; on a new Mac `chezmoi apply` puts them back. Nothing to track by hand.
+Change settings the normal way (System Settings, Vorssaint, Finder, Dock, trackpad). Within seconds they land in this repo as a local commit; on a new Mac `chezmoi apply` puts them back. Mail's app-icon notification badge is the one preference applied by hand (below).
 
 How it works:
 
@@ -43,6 +43,14 @@ How it works:
 - **Before every chezmoi run** a hook captures first, so applying the repo can never overwrite a change you just made.
 - **Applying merges** the snapshot over the live settings (keys not in the snapshot are left alone) and restarts the Dock, Finder or app only if something actually changed. A change pulled from git and a change made on the Mac are both kept (three-way, per key).
 - **Safe on a fresh Mac:** a domain is only captured after it has been applied on that Mac, so a new Mac's defaults never overwrite the repo.
+
+**Mail's app-icon badge is manual.** It is off (`com.apple.mail`, Notifications → "Badge application icon") and macOS does not expose that toggle as a preference domain, so `chezmoi apply` leaves it alone. On a new Mac, open Mail's notification settings and turn off only that control if it is on:
+
+```sh
+open "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.apple.mail"
+```
+
+It is already off on the current Mac. Banners, sounds, previews, accounts, and other apps stay as they are. The record is [`home/prefs/manual.toml`](home/prefs/manual.toml).
 
 Add an app: `prefsync add <bundle-or-domain> [--restart app:Name]` (find the domain with `defaults domains | tr ',' '\n' | grep -i name`). It adds the manifest entry, captures it, and runs `chezmoi apply` to extend the watcher. Then read the new `home/prefs/<domain>.plist` before pushing (public repo).
 
