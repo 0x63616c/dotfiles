@@ -33,8 +33,8 @@ mas "AdBlock", id: 1402042596
 mas "1Password for Safari", id: 1569813296
 mas "SponsorBlock", id: 1573461917
 mas "TestFlight", id: 899247664
-# Numbers: current unified App Store listing (Mac, iPhone, iPad, visionOS), bundle com.apple.Numbers.
-# The old Mac-only id 409203825 returns HTTP 404 (checked 2026-11-06). Verified id 361304891, version 15.4.2.
+# Numbers. mas list: 361304891 Numbers (15.4). Bundle com.apple.Numbers,
+# installed as /Applications/Numbers Creator Studio.app. Old Mac-only id 409203825 is not in the store.
 mas "Numbers", id: 361304891
 
 # No cask and no App Store entry, manage manually: Voxelite (co.worldwidewebb.voxelite)
