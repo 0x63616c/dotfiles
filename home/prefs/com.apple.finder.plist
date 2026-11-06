@@ -33,7 +33,7 @@
 	<key>FXPreferredGroupBy</key>
 	<string>Kind</string>
 	<key>FXPreferredViewStyle</key>
-	<string>clmv</string>
+	<string>glyv</string>
 	<key>FXRemoveOldTrashItems</key>
 	<true/>
 	<key>PreviewPaneGalleryWidth</key>
