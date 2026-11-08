@@ -31,7 +31,7 @@ Calum changes settings in the apps/System Settings; the LaunchAgent captures the
 1. `git log --stat origin/main..HEAD` then `git diff origin/main -- home/prefs` and read every value. Look for paths, names, emails, phone numbers, device or network names, tokens. `prefsync diff` also lists keys the safety nets auto-denied.
 2. If something private/volatile slipped in: add a deny glob to that domain in `home/prefs/manifest.toml`, run `prefsync capture --force <domain>`, and rewrite the unpushed commit(s) (`git rebase -i origin/main`; the history is unpushed so this is fine). If it was already pushed, tell Calum.
 3. gitleaks runs on every commit (hook); a failed hook leaves the snapshot uncommitted and logs an error (`prefsync doctor` warns). Fix and `prefsync capture`.
-4. Push: `git push origin main` from the Mac (SSH via the 1Password agent).
+4. Push: `git push origin main` from the Mac. GitHub SSH and commit signing use the local `~/.ssh/id_ed25519` key; 1Password holds its backup. HTTPS credentials use `gh auth git-credential`. Preserve the Colima SSH include.
 
 **Add a domain:** `prefsync add <domain> [--restart app:Name | killall:Proc | cmd:...] [--deny GLOB]` (domain list: `defaults domains | tr ',' '\n'`). It edits the manifest, takes the first snapshot, and runs `chezmoi apply` so the watcher includes it. Then review the plist, add deny globs, commit. NSGlobalDomain is allow-listed (keyboard/appearance); add keys to its `allow` list.
 

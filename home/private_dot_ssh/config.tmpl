@@ -1,0 +1,8 @@
+# Use the local key directly for GitHub; 1Password keeps the backup.
+Host github.com ssh.github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+    IdentityAgent none
+
+Include {{ .chezmoi.homeDir }}/.colima/ssh_config

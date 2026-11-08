@@ -1,11 +1,11 @@
 [user]
 	name = {{ .name }}
 	email = {{ .email }}
-	signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHZ7LV/EOeunWFi71s4dNzLnwsusY9RlMj37TaPecurE SSH Key: id_ed25519
+	signingkey = {{ .chezmoi.homeDir }}/.ssh/id_ed25519
 [gpg]
 	format = ssh
 [gpg "ssh"]
-	program = /Applications/1Password.app/Contents/MacOS/op-ssh-sign
+	program = /usr/bin/ssh-keygen
 	allowedSignersFile = ~/.config/git/allowed_signers
 [commit]
 	gpgsign = true
@@ -21,3 +21,9 @@
 	prune = true
 [core]
 	excludesfile = ~/.config/git/ignore
+[credential "https://github.com"]
+	helper =
+	helper = !{{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !{{ if eq .chezmoi.arch "arm64" }}/opt/homebrew{{ else }}/usr/local{{ end }}/bin/gh auth git-credential

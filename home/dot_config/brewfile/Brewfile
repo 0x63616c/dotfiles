@@ -24,6 +24,7 @@ cask "spotify"
 cask "tailscale-app"
 cask "vorssaint"
 cask "wispr-flow"
+cask "prismlauncher"
 
 # Installed manually, not yet adopted by Homebrew. Adopt with: brew install --cask --adopt grok-bot
 cask "grok-bot"
