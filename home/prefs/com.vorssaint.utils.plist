@@ -626,7 +626,7 @@
 	<key>notchCameraEnabled</key>
 	<true/>
 	<key>notchCapsuleFitDrop</key>
-	<real>4.0</real>
+	<real>1.0</real>
 	<key>notchCapsuleFitHeight</key>
 	<real>0.0</real>
 	<key>notchCapsuleFitWidth</key>
@@ -813,7 +813,7 @@
 	<key>notchSilhouette</key>
 	<string>capsule</string>
 	<key>notchSize</key>
-	<string>spacious</string>
+	<string>compact</string>
 	<key>notchTimerEnabled</key>
 	<true/>
 	<key>notchTimerMinutes</key>
