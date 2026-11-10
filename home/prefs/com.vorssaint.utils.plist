@@ -626,7 +626,7 @@
 	<key>notchCameraEnabled</key>
 	<true/>
 	<key>notchCapsuleFitDrop</key>
-	<real>1.0</real>
+	<real>4.0</real>
 	<key>notchCapsuleFitHeight</key>
 	<real>0.0</real>
 	<key>notchCapsuleFitWidth</key>
