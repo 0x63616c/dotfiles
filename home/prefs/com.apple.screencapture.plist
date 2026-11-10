@@ -10,5 +10,7 @@
 	<string>file</string>
 	<key>video</key>
 	<false/>
+	<key>visual-intelligence-hint-count</key>
+	<integer>1</integer>
 </dict>
 </plist>
