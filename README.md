@@ -59,12 +59,16 @@ Check on it: `prefsync status`, `prefsync diff`, `prefsync doctor`, and `~/Libra
 ## Worktree cleanup
 
 `worktree-cleanup` previews completed `codex/` worktrees for `world-wide-webb`;
-`worktree-cleanup --apply` removes them and their local branches using `wtp`.
-The chezmoi-managed LaunchAgent runs on the hour and on load, with no
-age delay. A matching PR merged into `main` proves squash merges; commits already
-in freshly fetched `origin/main` also qualify. Open PRs, changed branch heads,
-local changes, untracked files, locks and active process working directories are
-preserved. Ignored environment, database and media files also block removal;
+`worktree-cleanup --apply` removes eligible worktrees using `wtp`.
+The chezmoi-managed LaunchAgent runs on the hour and on load. Merged worktrees
+and their local branches are removed without an age delay.
+A matching PR merged into `main` proves squash merges; commits already
+in freshly fetched `origin/main` also qualify. Unmerged worktrees are removed
+after 24 hours observed clean, inactive and at the exact same commit as their
+GitHub branch; their local and remote branches are kept. Changes, activity or loss
+of remote confirmation reset that timer. An open PR does not block this recoverable
+worktree-only cleanup. Local changes, untracked files, locks and active process
+working directories are preserved. Ignored environment, database and media files also block removal;
 other ignored files, including disposable build caches, are removed with the tree.
 Use `git worktree lock --reason 'retain' <path>` to retain a worktree explicitly.
 Process checks are best effort: a program can start after the final check, and

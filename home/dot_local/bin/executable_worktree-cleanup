@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -121,7 +122,16 @@ def merged_reason(entry, prs):
     return "commit already in origin/main" if result.returncode == 0 else None
 
 
-def cleanup(apply=False):
+def remote_heads():
+    return {
+        ref.removeprefix("refs/heads/"): oid
+        for oid, ref in (line.split() for line in run("git", "ls-remote", "--heads", "origin").splitlines())
+    }
+
+
+def cleanup(apply=False, observed=None, now=None):
+    observed = {} if observed is None else observed
+    now = time.time() if now is None else now
     if run("git", "remote", "get-url", "origin").strip() not in {
         f"git@github.com:{REMOTE}.git",
         f"https://github.com/{REMOTE}.git",
@@ -133,6 +143,7 @@ def cleanup(apply=False):
         e["branch"].removeprefix("refs/heads/") for e in entries if e.get("branch", "").startswith("refs/heads/codex/")
     ]
     prs = pull_requests(branches) if branches else {}
+    pushed = remote_heads()
     active = active_directories()
     report = []
     for entry in entries:
@@ -140,29 +151,58 @@ def cleanup(apply=False):
         blocker = local_blocker(entry, active)
         branch = entry.get("branch", "").removeprefix("refs/heads/")
         proof = None if blocker else merged_reason(entry, prs.get(branch, []))
+        keep_branch = False
         row = {
             "path": str(path),
             "branch": branch,
             "action": "skip",
             "reason": blocker or "merge not proven / branch differs",
         }
+        key = str(path)
+        if blocker or proof or pushed.get(branch) != entry["HEAD"]:
+            observed.pop(key, None)
+        else:
+            previous = observed.get(key)
+            if not previous or previous["head"] != entry["HEAD"]:
+                observed[key] = {"head": entry["HEAD"], "since": now}
+            if now - observed[key]["since"] >= 24 * 3600:
+                proof = "clean, inactive and fully pushed for 24 hours; branch retained"
+                keep_branch = True
+            else:
+                row["reason"] = "fully pushed; waiting for 24 hours clean and inactive"
         if proof:
             row.update(action="eligible", reason=proof)
+            row["keep_branch"] = keep_branch
             if apply:
                 try:
                     # Recheck mutable local state just before removal. Never force dirty removal.
                     blocker = local_blocker(entry, active_directories())
-                    if blocker or not merged_reason(entry, prs.get(branch, [])):
+                    unchanged = run("git", "rev-parse", "refs/heads/" + branch).strip() == entry["HEAD"]
+                    verified = (
+                        remote_heads().get(branch) == entry["HEAD"]
+                        if keep_branch
+                        else bool(merged_reason(entry, prs.get(branch, [])))
+                    )
+                    if blocker or not unchanged or not verified:
                         row.update(action="skip", reason=blocker or "branch changed during cleanup")
+                        observed.pop(key, None)
                     else:
                         name = str(path.relative_to(ROOT))
-                        run("wtp", "remove", "--with-branch", "--force-branch", name)
+                        if keep_branch:
+                            run("wtp", "remove", name)
+                        else:
+                            run("wtp", "remove", "--with-branch", "--force-branch", name)
                         row["action"] = "removed"
+                        observed.pop(key, None)
                         logging.info("Removed %s (%s)", branch, proof)
                 except (subprocess.CalledProcessError, RuntimeError) as error:
                     row.update(action="error", reason=str(error))
                     logging.error("Removal failed for %s: %s", branch, error)
         report.append(row)
+    existing = {e["worktree"] for e in entries}
+    for key in list(observed):
+        if key not in existing:
+            del observed[key]
     return report
 
 
@@ -185,7 +225,12 @@ def main():
         except BlockingIOError:
             return 0
         try:
-            report = cleanup(args.apply)
+            observations_file = state / "observations.json"
+            observed = json.loads(observations_file.read_text()) if observations_file.exists() else {}
+            report = cleanup(args.apply, observed)
+            temporary = state / "observations.tmp"
+            temporary.write_text(json.dumps(observed, indent=2) + "\n")
+            temporary.replace(observations_file)
             (state / "last-report.json").write_text(json.dumps(report, indent=2) + "\n")
             counts = {
                 action: sum(r["action"] == action for r in report)
@@ -196,6 +241,7 @@ def main():
             print("worktree-cleanup: " + summary)
             return 1 if counts["error"] else 0
         except (subprocess.CalledProcessError, RuntimeError, OSError, ValueError) as error:
+            (state / "observations.json").unlink(missing_ok=True)
             logging.error("Cleanup failed: %s", error)
             print(f"worktree-cleanup: {error}", file=sys.stderr)
             return 1

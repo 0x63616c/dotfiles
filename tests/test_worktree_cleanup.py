@@ -98,6 +98,7 @@ class CleanupTests(unittest.TestCase):
         with (
             patch.object(cleanup, "run", run),
             patch.object(cleanup, "pull_requests", return_value={"codex/task": [self.pr]}),
+            patch.object(cleanup, "remote_heads", return_value={}),
             patch.object(cleanup, "active_directories", return_value=[]),
         ):
             preview = cleanup.cleanup()
@@ -107,6 +108,72 @@ class CleanupTests(unittest.TestCase):
             self.assertEqual(sum(r["action"] == "removed" for r in report), 1)
             self.assertFalse(self.path.exists())
             self.assertTrue(self.repo.exists())
+
+    def test_pushed_worktree_waits_24_hours_and_keeps_branch(self):
+        observed = {}
+        real_run = cleanup.run
+
+        def run(*args, cwd=None):
+            if args[:2] == ("git", "fetch"):
+                return ""
+            if args[0] == "wtp":
+                self.assertEqual(args[1:], ("remove", "codex/task"))
+                self.git("worktree", "remove", str(self.path))
+                return ""
+            return real_run(*args, cwd=cwd)
+
+        with (
+            patch.object(cleanup, "run", run),
+            patch.object(cleanup, "pull_requests", return_value={"codex/task": [{**self.pr, "state": "OPEN"}]}),
+            patch.object(cleanup, "remote_heads", return_value={"codex/task": self.entry["HEAD"]}),
+            patch.object(cleanup, "active_directories", return_value=[]),
+        ):
+            cleanup.cleanup(observed=observed, now=0)
+            report = cleanup.cleanup(apply=True, observed=observed, now=86399)
+            self.assertFalse(any(r["action"] == "removed" for r in report))
+            self.assertTrue(self.path.exists())
+            report = cleanup.cleanup(apply=True, observed=observed, now=86400)
+            removed = [r for r in report if r["action"] == "removed"]
+            self.assertEqual(len(removed), 1)
+            self.assertTrue(removed[0]["keep_branch"])
+            self.assertFalse(self.path.exists())
+            self.assertEqual(self.git("rev-parse", "codex/task").strip(), self.entry["HEAD"])
+            self.assertEqual(observed, {})
+
+    def test_changes_activity_and_remote_mismatch_reset_timer(self):
+        observed = {}
+        real_run = cleanup.run
+
+        def run(*args, cwd=None):
+            return "" if args[:2] == ("git", "fetch") else real_run(*args, cwd=cwd)
+
+        with (
+            patch.object(cleanup, "run", run),
+            patch.object(cleanup, "pull_requests", return_value={"codex/task": []}),
+            patch.object(cleanup, "remote_heads", return_value={"codex/task": self.entry["HEAD"]}) as remote,
+            patch.object(cleanup, "active_directories", return_value=[]) as active,
+        ):
+            cleanup.cleanup(observed=observed, now=0)
+            (self.path / "notes.txt").write_text("unfinished")
+            cleanup.cleanup(observed=observed, now=3600)
+            self.assertEqual(observed, {})
+            (self.path / "notes.txt").unlink()
+            cleanup.cleanup(observed=observed, now=7200)
+            self.assertEqual(observed[str(self.path)]["since"], 7200)
+            active.return_value = [self.path]
+            cleanup.cleanup(observed=observed, now=10800)
+            self.assertEqual(observed, {})
+            active.return_value = []
+            cleanup.cleanup(observed=observed, now=14400)
+            remote.return_value = {}
+            cleanup.cleanup(observed=observed, now=18000)
+            self.assertEqual(observed, {})
+            remote.return_value = {"codex/task": self.entry["HEAD"]}
+            cleanup.cleanup(observed=observed, now=21600)
+            self.git("-C", str(self.path), "commit", "--allow-empty", "-m", "new work")
+            remote.return_value = {"codex/task": self.git("rev-parse", "codex/task").strip()}
+            cleanup.cleanup(observed=observed, now=25200)
+            self.assertEqual(observed[str(self.path)]["since"], 25200)
 
 
 if __name__ == "__main__":
