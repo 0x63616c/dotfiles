@@ -112,8 +112,8 @@
     "55+59+8": "copy_last_text",
     "55+59+9": "paste_last_text",
     "59+63": "lens",
-    "62": "popo",
-    "63": "ptt"
+    "61": "ptt",
+    "62": "popo"
   },
   "shouldAutoLearnWords": true,
   "shouldMuteAudio": true,
