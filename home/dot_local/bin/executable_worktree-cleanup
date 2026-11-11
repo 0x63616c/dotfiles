@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""Remove completed WWW worktrees, checking GitHub for squash merges."""
+
+import argparse
+import fcntl
+import json
+import logging
+import os
+import subprocess
+import sys
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+HOME_DIR = Path.home()
+REPO = HOME_DIR / "Documents/ChatGPT/world-wide-webb"
+ROOT = HOME_DIR / ".worktrees/world-wide-webb"
+REMOTE = "0x63616c/world-wide-webb"
+
+
+def run(*args, cwd=REPO):
+    return subprocess.check_output(args, cwd=cwd, text=True, stderr=subprocess.PIPE)
+
+
+def worktrees():
+    entries = []
+    for block in run("git", "worktree", "list", "--porcelain").strip().split("\n\n"):
+        entries.append(dict(line.partition(" ")[::2] for line in block.splitlines()))
+    return entries
+
+
+def pull_requests(branches):
+    fields = "state baseRefName headRefOid headRepository { nameWithOwner } url"
+    selections = " ".join(
+        f"p{i}: pullRequests(first:20,headRefName:{json.dumps(branch)},"
+        "orderBy:{field:CREATED_AT,direction:DESC}) { nodes { " + fields + " } }"
+        for i, branch in enumerate(branches)
+    )
+    query = 'query { repository(owner:"0x63616c",name:"world-wide-webb") {'
+    result = json.loads(run("gh", "api", "graphql", "-f", "query=" + query + selections + "} }"))
+    if result.get("errors"):
+        raise RuntimeError("GitHub PR query failed")
+    data = result["data"]["repository"]
+    return {branch: data[f"p{i}"]["nodes"] for i, branch in enumerate(branches)}
+
+
+def active_directories():
+    # A shell, agent or build whose cwd is inside a worktree keeps it alive.
+    result = subprocess.run(
+        ["lsof", "-n", "-P", "-a", "-u", str(os.getuid()), "-d", "cwd", "-Fn"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise RuntimeError("Cannot inspect active working directories; cleanup skipped")
+    return [Path(line[1:]) for line in result.stdout.splitlines() if line.startswith("n/")]
+
+
+def local_blocker(entry, active):
+    path = Path(entry["worktree"])
+    if not path.is_relative_to(ROOT) or path == ROOT or path.is_symlink():
+        return "outside managed worktree root"
+    if "locked" in entry or "prunable" in entry:
+        return "locked or missing"
+    if not entry.get("branch", "").startswith("refs/heads/codex/"):
+        return "main, detached or non-task branch"
+    if any(directory == path or path in directory.parents for directory in active):
+        return "active process working directory"
+    if run("git", "--no-optional-locks", "status", "--porcelain", "--untracked-files=all", cwd=path):
+        return "local changes or untracked files"
+    # Git ignores these, but they may be irreplaceable local data.
+    ignored = run("git", "ls-files", "--others", "--ignored", "--exclude-standard", "-z", cwd=path)
+    for name in ignored.split("\0"):
+        file = Path(name)
+        if set(file.parts) & {".build", "node_modules", "XCBuildData"}:
+            continue
+        if (
+            file.name == ".env"
+            or file.name.startswith(".env.")
+            or file.suffix.lower()
+            in {
+                ".db",
+                ".sqlite",
+                ".sqlite3",
+                ".m4a",
+                ".wav",
+                ".mp3",
+                ".mp4",
+                ".mov",
+            }
+        ):
+            return "ignored credential, database or media file"
+    return None
+
+
+def merged_reason(entry, prs):
+    branch = entry["branch"].removeprefix("refs/heads/")
+    head = run("git", "rev-parse", "refs/heads/" + branch).strip()
+    if head != entry["HEAD"]:
+        return None
+    # Never treat a reused branch with an open PR as finished.
+    if any(pr["state"] == "OPEN" for pr in prs):
+        return None
+    for pr in prs:
+        if (
+            pr["state"] == "MERGED"
+            and pr["baseRefName"] == "main"
+            and pr["headRefOid"] == head
+            and (pr.get("headRepository") or {}).get("nameWithOwner") == REMOTE
+        ):
+            return pr["url"]
+    # Also handle work merged normally without a PR; squash merges use the check above.
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", head, "refs/remotes/origin/main"],
+        cwd=REPO,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise RuntimeError("Git ancestry check failed")
+    return "commit already in origin/main" if result.returncode == 0 else None
+
+
+def cleanup(apply=False):
+    if run("git", "remote", "get-url", "origin").strip() not in {
+        f"git@github.com:{REMOTE}.git",
+        f"https://github.com/{REMOTE}.git",
+    }:
+        raise RuntimeError("Unexpected repository origin")
+    run("git", "fetch", "--no-tags", "origin", "main")
+    entries = worktrees()
+    branches = [
+        e["branch"].removeprefix("refs/heads/") for e in entries if e.get("branch", "").startswith("refs/heads/codex/")
+    ]
+    prs = pull_requests(branches) if branches else {}
+    active = active_directories()
+    report = []
+    for entry in entries:
+        path = Path(entry["worktree"])
+        blocker = local_blocker(entry, active)
+        branch = entry.get("branch", "").removeprefix("refs/heads/")
+        proof = None if blocker else merged_reason(entry, prs.get(branch, []))
+        row = {
+            "path": str(path),
+            "branch": branch,
+            "action": "skip",
+            "reason": blocker or "merge not proven / branch differs",
+        }
+        if proof:
+            row.update(action="eligible", reason=proof)
+            if apply:
+                try:
+                    # Recheck mutable local state just before removal. Never force dirty removal.
+                    blocker = local_blocker(entry, active_directories())
+                    if blocker or not merged_reason(entry, prs.get(branch, [])):
+                        row.update(action="skip", reason=blocker or "branch changed during cleanup")
+                    else:
+                        name = str(path.relative_to(ROOT))
+                        run("wtp", "remove", "--with-branch", "--force-branch", name)
+                        row["action"] = "removed"
+                        logging.info("Removed %s (%s)", branch, proof)
+                except (subprocess.CalledProcessError, RuntimeError) as error:
+                    row.update(action="error", reason=str(error))
+                    logging.error("Removal failed for %s: %s", branch, error)
+        report.append(row)
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--apply", action="store_true", help="remove eligible worktrees (default: preview)")
+    args = parser.parse_args()
+    state = HOME_DIR / ".local/state/worktree-cleanup"
+    state.mkdir(parents=True, exist_ok=True, mode=0o700)
+    logs = HOME_DIR / "Library/Logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=[RotatingFileHandler(logs / "worktree-cleanup.log", maxBytes=262144, backupCount=3)],
+    )
+    with (state / "lock").open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return 0
+        try:
+            report = cleanup(args.apply)
+            (state / "last-report.json").write_text(json.dumps(report, indent=2) + "\n")
+            counts = {
+                action: sum(r["action"] == action for r in report)
+                for action in ("removed", "eligible", "skip", "error")
+            }
+            summary = " ".join(f"{key}={value}" for key, value in counts.items())
+            logging.info(summary)
+            print("worktree-cleanup: " + summary)
+            return 1 if counts["error"] else 0
+        except (subprocess.CalledProcessError, RuntimeError, OSError, ValueError) as error:
+            logging.error("Cleanup failed: %s", error)
+            print(f"worktree-cleanup: {error}", file=sys.stderr)
+            return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

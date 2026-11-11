@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>dev.0x63616c.worktree-cleanup</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>{{ .chezmoi.homeDir }}/.local/bin/worktree-cleanup</string>
+        <string>--apply</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string><key>GH_PROMPT_DISABLED</key><string>1</string></dict>
+    <key>StartCalendarInterval</key><dict><key>Minute</key><integer>17</integer></dict>
+    <key>RunAtLoad</key><true/>
+    <key>ProcessType</key><string>Background</string>
+    <key>LowPriorityIO</key><true/>
+    <key>StandardErrorPath</key><string>{{ .chezmoi.homeDir }}/Library/Logs/worktree-cleanup.launchd.log</string>
+</dict>
+</plist>

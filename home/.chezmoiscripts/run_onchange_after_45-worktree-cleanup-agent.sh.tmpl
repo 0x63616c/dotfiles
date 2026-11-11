@@ -1,0 +1,11 @@
+#!/bin/sh
+# agent: {{ include "private_Library/LaunchAgents/dev.0x63616c.worktree-cleanup.plist.tmpl" | sha256sum }}
+# script: {{ include "dot_local/bin/executable_worktree-cleanup" | sha256sum }}
+set -eu
+label="dev.0x63616c.worktree-cleanup"
+plist="$HOME/Library/LaunchAgents/$label.plist"
+uid="$(id -u)"
+launchctl bootout "gui/$uid/$label" >/dev/null 2>&1 || true
+launchctl enable "gui/$uid/$label"
+launchctl bootstrap "gui/$uid" "$plist"
+echo "worktree-cleanup LaunchAgent loaded ($label)."

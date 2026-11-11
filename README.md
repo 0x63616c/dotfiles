@@ -56,6 +56,27 @@ Add an app: `prefsync add <bundle-or-domain> [--restart app:Name]` (find the dom
 
 Check on it: `prefsync status`, `prefsync diff`, `prefsync doctor`, and `~/Library/Logs/prefsync.log`.
 
+## Worktree cleanup
+
+`worktree-cleanup` previews completed `codex/` worktrees for `world-wide-webb`;
+`worktree-cleanup --apply` removes them and their local branches using `wtp`.
+The chezmoi-managed LaunchAgent runs at minute 17 every hour and on load, with no
+age delay. A matching PR merged into `main` proves squash merges; commits already
+in freshly fetched `origin/main` also qualify. Open PRs, changed branch heads,
+local changes, untracked files, locks and active process working directories are
+preserved. Ignored environment, database and media files also block removal;
+other ignored files, including disposable build caches, are removed with the tree.
+Use `git worktree lock --reason 'retain' <path>` to retain a worktree explicitly.
+Process checks are best effort: a program can start after the final check, and
+programs using files from another working directory are not detected.
+
+The job is scoped to `~/.worktrees/world-wide-webb`; it never removes the main
+checkout. Logs rotate in `~/Library/Logs/worktree-cleanup.log`; per-worktree
+decisions are in `~/.local/state/worktree-cleanup/last-report.json`. GitHub or
+Git failures stop the run without guessing merge state. A file lock prevents
+overlapping runs. To stop scheduling, run
+`launchctl bootout gui/$(id -u)/dev.0x63616c.worktree-cleanup`.
+
 ## Secrets
 
 No secrets are stored in this repo. Anything sensitive is read from 1Password at apply time. Sign in to 1Password (app, then `op` CLI integration) on the Mac, set `secrets = true` (re-run `chezmoi init` and answer yes), then run `chezmoi apply` again.

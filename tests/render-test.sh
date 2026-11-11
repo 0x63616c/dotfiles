@@ -26,6 +26,18 @@ PY
 [ "$watch" = "$domains" ] || { echo "FAIL: $watch WatchPaths vs $domains manifest domains" >&2; exit 1; }
 if command -v plutil >/dev/null 2>&1; then plutil -lint "$agent" >/dev/null; fi
 
+python3 - "$dest" <<'PY'
+import pathlib, plistlib, sys
+dest = pathlib.Path(sys.argv[1])
+agent = dest / "Library/LaunchAgents/dev.0x63616c.worktree-cleanup.plist"
+p = plistlib.loads(agent.read_bytes())
+assert p["Label"] == "dev.0x63616c.worktree-cleanup"
+assert p["StartCalendarInterval"] == {"Minute": 17}
+assert p["RunAtLoad"] is True
+assert p["ProgramArguments"][-1] == "--apply"
+assert (dest / ".local/bin/worktree-cleanup").stat().st_mode & 0o111
+PY
+
 # Scripts render and parse; shellcheck if available.
 for t in "$repo"/home/.chezmoiscripts/*.tmpl; do
   out="$(mktemp)"
