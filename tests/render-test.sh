@@ -32,7 +32,7 @@ dest = pathlib.Path(sys.argv[1])
 agent = dest / "Library/LaunchAgents/dev.0x63616c.worktree-cleanup.plist"
 p = plistlib.loads(agent.read_bytes())
 assert p["Label"] == "dev.0x63616c.worktree-cleanup"
-assert p["StartCalendarInterval"] == {"Minute": 17}
+assert p["StartCalendarInterval"] == {"Minute": 0}
 assert p["RunAtLoad"] is True
 assert p["ProgramArguments"][-1] == "--apply"
 assert (dest / ".local/bin/worktree-cleanup").stat().st_mode & 0o111

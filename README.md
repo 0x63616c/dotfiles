@@ -60,7 +60,7 @@ Check on it: `prefsync status`, `prefsync diff`, `prefsync doctor`, and `~/Libra
 
 `worktree-cleanup` previews completed `codex/` worktrees for `world-wide-webb`;
 `worktree-cleanup --apply` removes them and their local branches using `wtp`.
-The chezmoi-managed LaunchAgent runs at minute 17 every hour and on load, with no
+The chezmoi-managed LaunchAgent runs on the hour and on load, with no
 age delay. A matching PR merged into `main` proves squash merges; commits already
 in freshly fetched `origin/main` also qualify. Open PRs, changed branch heads,
 local changes, untracked files, locks and active process working directories are
