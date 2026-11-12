@@ -131,6 +131,12 @@
 	<string>control+option+shift+command:49</string>
 	<key>commandBarShortcutEnabled</key>
 	<true/>
+	<key>ddcVolumeMaximum</key>
+	<integer>100</integer>
+	<key>ddcVolumeMinimum</key>
+	<integer>0</integer>
+	<key>ddcVolumeStep</key>
+	<real>6.25</real>
 	<key>defaultDurationMinutes</key>
 	<integer>0</integer>
 	<key>dimScreenOnLidClose</key>
@@ -148,6 +154,10 @@
 	<key>displayBrightnessIncreaseShortcut</key>
 	<string>shift+command:24</string>
 	<key>displayBrightnessShortcutsEnabled</key>
+	<false/>
+	<key>displayVolumeEnabled</key>
+	<false/>
+	<key>displayVolumeKeysEnabled</key>
 	<false/>
 	<key>dockClickCycleWindows</key>
 	<false/>
@@ -876,6 +886,8 @@
 	<true/>
 	<key>panelControlShelf</key>
 	<true/>
+	<key>panelControlSmoothScroll</key>
+	<true/>
 	<key>panelControlSpacesOrder</key>
 	<true/>
 	<key>panelControlSuperKey</key>
@@ -1200,6 +1212,14 @@
 	<string>@HOME@/Documents/Screenshots</string>
 	<key>screenshotSaveSubfolder</key>
 	<string></string>
+	<key>screenshotScrollingAutoScroll</key>
+	<false/>
+	<key>screenshotScrollingShortcut</key>
+	<string>control+option+shift+command:21</string>
+	<key>screenshotScrollingShortcutEnabled</key>
+	<false/>
+	<key>screenshotScrollingShowCaptureMenuOnShortcut</key>
+	<true/>
 	<key>screenshotSharingEnabled</key>
 	<true/>
 	<key>screenshotShortcut</key>
@@ -1238,6 +1258,14 @@
 	<array/>
 	<key>scrollInverterHorizontalEnabled</key>
 	<false/>
+	<key>scrollSpeedEnabled</key>
+	<false/>
+	<key>scrollSpeedExceptions</key>
+	<array/>
+	<key>scrollSpeedModifier</key>
+	<string>option</string>
+	<key>scrollSpeedMultiplier</key>
+	<integer>3</integer>
 	<key>shelfAutomaticExclusions</key>
 	<array/>
 	<key>shelfClearOnClose</key>
@@ -1316,6 +1344,8 @@
 	<true/>
 	<key>switcherIconRowMode</key>
 	<false/>
+	<key>switcherIgnoreHoverSelection</key>
+	<false/>
 	<key>switcherInstantSelection</key>
 	<false/>
 	<key>switcherMaxColumns</key>
@@ -1360,6 +1390,8 @@
 	<false/>
 	<key>uninstallerCommandBarEnabled</key>
 	<true/>
+	<key>uninstallerWatchesTrash</key>
+	<false/>
 	<key>urlCleanerCustomParameters</key>
 	<string></string>
 	<key>urlCleanerDisabledParameters</key>
@@ -1402,6 +1434,8 @@
 	<string></string>
 	<key>windowEdgeSnapEnabled</key>
 	<true/>
+	<key>windowEdgeSnapRestoreOnDrag</key>
+	<false/>
 	<key>windowEdgeSnapZoneActions</key>
 	<string></string>
 	<key>windowGestureEnabled</key>
