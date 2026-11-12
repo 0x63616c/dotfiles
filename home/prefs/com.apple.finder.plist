@@ -41,6 +41,8 @@
 		<key>Privileges</key>
 		<true/>
 	</dict>
+	<key>FXLastSearchScope</key>
+	<string>SCcf</string>
 	<key>FXPreferredGroupBy</key>
 	<string>Kind</string>
 	<key>FXPreferredViewStyle</key>
