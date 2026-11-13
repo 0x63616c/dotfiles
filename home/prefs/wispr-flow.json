@@ -68,7 +68,6 @@
   "notetakerOrgInsightsDefault": true,
   "notetakerSplitScreenJoinEnabled": false,
   "notetakerTranscriptRetention": "never_delete",
-  "notetakerTripleTapShortcutEnabled": true,
   "notificationSettings": {
     "featureHighlights": true,
     "milestonesAndProgress": true,
