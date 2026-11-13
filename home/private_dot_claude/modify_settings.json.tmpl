@@ -38,8 +38,11 @@ lim() { p=$(j ".rate_limits.$1.used_percentage"); [ -n "$p" ] || return 0; p=$(p
   left=$((r - $(date +%s))); [ "$left" -lt 0 ] && left=0
   e=$((100 - left * 100 / $3)); [ "$e" -lt 0 ] && e=0; [ "$e" -gt 100 ] && e=100; d=$((p - e))
   if [ "$d" -gt 5 ]; then c=31; elif [ "$d" -lt -5 ]; then c=32; else c=33; fi
-  if [ "$left" -ge 86400 ]; then rl="$((left / 86400))d"; elif [ "$left" -ge 3600 ]; then rl="$((left / 3600))h"; else rl="$((left / 60))m"; fi
-  printf '%s ' "$2"; bar "$p" "$c" "$e"; printf ' \033[%sm%s%%\033[0m \033[2m↻%s\033[0m' "$c" "$p" "$rl"; return 0; }
+  # Time to reset, two most significant units: "2d 4h", "3h 12m", "45m" (a zero second unit is dropped).
+  if [ "$left" -ge 86400 ]; then rl="$((left / 86400))d"; r2=$((left % 86400 / 3600)); [ "$r2" -gt 0 ] && rl="$rl ${r2}h"
+  elif [ "$left" -ge 3600 ]; then rl="$((left / 3600))h"; r2=$((left % 3600 / 60)); [ "$r2" -gt 0 ] && rl="$rl ${r2}m"
+  else rl="$((left / 60))m"; fi
+  printf '%s ' "$2"; bar "$p" "$c" "$e"; printf ' \033[%sm%s%%\033[0m \033[2m%s\033[0m' "$c" "$p" "$rl"; return 0; }
 dir=$(j '.workspace.current_dir // .cwd'); [ -n "$dir" ] || dir=$PWD
 br=$(git --no-optional-locks -C "$dir" symbolic-ref --short -q HEAD 2>/dev/null)
 printf '\033[38;5;160m[coding@%s]\033[0m \033[38;5;45m%s\033[0m' "$(hostname -s)" "$(basename "$dir")"
