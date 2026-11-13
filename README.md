@@ -136,9 +136,13 @@ chezmoi apply
 ```
 
 The coding profile is an allow-list in `home/.chezmoiignore.tmpl`: only zsh,
-Starship, shared Rex keys, Claude settings and Claude guidance deploy. Every chezmoi script,
-personal preference, Rex remote-host declarations, SSH identity and Git signing config is
-excluded. A normal apply/update is safe to run as coding; do not bootstrap the
+Starship, shared Rex keys, Claude settings and Claude guidance deploy. The only script is
+`run_after_50-rex-claude.sh`, which runs `rex skill setup --agent claude` after
+files are applied. It uses the Nix-installed Rex/Claude, repairs missing or outdated
+integration on each apply, and preserves unrelated Claude settings. Rex owns its
+generated skill and session hook; do not copy those files into Git or also manage
+the hook in `modify_settings.json`. Personal setup scripts, GUI preferences, Rex
+remote-host declarations, SSH identities and Git signing configuration are excluded. A normal apply/update is safe to run as coding; do not bootstrap the
 personal profile there. Later updates are explicit `chezmoi update` calls.
 
 On the homelab, WWW's `projects/homelab/modules/coding.nix` owns Nix zsh, Claude,
@@ -155,6 +159,6 @@ Provider login and GitHub credentials are provisioned separately on coding;
 never copy the personal SSH private key or assume signing is available remotely.
 
 Before changing a profile or its allow-list, run `tests/render-test.sh`: it renders
-both roles and checks that coding cannot run personal scripts or receive private
+both roles and checks that coding can run only its scoped Rex installer and cannot receive private
 configuration. Add another small shared file only when common.zsh becomes unwieldy;
 keep its source order explicit in the loader.

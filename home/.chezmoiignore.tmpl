@@ -5,10 +5,12 @@ prefs
 
 {{ if eq $profile "personal" }}
 .claude
+.chezmoiscripts/50-rex-claude.sh
 {{ end }}
 {{ if eq $profile "coding" }}
 # Coding is a shell-only consumer. A normal chezmoi apply/update must never run
 # personal package/bootstrap scripts, sync GUI preferences, or copy SSH identities.
+# The sole script exception installs Claude's Rex integration using Rex itself.
 **
 !.zshrc
 !.zprofile
@@ -22,4 +24,6 @@ prefs
 !.claude
 !.claude/settings.json
 !.claude/CLAUDE.md
+!.chezmoiscripts
+!.chezmoiscripts/50-rex-claude.sh
 {{ end }}

@@ -79,11 +79,15 @@ for file in root.rglob("*"):
         path = file.relative_to(root).as_posix()
         assert path in allowed or path.startswith(".config/zsh/"), path
 PYTEST
-# Verify scripts are ignored as well as absent from the file render above.
+# The only coding script is scoped Rex/Claude integration, never personal setup.
 chezmoi managed -S "$repo" -D "$coding_dest" -c "$coding_config" --config-format toml \
   > "$coding_dest/managed.txt"
-if grep -q 'chezmoiscripts' "$coding_dest/managed.txt"; then
-  echo "FAIL: coding includes personal scripts" >&2; exit 1
+scripts="$(grep 'chezmoiscripts/' "$coding_dest/managed.txt" || true)"
+[ "$scripts" = '.chezmoiscripts/50-rex-claude.sh' ] || {
+  echo "FAIL: coding scripts differ from the scoped Rex installer: $scripts" >&2; exit 1;
+}
+if chezmoi managed -S "$repo" -D "$dest" | grep -q '50-rex-claude.sh'; then
+  echo "FAIL: personal profile includes coding Rex installer" >&2; exit 1
 fi
 for file in "$dest/.zshrc" "$dest/.zprofile" "$dest"/.config/zsh/*.zsh \
   "$coding_dest/.zshrc" "$coding_dest/.zprofile"; do zsh -n "$file"; done

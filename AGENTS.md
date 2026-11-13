@@ -5,7 +5,7 @@ Public repo `0x63616c/dotfiles` (so the plain chezmoi one-liner works; **never c
 
 ## Shell and coding-account changes
 
-Read [README: Shell profiles](README.md#shell-profiles) before changing shell files, Claude configuration or the coding allow-list. Shared behavior belongs in `home/dot_config/zsh/common.zsh`; role differences belong in `personal.zsh` or `coding.zsh`. Keep the coding profile shell-only and run both-profile rendering checks. Homelab packages are owned by WWW Nix, not this repo’s Homebrew scripts.
+Read [README: Shell profiles](README.md#shell-profiles) before changing shell files, Claude configuration or the coding allow-list. Shared behavior belongs in `home/dot_config/zsh/common.zsh`; role differences belong in `personal.zsh` or `coding.zsh`. Keep the coding profile limited to headless shell/agent configuration and its scoped Rex/Claude installer; run both-profile rendering checks. Homelab packages are owned by WWW Nix, not this repo’s Homebrew scripts.
 
 ## The loop (follow strictly, in order)
 1. Edit the **source** (`chezmoi cd` or `~/.local/share/chezmoi`). Never edit deployed files in `$HOME` directly. If an app changed its own file, use `chezmoi re-add`/`chezmoi merge` deliberately.
