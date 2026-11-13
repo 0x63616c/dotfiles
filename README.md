@@ -94,7 +94,7 @@ This repo is operated by an AI agent. Read [AGENTS.md](AGENTS.md) for the rules 
 Shell aliases live in [`home/dot_config/zsh/personal.zsh`](home/dot_config/zsh/personal.zsh); `code` opens Cursor on the personal Mac.
 After applying changes, open a new shell or run `source ~/.zshrc`.
 
-[`home/dot_config/rex/init.lua`](home/dot_config/rex/init.lua) declares the
+[`home/dot_config/rex/init.lua`](home/dot_config/rex/init.lua.tmpl) declares the
 `homelab-macbook` remote as `ssh://coding@homelab-macbook.local` using your
 existing SSH key for CLI commands such as `rex -S homelab-macbook ls`. That
 `.local` address works on the home LAN. Reload an already running local Rex
@@ -106,10 +106,15 @@ and other remote hosts stay local. Open Rex once on a fresh Mac, then run
 `prefsync apply com.superlogical.rex`. Restoring a missing entry quits and
 reopens the app; existing remote terminals keep running on the MacBook.
 
-Rex shortcuts edited in Settings are captured by prefsync into
-[`home/prefs/rex-shortcuts.json`](home/prefs/rex-shortcuts.json). On a fresh Mac,
-open Rex once, then run `prefsync apply rex-shortcuts` to restore them. Applying
-changed shortcuts briefly quits and reopens Rex; matching settings are left alone.
+Rex shortcuts live in [`home/dot_config/rex/keys.lua`](home/dot_config/rex/keys.lua),
+required by init.lua on both the personal and coding servers. ⌘K opens the command
+palette, ⇧⌘K switches sessions, and the old ⇧⌘P palette shortcut is removed.
+Edit Lua for these bindings; app-recorded shortcuts take precedence and can mask it.
+Run `rex config reload` locally on each server after applying (on coding, through
+SSH using its local Rex socket). This reload leaves running terminals intact.
+
+Rex's Geist Mono font and vertical sidebar layout are app preferences synced through
+prefsync's `com.superlogical.rex` domain, alongside the homelab GUI host entry.
 
 ## Shell profiles
 
@@ -131,8 +136,8 @@ chezmoi apply
 ```
 
 The coding profile is an allow-list in `home/.chezmoiignore.tmpl`: only zsh,
-Starship, Claude settings and Claude guidance deploy. Every chezmoi script,
-personal preference, Rex client config, SSH identity and Git signing config is
+Starship, shared Rex keys, Claude settings and Claude guidance deploy. Every chezmoi script,
+personal preference, Rex remote-host declarations, SSH identity and Git signing config is
 excluded. A normal apply/update is safe to run as coding; do not bootstrap the
 personal profile there. Later updates are explicit `chezmoi update` calls.
 

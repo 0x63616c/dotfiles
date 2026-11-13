@@ -188,5 +188,5 @@ name = "com.superlogical.rex"
 restart = "app:Rex Beta"
 export_cmd = ["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.local/bin/rex-host-prefs" export "$1"', "rex-host-prefs", "{file}"]
 import_cmd = ["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.local/bin/rex-host-prefs" import "$1"', "rex-host-prefs", "{file}"]
-defaults_keys = ["Workspace.tabStyle"]
-allow = ["RexSync.servers", "Workspace.tabStyle"]
+defaults_keys = ["Workspace.tabStyle", "Workspace.terminalFontName"]
+allow = ["RexSync.servers", "Workspace.tabStyle", "Workspace.terminalFontName"]

@@ -68,10 +68,12 @@ assert "[hooks." not in pathlib.Path(sys.argv[2]).read_text()
 assert 'coding.zsh' in (root / ".zshrc").read_text()
 assert "shellenv" not in (root / ".zprofile").read_text()
 assert "ssh_only = false" in (root / ".config/starship.toml").read_text()
+assert 'require("keys")' in (root / ".config/rex/init.lua").read_text()
+assert 'rex.host' not in (root / ".config/rex/init.lua").read_text()
 settings = json.loads((root / ".claude/settings.json").read_text())
 assert settings == {"theme": "dark", "hooks": {"SessionStart": []},
                     "env": {"KEEP": "yes", "DISABLE_AUTOUPDATER": "1"}}
-allowed = {".zshrc", ".zprofile", ".config/starship.toml", ".claude/settings.json", ".claude/CLAUDE.md"}
+allowed = {".zshrc", ".zprofile", ".config/starship.toml", ".claude/settings.json", ".claude/CLAUDE.md", ".config/rex/init.lua", ".config/rex/keys.lua"}
 for file in root.rglob("*"):
     if file.is_file():
         path = file.relative_to(root).as_posix()
