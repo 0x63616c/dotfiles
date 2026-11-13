@@ -55,7 +55,7 @@ printf '\033[38;5;160m[coding@%s]\033[0m \033[38;5;45m%s\033[0m' "$(hostname -s)
 if [ -n "$br" ]; then printf ' \033[38;5;69mgit:(\033[38;5;141m%s\033[38;5;69m)\033[0m' "$br"; if [ -n "$(git --no-optional-locks -C "$dir" status --porcelain 2>/dev/null | head -1)" ]; then printf ' \033[38;5;178m✗\033[0m'; fi; fi
 wt=$(j '.workspace.git_worktree // .worktree.name'); [ -n "$wt" ] && printf ' \033[38;5;141m⎇ %s\033[0m' "$wt"
 m=$(j .model.display_name); [ -n "$m" ] && { sep; printf '\033[1m%s\033[0m' "$m"; }
-ef=$(j .effort.level); [ -n "$ef" ] && printf ' \033[2m·\033[0m %s' "$ef"
+ef=$(j .effort.level); [ -n "$ef" ] && printf ' %s' "$ef"
 [ "$(j .fast_mode)" = true ] && printf ' \033[38;5;178m(fast)\033[0m'
 os=$(j .output_style.name); [ -n "$os" ] && [ "$os" != default ] && { sep; printf '%s' "$os"; }
 # Session line: name · running time · lines changed.
