@@ -117,6 +117,7 @@ changed shortcuts briefly quits and reopens Rex; matching settings are left alon
 then `personal.zsh` or `coding.zsh`. Put shared history/completion/prompt behavior
 in common; put aliases, plugin paths and role-specific integrations in the profile.
 Do not duplicate shared settings or grow a chain of hostname conditionals.
+The shared `reload` alias re-sources `~/.zshrc` and its active profile.
 
 `chezmoi init` persists `[data].profile` (`personal` or `coding`) in the local
 chezmoi config. An explicit profile wins; the initial default is `coding` for the

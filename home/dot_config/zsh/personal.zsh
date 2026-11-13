@@ -12,4 +12,3 @@ fi
 
 # Editor
 alias code='cursor'
-

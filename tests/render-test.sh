@@ -85,5 +85,6 @@ if grep -q 'chezmoiscripts' "$coding_dest/managed.txt"; then
 fi
 for file in "$dest/.zshrc" "$dest/.zprofile" "$dest"/.config/zsh/*.zsh \
   "$coding_dest/.zshrc" "$coding_dest/.zprofile"; do zsh -n "$file"; done
-TERM=xterm-256color zsh -fic 'source "$1/.zshrc"; test "$(alias code)" = "code=cursor"' -- "$dest"
+HOME="$dest" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; test "$(alias code)" = "code=cursor"; eval reload'
+HOME="$coding_dest" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; eval reload'
 echo "render test OK ($domains domains; personal and coding profiles)"

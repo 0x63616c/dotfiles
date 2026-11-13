@@ -1,6 +1,9 @@
 # Shared interactive shell behavior. Edit this file in dotfiles for both profiles.
 # Every integration is guarded, so a missing tool never breaks the shell.
 
+# Reload this account's generated loader and active profile.
+alias reload='source "$HOME/.zshrc"'
+
 # History
 HISTFILE="$HOME/.zsh_history"
 HISTSIZE=50000
