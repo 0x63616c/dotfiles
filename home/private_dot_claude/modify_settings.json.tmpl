@@ -44,8 +44,8 @@ lim() { p=$(j ".rate_limits.$1.used_percentage"); [ -n "$p" ] || return 0; p=$(p
   if [ "$left" -ge 86400 ]; then rl="$((left / 86400))d"; r2=$((left % 86400 / 3600)); [ "$r2" -gt 0 ] && rl="$rl ${r2}h"
   elif [ "$left" -ge 3600 ]; then rl="$((left / 3600))h"; r2=$((left % 3600 / 60)); [ "$r2" -gt 0 ] && rl="$rl ${r2}m"
   else rl="$((left / 60))m"; fi
-  # "5h (4h 25m) ██┃░░░░░░░ 18% ┃12%": countdown, bar, used % (pace colour), time elapsed % (matches the bar's ┃).
-  printf '%s \033[2m(%s)\033[0m ' "$2" "$rl"; bar "$p" "$c" "$e"; printf ' \033[%sm%s%%\033[0m \033[1m┃\033[0m\033[2m%s%%\033[0m' "$c" "$p" "$e"; return 0; }
+  # "5h (4h 25m) █┃█░░░░░░░░ 18% 12%": countdown, bar, used % (pace colour), time elapsed % (dim).
+  printf '%s \033[2m(%s)\033[0m ' "$2" "$rl"; bar "$p" "$c" "$e"; printf ' \033[%sm%s%%\033[0m \033[2m%s%%\033[0m' "$c" "$p" "$e"; return 0; }
 # tok N: token count as "96k" or "1M" / "1.5M".
 tok() { if [ "$1" -ge 1000000 ]; then if [ $(($1 % 1000000)) -ge 100000 ]; then printf '%s.%sM' $(($1 / 1000000)) $(($1 % 1000000 / 100000)); else printf '%sM' $(($1 / 1000000)); fi; else printf '%sk' $(($1 / 1000)); fi; }
 dir=$(j '.workspace.current_dir // .cwd'); [ -n "$dir" ] || dir=$PWD
