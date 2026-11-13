@@ -55,7 +55,7 @@
   "notetakerAutoOpenSummaryEnabled": false,
   "notetakerAutoShareNotes": "off",
   "notetakerAutoShareNotesType": "all",
-  "notetakerAutoStartEnabled": false,
+  "notetakerAutoStartEnabled": true,
   "notetakerCalendarNotice": "off",
   "notetakerCalendarNotificationTiming": "15_seconds_before",
   "notetakerCalendarNotificationsEnabled": true,
