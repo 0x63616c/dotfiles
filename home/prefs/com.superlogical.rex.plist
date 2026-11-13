@@ -7,5 +7,7 @@
 		<key>homelabMacBook</key>
 		<true/>
 	</dict>
+	<key>Workspace.tabStyle</key>
+	<string>vertical</string>
 </dict>
 </plist>
