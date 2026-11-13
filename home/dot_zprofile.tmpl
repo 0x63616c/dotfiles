@@ -1,0 +1,13 @@
+# Managed by chezmoi. nix-darwin owns the coding account's system PATH.
+{{- $profile := get . "profile" | default (ternary "coding" "personal" (eq .chezmoi.username "coding")) }}
+{{ if eq $profile "personal" -}}
+for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+  if [ -x "$brew_bin" ]; then
+    eval "$("$brew_bin" shellenv)"
+    break
+  fi
+done
+unset brew_bin
+{{ end -}}
+# User-installed launchers remain available in login shells.
+[[ ! -d "$HOME/.local/bin" ]] || export PATH="$HOME/.local/bin:$PATH"

@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+# Own only Nix update behavior; preserve Claude's local preferences and hooks.
+import json
+import sys
+
+text = sys.stdin.read()
+settings = json.loads(text) if text.strip() else {}
+if not isinstance(settings, dict):
+    sys.exit("Claude settings must be a JSON object")
+{{- $profile := get . "profile" | default (ternary "coding" "personal" (eq .chezmoi.username "coding")) }}
+{{ if eq $profile "coding" -}}
+env = settings.setdefault("env", {})
+if not isinstance(env, dict):
+    sys.exit("Claude settings.env must be a JSON object")
+env["DISABLE_AUTOUPDATER"] = "1"
+{{ end -}}
+print(json.dumps(settings, indent=2) + "\n", end="")

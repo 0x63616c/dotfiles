@@ -7,7 +7,8 @@ format = "$hostname$directory$git_branch$git_status$character"
 right_format = "$time"
 
 [hostname]
-ssh_only = true
+{{- $profile := get . "profile" | default (ternary "coding" "personal" (eq .chezmoi.username "coding")) }}
+ssh_only = {{ if eq $profile "coding" }}false{{ else }}true{{ end }}
 format = "[\\[$hostname\\]]($style) "
 style = "fg:160"
 

@@ -1,18 +1,4 @@
-# ~/.zshrc (managed by chezmoi: edit in the source repo). No Oh My Zsh.
-# Every integration is guarded, so a missing tool never breaks the shell.
-
-# History
-HISTFILE="$HOME/.zsh_history"
-HISTSIZE=50000
-SAVEHIST=50000
-setopt HIST_IGNORE_ALL_DUPS HIST_REDUCE_BLANKS SHARE_HISTORY INC_APPEND_HISTORY
-
-# Completion
-autoload -Uz compinit && compinit -u
-
-# Sensible options
-setopt AUTO_CD INTERACTIVE_COMMENTS
-
+# Personal Mac integrations. Coding tools and plugins are supplied by Nix.
 # Homebrew prefix (empty if brew is missing)
 if command -v brew >/dev/null 2>&1; then
   _brew_prefix="$(brew --prefix)"
@@ -27,8 +13,3 @@ fi
 # Editor
 alias code='cursor'
 
-# Tool versions
-command -v mise >/dev/null 2>&1 && eval "$(mise activate zsh)"
-
-# Prompt
-command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"

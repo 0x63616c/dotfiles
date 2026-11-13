@@ -3,6 +3,10 @@
 Public repo `0x63616c/dotfiles` (so the plain chezmoi one-liner works; **never commit secrets**). It manages Calum's MacBook Pro (Apple Silicon, zsh) with chezmoi. Agents operate it; Calum does not maintain it by hand. `CLAUDE.md` contains only `@AGENTS.md` (keep exactly). The previous repo is `0x63616c/dotfiles-old`: read-only reference; port pieces only when Calum chooses.
 
 
+## Shell and coding-account changes
+
+Read [README: Shell profiles](README.md#shell-profiles) before changing shell files, Claude configuration or the coding allow-list. Shared behavior belongs in `home/dot_config/zsh/common.zsh`; role differences belong in `personal.zsh` or `coding.zsh`. Keep the coding profile shell-only and run both-profile rendering checks. Homelab packages are owned by WWW Nix, not this repo’s Homebrew scripts.
+
 ## The loop (follow strictly, in order)
 1. Edit the **source** (`chezmoi cd` or `~/.local/share/chezmoi`). Never edit deployed files in `$HOME` directly. If an app changed its own file, use `chezmoi re-add`/`chezmoi merge` deliberately.
 2. `chezmoi doctor`: fix anything red.

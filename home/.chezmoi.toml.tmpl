@@ -3,6 +3,9 @@
 {{- $name := "Calum Webb" -}}
 {{- $email := "6991398+0x63616c@users.noreply.github.com" -}}
 {{- $secrets := false -}}
+{{- $profile := get . "profile" | default (ternary "coding" "personal" (eq .chezmoi.username "coding")) -}}
+{{- $profile = promptString "Shell profile" $profile -}}
+{{- if not (has $profile (list "personal" "coding")) }}{{ fail "profile must be personal or coding" }}{{ end -}}
 {{- if $interactive -}}
 {{-   $name = promptStringOnce . "name" "Full name" $name -}}
 {{-   $email = promptStringOnce . "email" "Email address (git)" $email -}}
@@ -15,6 +18,7 @@
 {{- end -}}
 
 [data]
+  profile = {{ $profile | quote }}
   name = {{ $name | quote }}
   email = {{ $email | quote }}
 {{- if eq .chezmoi.os "darwin" }}
@@ -31,7 +35,7 @@
 {{- /* prefsync: before every chezmoi run reads the source state, capture live macOS prefs into home/prefs so a
        change made in System Settings/an app is never overwritten by apply. Fast, idempotent, never fails the run.
        Skipped until the Xcode CLT exist (fresh Mac: /usr/bin/python3 is only a shim). */}}
-{{- if eq .chezmoi.os "darwin" }}
+{{- if and (eq .chezmoi.os "darwin") (eq $profile "personal") }}
 
 [hooks.read-source-state.pre]
   command = "sh"

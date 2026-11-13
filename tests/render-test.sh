@@ -4,7 +4,9 @@
 set -eu
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 dest="$(mktemp -d)"
-trap 'rm -rf "$dest"' EXIT
+coding_dest="$(mktemp -d)"
+coding_config="$(mktemp)"
+trap 'rm -rf "$dest" "$coding_dest" "$coding_config"' EXIT
 
 chezmoi apply -S "$repo" -D "$dest" --exclude=scripts >/dev/null
 agent="$dest/Library/LaunchAgents/dev.0x63616c.prefsync.plist"
@@ -50,4 +52,38 @@ for t in "$repo"/home/.chezmoiscripts/*.sh; do
   sh -n "$t"
   if command -v shellcheck >/dev/null 2>&1; then shellcheck -s sh "$t"; fi
 done
-echo "render test OK ($domains domains)"
+# Coding renders through a real persisted profile, with personal scripts still
+# included in the source. Its allow-list must keep a plain apply shell-only.
+chezmoi init -S "$repo" -D "$coding_dest" -c "$coding_config" --config-format toml --no-tty --promptDefaults \
+  --promptString 'Shell profile=coding' >/dev/null
+mkdir -p "$coding_dest/.claude"
+printf '%s\n' '{"theme":"dark","hooks":{"SessionStart":[]},"env":{"KEEP":"yes"}}' \
+  > "$coding_dest/.claude/settings.json"
+chezmoi apply -S "$repo" -D "$coding_dest" -c "$coding_config" --config-format toml --exclude=scripts >/dev/null
+python3 - "$coding_dest" "$coding_config" <<'PYTEST'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+assert 'profile = "coding"' in pathlib.Path(sys.argv[2]).read_text()
+assert "[hooks." not in pathlib.Path(sys.argv[2]).read_text()
+assert 'coding.zsh' in (root / ".zshrc").read_text()
+assert "shellenv" not in (root / ".zprofile").read_text()
+assert "ssh_only = false" in (root / ".config/starship.toml").read_text()
+settings = json.loads((root / ".claude/settings.json").read_text())
+assert settings == {"theme": "dark", "hooks": {"SessionStart": []},
+                    "env": {"KEEP": "yes", "DISABLE_AUTOUPDATER": "1"}}
+allowed = {".zshrc", ".zprofile", ".config/starship.toml", ".claude/settings.json", ".claude/CLAUDE.md"}
+for file in root.rglob("*"):
+    if file.is_file():
+        path = file.relative_to(root).as_posix()
+        assert path in allowed or path.startswith(".config/zsh/"), path
+PYTEST
+# Verify scripts are ignored as well as absent from the file render above.
+chezmoi managed -S "$repo" -D "$coding_dest" -c "$coding_config" --config-format toml \
+  > "$coding_dest/managed.txt"
+if grep -q 'chezmoiscripts' "$coding_dest/managed.txt"; then
+  echo "FAIL: coding includes personal scripts" >&2; exit 1
+fi
+for file in "$dest/.zshrc" "$dest/.zprofile" "$dest"/.config/zsh/*.zsh \
+  "$coding_dest/.zshrc" "$coding_dest/.zprofile"; do zsh -n "$file"; done
+TERM=xterm-256color zsh -fic 'source "$1/.zshrc"; test "$(alias code)" = "code=cursor"' -- "$dest"
+echo "render test OK ($domains domains; personal and coding profiles)"

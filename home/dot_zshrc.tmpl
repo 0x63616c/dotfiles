@@ -1,0 +1,5 @@
+# Managed by chezmoi. Change shared behavior in common.zsh, role-specific
+# behavior in personal.zsh or coding.zsh. See dotfiles README: Shell profiles.
+{{- $profile := get . "profile" | default (ternary "coding" "personal" (eq .chezmoi.username "coding")) }}
+source "$HOME/.config/zsh/common.zsh"
+source "$HOME/.config/zsh/{{ $profile }}.zsh"

@@ -1,0 +1,22 @@
+{{- $profile := get . "profile" | default (ternary "coding" "personal" (eq .chezmoi.username "coding")) -}}
+prefs
+**/__pycache__
+**/__pycache__/**
+
+{{ if eq $profile "personal" }}
+.claude
+{{ end }}
+{{ if eq $profile "coding" }}
+# Coding is a shell-only consumer. A normal chezmoi apply/update must never run
+# personal package/bootstrap scripts, sync GUI preferences, or copy SSH identities.
+**
+!.zshrc
+!.zprofile
+!.config
+!.config/zsh
+!.config/zsh/**
+!.config/starship.toml
+!.claude
+!.claude/settings.json
+!.claude/CLAUDE.md
+{{ end }}
