@@ -4,6 +4,9 @@
 # Reload this account's generated loader and active profile.
 alias reload='source "$HOME/.zshrc"'
 
+# Explicit shortcut: Claude sessions launched via c bypass permission prompts.
+alias c='claude --dangerously-skip-permissions'
+
 # History
 HISTFILE="$HOME/.zsh_history"
 HISTSIZE=50000

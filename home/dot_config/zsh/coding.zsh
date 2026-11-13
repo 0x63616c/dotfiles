@@ -7,6 +7,3 @@ for plugin in \
   [[ ! -f "$plugin" ]] || source "$plugin"
 done
 unset plugin
-
-# Launch Claude Code in this remote worktree.
-alias c='claude'
