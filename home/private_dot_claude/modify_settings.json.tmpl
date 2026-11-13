@@ -27,10 +27,10 @@ col() { if [ "$1" -ge 80 ]; then printf 31; elif [ "$1" -ge 50 ]; then printf 33
 sep() { printf ' \033[2m│\033[0m '; }
 # row LABEL [COUNTDOWN]: start a new status line with the label and countdown padded so every bar lines up.
 row() { printf '\n%-3s \033[2m%-9s\033[0m ' "$1" "${2:+($2)}"; }
-# bar USED% COLOR [MARK%]: 10-cell bar filled to USED%. MARK% (time elapsed) highlights the cell "now" falls
+# bar USED% COLOR [MARK%]: 20-cell bar (5% per cell) filled to USED%. MARK% (time elapsed) highlights the cell "now" falls
 # in, in bold default colour (works on light and dark themes), without changing the width: █ if that cell is used, ▒ if not. Fill past it = over pace.
-bar() { f=$((($1 * 10 + 50) / 100)); m=-1; [ -n "$3" ] && { m=$(($3 / 10)); [ "$m" -gt 9 ] && m=9; }; i=0
-  while [ "$i" -lt 10 ]; do
+bar() { f=$((($1 * 20 + 50) / 100)); m=-1; [ -n "$3" ] && { m=$(($3 / 5)); [ "$m" -gt 19 ] && m=19; }; i=0
+  while [ "$i" -lt 20 ]; do
     if [ "$i" -eq "$m" ]; then if [ "$i" -lt "$f" ]; then printf '\033[1m█\033[0m'; else printf '\033[1m▒\033[0m'; fi
     elif [ "$i" -lt "$f" ]; then printf '\033[%sm█\033[0m' "$2"; else printf '\033[2m░\033[0m'; fi
     i=$((i + 1)); done; }
