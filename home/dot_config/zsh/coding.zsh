@@ -7,3 +7,6 @@ for plugin in \
   [[ ! -f "$plugin" ]] || source "$plugin"
 done
 unset plugin
+
+# vov's tool from the ~/vov checkout: `vov` rebuilds when needed, else runs the cached binary.
+[[ ! -d "$HOME/vov/bin" ]] || path+=("$HOME/vov/bin")
