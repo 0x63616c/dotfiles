@@ -674,7 +674,7 @@
 	<key>notchDragReveal</key>
 	<true/>
 	<key>notchEnabled</key>
-	<true/>
+	<false/>
 	<key>notchGesturesEnabled</key>
 	<true/>
 	<key>notchHapticFeedback</key>
