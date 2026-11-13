@@ -88,3 +88,20 @@ No secrets are stored in this repo. Anything sensitive is read from 1Password at
 ## Agents
 
 This repo is operated by an AI agent. Read [AGENTS.md](AGENTS.md) for the rules and the verify loop before changing anything.
+
+## Rex and shell aliases
+
+Shell aliases live in [`home/dot_zshrc`](home/dot_zshrc); `code` opens Cursor.
+After applying changes, open a new shell or run `source ~/.zshrc`.
+
+[`home/dot_config/rex/init.lua`](home/dot_config/rex/init.lua) declares the
+`homelab-macbook` remote as `ssh://coding@homelab-macbook.local` using your
+existing SSH key for CLI commands such as `rex -S homelab-macbook ls`. That
+`.local` address works on the home LAN. Reload an already running local Rex
+server with `rex config reload` after applying. Rex currently keeps the Mac
+app’s host list separate; this declaration does not populate its host picker.
+
+Rex shortcuts edited in Settings are captured by prefsync into
+[`home/prefs/rex-shortcuts.json`](home/prefs/rex-shortcuts.json). On a fresh Mac,
+open Rex once, then run `prefsync apply rex-shortcuts` to restore them. Applying
+changed shortcuts briefly quits and reopens Rex; matching settings are left alone.

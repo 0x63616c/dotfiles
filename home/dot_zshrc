@@ -24,6 +24,9 @@ if command -v brew >/dev/null 2>&1; then
   unset _brew_prefix
 fi
 
+# Editor
+alias code='cursor'
+
 # Tool versions
 command -v mise >/dev/null 2>&1 && eval "$(mise activate zsh)"
 
