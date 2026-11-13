@@ -6,6 +6,7 @@ alias reload='source "$HOME/.zshrc"'
 
 # Explicit shortcut: Claude sessions launched via c bypass permission prompts.
 alias c='claude --dangerously-skip-permissions'
+alias cr='c --resume'
 
 # History
 HISTFILE="$HOME/.zsh_history"
