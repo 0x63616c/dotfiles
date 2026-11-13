@@ -172,15 +172,6 @@ allow = [
 # counters / migration state nested inside allowed keys
 deny_paths = ["autoCleanup.diffShownCount", "autoCleanup.migrated", "*.*Count", "*.*At", "*.*Time"]
 
-# Rex's Settings UI owns this shortcut layer; keep future edits captured without
-# copying session state, server identities or app preferences into the repo.
-[[domain]]
-name = "rex-shortcuts"
-json_file = "~/Library/Application Support/com.superlogical.rex/Shortcuts/shortcuts.json"
-json_key = "layer"
-restart = "app:Rex Beta"
-allow = ["name", "bindings", "removals"]
-
 # GUI hosts are separate from Rex's CLI configuration in this preview. The adapter
 # exports only this entry's presence and merges it without copying IDs or other hosts.
 [[domain]]
