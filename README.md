@@ -99,7 +99,12 @@ After applying changes, open a new shell or run `source ~/.zshrc`.
 existing SSH key for CLI commands such as `rex -S homelab-macbook ls`. That
 `.local` address works on the home LAN. Reload an already running local Rex
 server with `rex config reload` after applying. Rex currently keeps the Mac
-app’s host list separate; this declaration does not populate its host picker.
+app’s host list separate. prefsync restores that GUI entry through
+[`rex-host-prefs`](home/dot_local/bin/executable_rex-host-prefs), which merges
+only the homelab entry. Its snapshot stores an enabled flag; host/session IDs
+and other remote hosts stay local. Open Rex once on a fresh Mac, then run
+`prefsync apply com.superlogical.rex`. Restoring a missing entry quits and
+reopens the app; existing remote terminals keep running on the MacBook.
 
 Rex shortcuts edited in Settings are captured by prefsync into
 [`home/prefs/rex-shortcuts.json`](home/prefs/rex-shortcuts.json). On a fresh Mac,

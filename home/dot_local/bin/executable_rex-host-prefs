@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""prefsync adapter for Rex's GUI homelab entry; never export opaque host IDs."""
+
+import copy
+import json
+import plistlib
+import subprocess
+import sys
+import uuid
+from pathlib import Path
+
+DOMAIN = "com.superlogical.rex"
+KEY = "RexSync.servers"
+ENDPOINT = "ssh://coding@homelab-macbook.local"
+SETTING = "homelabMacBook"
+
+
+def decode(prefs):
+    value = prefs.get(KEY)
+    doc = json.loads(value) if value is not None else {"formatVersion": 1, "records": []}
+    if not isinstance(doc, dict) or doc.get("formatVersion") != 1 or not isinstance(doc.get("records"), list):
+        raise ValueError("unsupported Rex host preferences; leaving them unchanged")
+    if any(not isinstance(r, dict) or not isinstance(r.get("locators"), list) for r in doc["records"]):
+        raise ValueError("invalid Rex host record; leaving preferences unchanged")
+    return doc
+
+
+def matches(record):
+    return ENDPOINT in record["locators"]
+
+
+def export_settings(doc):
+    return {"settings": {KEY: {SETTING: any(matches(r) for r in doc["records"])}}}
+
+
+def merge(doc, enabled):
+    if type(enabled) is not bool:
+        raise ValueError("homelabMacBook must be a boolean")
+    result = copy.deepcopy(doc)
+    if not enabled:
+        result["records"] = [r for r in result["records"] if not matches(r)]
+    elif not any(matches(r) for r in result["records"]):
+        result["records"].append(
+            {
+                "id": str(uuid.uuid4()).upper(),
+                "name": "Homelab MacBook",
+                "icon": "globe",
+                "locators": [ENDPOINT],
+                "acceptsAnonymousClients": False,
+            }
+        )
+    return result
+
+
+def main():
+    if len(sys.argv) != 3 or sys.argv[1] not in ("export", "import"):
+        raise ValueError("usage: rex-host-prefs export|import FILE (called by prefsync)")
+    action, filename = sys.argv[1:]
+    raw = subprocess.check_output(["/usr/bin/defaults", "export", DOMAIN, "-"], timeout=30)
+    doc = decode(plistlib.loads(raw))
+    path = Path(filename)
+    if action == "export":
+        path.write_bytes(plistlib.dumps(export_settings(doc)))
+    else:
+        enabled = plistlib.loads(path.read_bytes())["settings"][KEY][SETTING]
+        updated = merge(doc, enabled)
+        if updated != doc:
+            # prefsync quits Rex first and supplies only this owned key. defaults import
+            # merges the top-level key; every unrelated preference and host is retained.
+            patch = plistlib.dumps({KEY: json.dumps(updated).encode()})
+            subprocess.run(["/usr/bin/defaults", "import", DOMAIN, "-"], input=patch, check=True, timeout=30)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
+        sys.exit("rex-host-prefs: " + str(exc))

@@ -180,3 +180,12 @@ json_file = "~/Library/Application Support/com.superlogical.rex/Shortcuts/shortc
 json_key = "layer"
 restart = "app:Rex Beta"
 allow = ["name", "bindings", "removals"]
+
+# GUI hosts are separate from Rex's CLI configuration in this preview. The adapter
+# exports only this entry's presence and merges it without copying IDs or other hosts.
+[[domain]]
+name = "com.superlogical.rex"
+restart = "app:Rex Beta"
+export_cmd = ["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.local/bin/rex-host-prefs" export "$1"', "rex-host-prefs", "{file}"]
+import_cmd = ["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.local/bin/rex-host-prefs" import "$1"', "rex-host-prefs", "{file}"]
+allow = ["RexSync.servers"]
