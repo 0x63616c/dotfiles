@@ -148,7 +148,7 @@
 	<key>diskImageInstallerTrashesDownload</key>
 	<true/>
 	<key>diskImageInstallerUseUserApplications</key>
-	<true/>
+	<false/>
 	<key>displayBrightnessDecreaseShortcut</key>
 	<string>shift+command:27</string>
 	<key>displayBrightnessIncreaseShortcut</key>
