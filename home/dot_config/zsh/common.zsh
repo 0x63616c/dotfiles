@@ -23,5 +23,8 @@ setopt AUTO_CD INTERACTIVE_COMMENTS
 # Tool versions
 command -v mise >/dev/null 2>&1 && eval "$(mise activate zsh)"
 
+# Git worktrees: completion, and cd on `wtp cd` / `wtp add`
+command -v wtp >/dev/null 2>&1 && eval "$(wtp shell-init zsh)"
+
 # Prompt
 command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
