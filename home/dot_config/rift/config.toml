@@ -306,7 +306,7 @@ mode = "per_display"
 #   workspace instead of wrapping around
 # - reapply_app_rules_on_title_change: if true, app rules are re-evaluated when a window's title changes
 enabled = true
-default_workspace_count = 4
+default_workspace_count = 2
 auto_assign_windows = true
 preserve_focus_per_workspace = true
 workspace_auto_back_and_forth = false
@@ -340,8 +340,8 @@ workspace_rules = []
 # remaining workspaces are named "Workspace X".
 # Do not provide more names than default_workspace_count.
 workspace_names = [
-	"first",
-	"second"
+	"vov",
+	"personal"
 ]
 
 # App rules (automatic assignment)
@@ -419,7 +419,10 @@ workspace_names = [
 #       ]
 #
 # By default there are no app rules; add or uncomment rules below as needed.
-app_rules = []
+app_rules = [
+	{ app_id = "com.apple.mail", workspace = "personal" },
+	{ app_id = "com.apple.Photos", workspace = "personal" },
+]
 
 # Modifier combinations that can be reused in key bindings
 # Define common modifier combinations to avoid repetition.
@@ -509,15 +512,11 @@ comb1 = "Alt + Shift"
 "comb1 + K" = { move_node = "up" }
 "comb1 + L" = { move_node = "right" }
 
-"Alt + 0" = { switch_to_workspace = 0 }
-"Alt + 1" = { switch_to_workspace = 1 }
-"Alt + 2" = { switch_to_workspace = 2 }
-"Alt + 3" = { switch_to_workspace = 3 }
+"Alt + 1" = { switch_to_workspace = 0 }
+"Alt + 2" = { switch_to_workspace = 1 }
 
-"comb1 + 0" = { move_window_to_workspace = 0 }
-"comb1 + 1" = { move_window_to_workspace = 1 }
-"comb1 + 2" = { move_window_to_workspace = 2 }
-"comb1 + 3" = { move_window_to_workspace = 3 }
+"comb1 + 1" = { move_window_to_workspace = 0 }
+"comb1 + 2" = { move_window_to_workspace = 1 }
 
 "Alt + Tab" = "switch_to_last_workspace"
 
