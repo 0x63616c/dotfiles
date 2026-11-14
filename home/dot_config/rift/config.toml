@@ -340,8 +340,8 @@ workspace_rules = []
 # remaining workspaces are named "Workspace X".
 # Do not provide more names than default_workspace_count.
 workspace_names = [
-	"vov",
-	"personal"
+	"personal",
+	"vov"
 ]
 
 # App rules (automatic assignment)
