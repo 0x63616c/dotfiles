@@ -1,10 +1,2 @@
 -- Rex reads Lua on the server: share keys with coding, declare hosts only locally.
 require("keys")
-{{- $profile := get . "profile" | default (ternary "coding" "personal" (eq .chezmoi.username "coding")) }}
-{{ if eq $profile "personal" -}}
--- Remote terminals run as coding on the homelab MacBook.
-rex.host {
-  label = "homelab-macbook",
-  endpoint = "ssh://coding@homelab-macbook.local",
-}
-{{ end -}}

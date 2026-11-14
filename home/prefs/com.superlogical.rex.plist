@@ -5,7 +5,7 @@
 	<key>RexSync.servers</key>
 	<dict>
 		<key>homelabMacBook</key>
-		<true/>
+		<false/>
 	</dict>
 	<key>Workspace.tabStyle</key>
 	<string>vertical</string>
