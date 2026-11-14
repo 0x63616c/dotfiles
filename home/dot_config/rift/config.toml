@@ -341,8 +341,8 @@ workspace_rules = []
 # Do not provide more names than default_workspace_count.
 workspace_names = [
 	"personal",
-	"youtube",
-	"vov"
+	"vov",
+	"youtube"
 ]
 
 # App rules (automatic assignment)
