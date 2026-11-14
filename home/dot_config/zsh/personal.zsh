@@ -1,4 +1,4 @@
-# Personal Mac integrations. Coding tools and plugins are supplied by Nix.
+# Personal Mac aliases and integrations.
 # Homebrew prefix (empty if brew is missing)
 if command -v brew >/dev/null 2>&1; then
   _brew_prefix="$(brew --prefix)"

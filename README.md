@@ -94,71 +94,20 @@ This repo is operated by an AI agent. Read [AGENTS.md](AGENTS.md) for the rules 
 Shell aliases live in [`home/dot_config/zsh/personal.zsh`](home/dot_config/zsh/personal.zsh); `code` opens Cursor on the personal Mac.
 After applying changes, open a new shell or run `source ~/.zshrc`.
 
-[`home/dot_config/rex/init.lua`](home/dot_config/rex/init.lua.tmpl) declares the
-`homelab-macbook` remote as `ssh://coding@homelab-macbook.local` using your
-existing SSH key for CLI commands such as `rex -S homelab-macbook ls`. That
-`.local` address works on the home LAN. Reload an already running local Rex
-server with `rex config reload` after applying. Rex currently keeps the Mac
-app’s host list separate. prefsync restores that GUI entry through
-[`rex-host-prefs`](home/dot_local/bin/executable_rex-host-prefs), which merges
-only the homelab entry. Its snapshot stores an enabled flag; host/session IDs
-and other remote hosts stay local. Open Rex once on a fresh Mac, then run
-`prefsync apply com.superlogical.rex`. Restoring a missing entry quits and
-reopens the app; existing remote terminals keep running on the MacBook.
-
 Rex shortcuts live in [`home/dot_config/rex/keys.lua`](home/dot_config/rex/keys.lua),
-required by init.lua on both the personal and coding servers. ⌘K opens the command
+required by [`init.lua`](home/dot_config/rex/init.lua). ⌘K opens the command
 palette, ⇧⌘K switches sessions, and the old ⇧⌘P palette shortcut is removed.
 Edit Lua for these bindings; app-recorded shortcuts take precedence and can mask it.
-Run `rex config reload` locally on each server after applying (on coding, through
-SSH using its local Rex socket). This reload leaves running terminals intact.
+Run `rex config reload` after applying. This reload leaves running terminals intact.
 
 Rex's Geist Mono font and vertical sidebar layout are app preferences synced through
-prefsync's `com.superlogical.rex` domain, alongside the homelab GUI host entry.
+prefsync's `com.superlogical.rex` domain.
 
-## Shell profiles
+## Shell
 
-`home/dot_zshrc.tmpl` renders a small loader: shared `~/.config/zsh/common.zsh`,
-then `personal.zsh` or `coding.zsh`. Put shared history/completion/prompt behavior
-in common; put aliases, plugin paths and role-specific integrations in the profile.
-Do not duplicate shared settings or grow a chain of hostname conditionals.
-The shared `reload` alias re-sources `~/.zshrc` and its active profile.
+`home/dot_zshrc` is a small loader: shared `~/.config/zsh/common.zsh`, then
+`personal.zsh`. Put shared history/completion/prompt behavior in common; put
+aliases, plugin paths and integrations in personal. Do not grow a chain of
+hostname conditionals. The shared `reload` alias re-sources `~/.zshrc`.
+Run `tests/render-test.sh` after changing shell files.
 
-`chezmoi init` persists `[data].profile` (`personal` or `coding`) in the local
-chezmoi config. An explicit profile wins; the initial default is `coding` for the
-`coding` account and `personal` otherwise. Existing personal configs without that
-key retain the same default. To initialize the coding account deliberately:
-
-```sh
-chezmoi init 0x63616c --promptString 'Shell profile=coding'
-chezmoi diff
-chezmoi apply
-```
-
-The coding profile is an allow-list in `home/.chezmoiignore.tmpl`: only zsh,
-Starship, shared Rex keys, Claude settings and Claude guidance deploy. The only script is
-`run_after_50-rex-claude.sh`, which runs `rex skill setup --agent claude` after
-files are applied. It uses the Nix-installed Rex/Claude, repairs missing or outdated
-integration on each apply, and preserves unrelated Claude settings. Rex owns its
-generated skill and session hook; do not copy those files into Git or also manage
-the hook in `modify_settings.json`. Personal setup scripts, GUI preferences, Rex
-remote-host declarations, SSH identities and Git signing configuration are excluded. A normal apply/update is safe to run as coding; do not bootstrap the
-personal profile there. Later updates are explicit `chezmoi update` calls.
-
-On the homelab, WWW's `projects/homelab/modules/coding.nix` owns Nix zsh, Claude,
-chezmoi and permanent coding tools. The coding plugin file uses the stable Nix
-system profile; the personal one uses Homebrew. Starship always shows the hostname
-on coding, including Rex terminals that were not opened through an SSH shell.
-
-`home/private_dot_claude/CLAUDE.md` is coding-only package/configuration guidance.
-`modify_settings.json.tmpl` merges just the coding account's
-`env.DISABLE_AUTOUPDATER=1`, preserving local Claude settings and Rex hooks.
-Do not add credentials, session/history files, project trust or `~/.claude.json`.
-The personal Mac's Claude configuration is not managed by this profile change.
-Provider login and GitHub credentials are provisioned separately on coding;
-never copy the personal SSH private key or assume signing is available remotely.
-
-Before changing a profile or its allow-list, run `tests/render-test.sh`: it renders
-both roles and checks that coding can run only its scoped Rex installer and cannot receive private
-configuration. Add another small shared file only when common.zsh becomes unwieldy;
-keep its source order explicit in the loader.

@@ -1,0 +1,9 @@
+# Managed by chezmoi. Shared behavior lives in common.zsh, aliases and
+# plugins in personal.zsh. See dotfiles README: Shell.
+source "$HOME/.config/zsh/common.zsh"
+source "$HOME/.config/zsh/personal.zsh"
+
+# Keep the CLI matching this Rex server first after every interactive init or reload.
+if [ -n "$REX_BIN_DIR" ] && [ "${PATH%%:*}" != "$REX_BIN_DIR" ]; then
+  export PATH="$REX_BIN_DIR:$PATH"
+fi

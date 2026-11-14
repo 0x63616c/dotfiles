@@ -1,7 +1,7 @@
-# Shared interactive shell behavior. Edit this file in dotfiles for both profiles.
+# Shared interactive shell behavior. Edit this file in dotfiles.
 # Every integration is guarded, so a missing tool never breaks the shell.
 
-# Reload this account's generated loader and active profile.
+# Reload the generated loader.
 alias reload='source "$HOME/.zshrc"'
 
 # Explicit shortcut: Claude sessions launched via c bypass permission prompts.

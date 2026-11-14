@@ -172,12 +172,7 @@ allow = [
 # counters / migration state nested inside allowed keys
 deny_paths = ["autoCleanup.diffShownCount", "autoCleanup.migrated", "*.*Count", "*.*At", "*.*Time"]
 
-# GUI hosts are separate from Rex's CLI configuration in this preview. The adapter
-# exports only this entry's presence and merges it without copying IDs or other hosts.
 [[domain]]
 name = "com.superlogical.rex"
 restart = "app:Rex Beta"
-export_cmd = ["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.local/bin/rex-host-prefs" export "$1"', "rex-host-prefs", "{file}"]
-import_cmd = ["/bin/sh", "-c", 'exec /usr/bin/python3 "$HOME/.local/bin/rex-host-prefs" import "$1"', "rex-host-prefs", "{file}"]
-defaults_keys = ["Workspace.tabStyle", "Workspace.terminalFontName"]
-allow = ["RexSync.servers", "Workspace.tabStyle", "Workspace.terminalFontName"]
+allow = ["Workspace.tabStyle", "Workspace.terminalFontName"]
