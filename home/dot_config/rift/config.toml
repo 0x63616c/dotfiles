@@ -212,19 +212,19 @@ show_empty_workspaces = true
 
 [settings.ui.menu_bar]
 # enable menu bar workspace indicators
-enabled = false
+enabled = true
 # if enabled, it will show all workspaces including empty ones. disabled because this
 # tends to take up too much room in the menubar and then is auto hidden by macos
-show_empty = false
+show_empty = true
 # show the binding mode name beside workspaces when a non-default mode is active
 show_binding_mode = true
 # choose between drawing every workspace or only the active workspace on each display
 mode = "all"
 # when showing workspaces as labels ("index" or "name"), choose which label to render
-active_label = "index"
+active_label = "name"
 # when displaying workspaces, choose whether to draw the layout preview or a set of labels
 # options are "layout" or "label" (i3-style)
-display_style = "layout"
+display_style = "label"
 # when display_style = "label", add brackets (e.g. "[2]") when a window is in fullscreen
 show_fullscreen_indicator = false
 # .ron files in this folder appear under Layout Files in the menu bar
