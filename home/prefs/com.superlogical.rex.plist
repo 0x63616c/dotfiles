@@ -8,7 +8,7 @@
 		<true/>
 	</dict>
 	<key>Workspace.tabStyle</key>
-	<string>vertical</string>
+	<string>horizontal</string>
 	<key>Workspace.terminalFontName</key>
 	<string>Geist Mono</string>
 </dict>
