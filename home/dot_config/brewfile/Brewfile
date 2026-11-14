@@ -45,6 +45,8 @@ cask "chatgpt"   # ChatGPT desktop app with Codex built in (codex-app cask is de
 cask "bambu-studio"
 tap "saffsanity/sill"
 cask "saffsanity/sill/sill"
+tap "acsandmann/tap"
+brew "acsandmann/tap/rift"   # tiling window manager; config in ~/.config/rift
 cask "ghostty"
 cask "font-geist-mono"
 brew "mole"
