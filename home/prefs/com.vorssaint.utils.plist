@@ -1357,7 +1357,7 @@
 	<key>switcherPreviewExcludedApps</key>
 	<array/>
 	<key>switcherPreviewSize</key>
-	<string>large</string>
+	<string>xlarge</string>
 	<key>switcherScreenPlacement</key>
 	<string>pointer</string>
 	<key>switcherSearchPinEnabled</key>
