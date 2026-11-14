@@ -10,3 +10,12 @@ unset plugin
 
 # vov's tool from the ~/vov checkout: `vov` rebuilds when needed, else runs the cached binary.
 [[ ! -d "$HOME/vov/bin" ]] || path+=("$HOME/vov/bin")
+
+# Claude in ~/vov gets vov's MCP keys from sops, for that process only (see vov/.mcp.json).
+claude() {
+  if [[ $PWD == $HOME/vov(|/*) ]]; then
+    PENPOT_MCP_KEY="$("$HOME/vov/bin/vov" admin secrets get access PENPOT_MCP_KEY 2>/dev/null)" command claude "$@"
+  else
+    command claude "$@"
+  fi
+}
