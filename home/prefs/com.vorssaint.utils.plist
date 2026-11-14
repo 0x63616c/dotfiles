@@ -1433,7 +1433,7 @@
 	<key>windowEdgeSnapDisabledZones</key>
 	<string></string>
 	<key>windowEdgeSnapEnabled</key>
-	<false/>
+	<true/>
 	<key>windowEdgeSnapRestoreOnDrag</key>
 	<false/>
 	<key>windowEdgeSnapZoneActions</key>
