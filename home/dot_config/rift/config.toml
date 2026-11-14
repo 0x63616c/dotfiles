@@ -421,7 +421,7 @@ workspace_names = [
 #
 # By default there are no app rules; add or uncomment rules below as needed.
 app_rules = [
-	{ app_id = "com.apple.mail", workspace = "personal" },
+	{ app_id = "com.apple.mail", workspace = "personal", focus = true },
 	{ app_id = "com.apple.Photos", workspace = "personal" },
 	# SI game dev window (cargo run): leave it at its iPhone-shaped size.
 	{ app_name = "si", manage = false },
