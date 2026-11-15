@@ -17,6 +17,7 @@ brew "starship"
 brew "zsh-autosuggestions"
 brew "zsh-syntax-highlighting"
 brew "direnv"         # loads project dev shells (e.g. vov's flake) on cd
+brew "zoxide"         # `z` jumps to frequent directories
 
 # --- Apps installed on this Mac (all verified to exist as casks) ---
 cask "1password"
@@ -53,3 +54,6 @@ cask "font-geist-mono"
 brew "mole"
 mas "Xcode", id: 497799835
 mas "Menu Bar Controller for Sonos", id: 6749351423
+cask "kicad"
+cask "trezor-suite"
+cask "vlc"

@@ -6,3 +6,9 @@ Host github.com ssh.github.com
     IdentityAgent none
 
 Include {{ .chezmoi.homeDir }}/.colima/ssh_config
+
+Host homelab-macbook
+    HostName 192.168.0.44
+    User coding
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes

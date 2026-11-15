@@ -2,3 +2,5 @@
 .AppleDouble
 ._*
 .env.local
+
+**/.claude/settings.local.json
