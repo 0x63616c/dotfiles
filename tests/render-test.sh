@@ -59,6 +59,7 @@ for t in "$repo"/home/.chezmoiscripts/*.sh; do
   sh -n "$t"
   if command -v shellcheck >/dev/null 2>&1; then shellcheck -s sh "$t"; fi
 done
-for file in "$dest/.zshrc" "$dest/.zprofile" "$dest"/.config/zsh/*.zsh; do zsh -n "$file"; done
+for file in "$dest/.zshrc" "$dest/.zprofile"; do zsh -n "$file"; done
+[ ! -e "$dest/.config/zsh" ] || { echo "FAIL: shell config must live in .zshrc only" >&2; exit 1; }
 HOME="$dest" REX_BIN_DIR="/tmp/Rex Bin" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; test "$(alias code)" = "code=cursor"; eval reload; test "${PATH%%:*}" = "$REX_BIN_DIR"'
 echo "render test OK ($domains domains)"

@@ -91,7 +91,7 @@ This repo is operated by an AI agent. Read [AGENTS.md](AGENTS.md) for the rules 
 
 ## Rex and shell aliases
 
-Shell aliases live in [`home/dot_config/zsh/personal.zsh`](home/dot_config/zsh/personal.zsh); `code` opens Cursor on the personal Mac.
+Shell aliases live in [`home/dot_zshrc`](home/dot_zshrc); `code` opens Cursor.
 After applying changes, open a new shell or run `source ~/.zshrc`.
 
 Rex shortcuts live in [`home/dot_config/rex/keys.lua`](home/dot_config/rex/keys.lua),
@@ -105,9 +105,10 @@ prefsync's `com.superlogical.rex` domain.
 
 ## Shell
 
-`home/dot_zshrc` is a small loader: shared `~/.config/zsh/common.zsh`, then
-`personal.zsh`. Put shared history/completion/prompt behavior in common; put
-aliases, plugin paths and integrations in personal. Do not grow a chain of
-hostname conditionals. The shared `reload` alias re-sources `~/.zshrc`.
+All zsh config lives in one file, `home/dot_zshrc`: aliases, history and
+completion, tool integrations, then Homebrew plugins (syntax-highlighting last)
+and the Rex PATH guard at the very end. Guard every integration with
+`command -v` so a missing tool never breaks the shell. Do not grow a chain of
+hostname conditionals. The `reload` alias re-sources `~/.zshrc`.
 Run `tests/render-test.sh` after changing shell files.
 

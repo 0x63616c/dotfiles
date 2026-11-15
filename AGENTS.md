@@ -5,7 +5,7 @@ Public repo `0x63616c/dotfiles` (so the plain chezmoi one-liner works; **never c
 
 ## Shell changes
 
-Read [README: Shell](README.md#shell) before changing shell files. Shared behavior belongs in `home/dot_config/zsh/common.zsh`; aliases and integrations belong in `personal.zsh`.
+Read [README: Shell](README.md#shell) before changing shell files. All zsh config lives in one file, `home/dot_zshrc`.
 
 ## The loop (follow strictly, in order)
 1. Edit the **source** (`chezmoi cd` or `~/.local/share/chezmoi`). Never edit deployed files in `$HOME` directly. If an app changed its own file, use `chezmoi re-add`/`chezmoi merge` deliberately.
