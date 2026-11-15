@@ -244,7 +244,7 @@
 	<key>keepAwakeRunningAppBundleIDs</key>
 	<array/>
 	<key>keepAwakeRunningApps</key>
-	<false/>
+	<true/>
 	<key>keepAwakeShortcut</key>
 	<string>control+option+shift+command:40</string>
 	<key>keepAwakeSwitchUsesUntil</key>
