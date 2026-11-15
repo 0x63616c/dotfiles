@@ -36,7 +36,16 @@ assert p["StartCalendarInterval"] == {"Minute": 0}
 assert p["RunAtLoad"] is True
 assert p["ProgramArguments"][-1] == "--apply"
 assert (dest / ".local/bin/worktree-cleanup").stat().st_mode & 0o111
+agent = dest / "Library/LaunchAgents/dev.0x63616c.claude-warmup.plist"
+p = plistlib.loads(agent.read_bytes())
+assert p["Label"] == "dev.0x63616c.claude-warmup"
+assert p["StartCalendarInterval"] == {"Minute": 0}
+assert p["RunAtLoad"] is False
+assert p["ProgramArguments"][-1].endswith("/.local/bin/claude-warmup")
+assert (dest / ".local/bin/claude-warmup").stat().st_mode & 0o111
 PY
+if command -v shellcheck >/dev/null 2>&1; then shellcheck -s sh "$dest/.local/bin/claude-warmup"; fi
+sh -n "$dest/.local/bin/claude-warmup"
 
 # Scripts render and parse; shellcheck if available.
 for t in "$repo"/home/.chezmoiscripts/*.tmpl; do

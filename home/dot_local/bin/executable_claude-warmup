@@ -1,0 +1,34 @@
+#!/bin/sh
+# Send Claude Haiku a one-word prompt so a new 5-hour usage window starts as soon as the last one ends.
+# Run hourly by the dev.0x63616c.claude-warmup LaunchAgent. A ping inside an open window only uses a sliver of quota.
+# Log: ~/Library/Logs/claude-warmup.log (one line per run, last 500 kept).
+set -u
+claude="${CLAUDE_WARMUP_BIN:-/opt/homebrew/bin/claude}"
+log="${CLAUDE_WARMUP_LOG:-$HOME/Library/Logs/claude-warmup.log}"
+state="$HOME/.local/state/claude-warmup"
+
+note() {
+  printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >>"$log"
+  tail -n 500 "$log" >"$log.tmp" && mv "$log.tmp" "$log"
+}
+
+mkdir -p "$(dirname "$log")" "$state"
+if [ ! -x "$claude" ]; then
+  note "FAIL: $claude not found or not executable"
+  echo "claude-warmup: $claude not found or not executable" >&2
+  exit 1
+fi
+
+# Run from an empty directory so no project CLAUDE.md or settings load. caffeinate keeps the Mac awake for the call;
+# perl's alarm kills a hung call after 120s so the next hourly run is not blocked.
+cd "$state" || exit 1
+if out="$(/usr/bin/caffeinate -i /usr/bin/perl -e 'alarm 120; exec @ARGV or die "exec: $!\n"' \
+  "$claude" -p hi --model haiku --no-session-persistence --strict-mcp-config </dev/null 2>&1)"; then
+  note "ok"
+else
+  rc=$?
+  msg="$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)"
+  note "FAIL (exit $rc): $msg"
+  echo "claude-warmup: claude exited $rc: $msg" >&2
+  exit "$rc"
+fi

@@ -222,13 +222,13 @@
 	<key>keepAwakeActiveIcon</key>
 	<string>vorssaint</string>
 	<key>keepAwakeAllowDisplaySleep</key>
-	<false/>
+	<true/>
 	<key>keepAwakeAutoStart</key>
 	<false/>
 	<key>keepAwakeAutomationRequireAll</key>
 	<false/>
 	<key>keepAwakeConnectedToPower</key>
-	<false/>
+	<true/>
 	<key>keepAwakeExternalDisplay</key>
 	<false/>
 	<key>keepAwakeIconTint</key>
