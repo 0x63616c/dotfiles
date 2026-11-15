@@ -16,6 +16,7 @@ brew "ruff"         # lints/formats prefsync (Python)
 brew "starship"
 brew "zsh-autosuggestions"
 brew "zsh-syntax-highlighting"
+brew "direnv"         # loads project dev shells (e.g. vov's flake) on cd
 
 # --- Apps installed on this Mac (all verified to exist as casks) ---
 cask "1password"

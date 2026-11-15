@@ -24,3 +24,6 @@ claude() {
     command claude "$@"
   fi
 }
+
+# direnv: load a project's .envrc (e.g. vov's Nix dev shell) on cd, keeping this shell and prompt.
+command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"
