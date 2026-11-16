@@ -118,16 +118,21 @@ Claude Code has two profiles, each with its own login:
 
 - `~/.claude` (the default) is personal. Everything uses it unless told
   otherwise, including the claude-warmup agent and IDE extensions.
-- `~/.claude-work` is work. The `claude()` function in `home/dot_zshrc` sets
-  `CLAUDE_CONFIG_DIR` to it inside `~/coding/vov` and `~/coding/vov-worktrees`.
-  The `c` and `cr` aliases go through that function.
+- `~/.claude-vov` is the vov profile, on the work account. The `claude()`
+  function in `home/dot_zshrc` sets `CLAUDE_CONFIG_DIR` to it inside
+  `~/coding/vov` and `~/coding/vov-worktrees`. The `c` and `cr` aliases go
+  through that function.
 
-`settings.json`, `keybindings.json`, `skills` and `plugins` in the work profile
-are symlinks to the default profile (`home/dot_claude-work/symlink_*`), so both
+`settings.json`, `keybindings.json`, `skills` and `plugins` in the vov profile
+are symlinks to the default profile (`home/dot_claude-vov/symlink_*`), so both
 profiles behave the same. Logins, `.claude.json` (user-scope MCP servers and
 per-project state), sessions, history and memory are per profile.
 
+The status line is shared too. It starts with the profile, read from
+`CLAUDE_CONFIG_DIR`: `[vov]` for `~/.claude-vov`, `[personal]` for the default.
+A new profile directory `~/.claude-NAME` shows as `[NAME]`.
+
 On a new Mac, log in once per profile: run `claude` anywhere for personal and
 `claude` in `~/coding/vov` for work. `claude auth status` shows which account a
-profile is on (prefix `CLAUDE_CONFIG_DIR=~/.claude-work` for work).
+profile is on (prefix `CLAUDE_CONFIG_DIR=~/.claude-vov` for vov).
 

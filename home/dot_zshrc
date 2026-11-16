@@ -23,13 +23,13 @@ setopt AUTO_CD INTERACTIVE_COMMENTS
 # vov's tool from the ~/coding/vov checkout: `vov` rebuilds when needed, else runs the cached binary.
 [[ ! -d "$HOME/coding/vov/bin" ]] || path+=("$HOME/coding/vov/bin")
 
-# Claude accounts: ~/coding/vov (and its worktrees) runs on the work profile, ~/.claude-work; everywhere else runs on
-# the personal default, ~/.claude. Each profile has its own login (see README: Claude accounts). c and cr come through here.
+# Claude accounts: ~/coding/vov (and its worktrees) runs on the vov profile, ~/.claude-vov, with the work login;
+# everywhere else runs on the personal default, ~/.claude (see README: Claude accounts). c and cr come through here.
 # In vov, Claude also gets vov's MCP keys from sops, for that process only (see vov/.mcp.json).
 claude() {
   if [[ $PWD == $HOME/coding/vov(|-worktrees)(|/*) ]]; then
     local vov="$HOME/coding/vov/bin/vov"
-    CLAUDE_CONFIG_DIR="$HOME/.claude-work" \
+    CLAUDE_CONFIG_DIR="$HOME/.claude-vov" \
     PENPOT_MCP_KEY="$("$vov" admin secrets get access PENPOT_MCP_KEY 2>/dev/null)" \
     PENPOT_MCP_ACCESS_CLIENT_ID="$("$vov" admin secrets get access PENPOT_MCP_ACCESS_CLIENT_ID 2>/dev/null)" \
     PENPOT_MCP_ACCESS_CLIENT_SECRET="$("$vov" admin secrets get access PENPOT_MCP_ACCESS_CLIENT_SECRET 2>/dev/null)" \
