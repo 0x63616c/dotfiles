@@ -47,6 +47,11 @@ PY
 if command -v shellcheck >/dev/null 2>&1; then shellcheck -s sh "$dest/.local/bin/claude-warmup"; fi
 sh -n "$dest/.local/bin/claude-warmup"
 
+# op shim (1Password read cache for Claude Code) deploys executable and parses.
+[ -x "$dest/.local/bin/op" ] || { echo "FAIL: ~/.local/bin/op not executable" >&2; exit 1; }
+if command -v shellcheck >/dev/null 2>&1; then shellcheck -s sh "$dest/.local/bin/op"; fi
+sh -n "$dest/.local/bin/op"
+
 # Scripts render and parse; shellcheck if available.
 for t in "$repo"/home/.chezmoiscripts/*.tmpl; do
   out="$(mktemp)"

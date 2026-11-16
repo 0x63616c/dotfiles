@@ -1,0 +1,88 @@
+#!/bin/sh
+# op shim: caches 1Password CLI reads made by Claude Code for 30 minutes, so agents stop triggering a 1Password
+# approval prompt on every call (each agent Bash call is a new, terminal-less process, so op rarely reuses an approval).
+# Outside Claude Code (CLAUDECODE unset) it execs the real op untouched. See README: 1Password reads in Claude.
+#
+# Cached (stdout of successful runs only): op read, op item get, op item list, op vault get, op vault list.
+# Never cached: --otp / TOTP fields, --out-file, a leading global flag, stdin input ("-").
+# Any other command except the known read-only ones (whoami, signin, run, inject, ...) wipes the whole cache first,
+# so a list after an add/edit/delete is always fresh.
+# Agent controls: `OP_CACHE=refresh op ...` bypasses the cache and stores the fresh result;
+# `OP_CACHE=off op ...` bypasses without storing; `op cache clear` wipes the cache.
+# Cache: per-user temp dir (private, cleared on reboot), files 0600, plaintext. Override TTL with OP_CACHE_TTL_MIN.
+set -u
+
+real="${OP_CACHE_REAL:-}"
+if [ -z "$real" ]; then
+  for c in /opt/homebrew/bin/op /usr/local/bin/op; do
+    if [ -x "$c" ]; then real="$c"; break; fi
+  done
+fi
+if [ -z "$real" ] || [ ! -x "$real" ]; then
+  echo "op shim: real op not found (looked in /opt/homebrew/bin, /usr/local/bin; set OP_CACHE_REAL)" >&2
+  exit 127
+fi
+
+[ "${CLAUDECODE:-}" = 1 ] || exec "$real" "$@"
+
+ttl="${OP_CACHE_TTL_MIN:-30}"
+dir="${OP_CACHE_DIR:-$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null || echo "${TMPDIR:-/tmp}/")op-cache}"
+umask 077
+mkdir -p "$dir" || { echo "op shim: cannot create $dir" >&2; exit 1; }
+chmod 700 "$dir"
+
+clear_cache() { find "$dir" -type f -name '*.out' -delete 2>/dev/null; }
+
+if [ "${1:-}" = cache ]; then
+  case "${2:-}" in
+    clear) clear_cache; echo "op cache cleared ($dir)"; exit 0 ;;
+    *) echo "usage: op cache clear" >&2; exit 2 ;;
+  esac
+fi
+
+# Decide: cache, passthrough, or invalidate-then-passthrough.
+mode=invalidate
+case "${1:-}" in
+  read) mode=cache ;;
+  item | vault)
+    case "${2:-}" in
+      get | list) mode=cache ;;
+    esac ;;
+  whoami | signin | signout | run | inject | completion | update | --version | -v | --help | -h | help | "") mode=pass ;;
+  account)
+    case "${2:-}" in
+      list | get) mode=pass ;;
+    esac ;;
+  -*) mode=pass ;;  # leading global flag: do not guess the subcommand
+esac
+if [ "$mode" = cache ]; then
+  for a in "$@"; do
+    case "$a" in
+      *otp* | -o | --out-file | --out-file=* | -) mode=pass ;;
+    esac
+  done
+fi
+case "${OP_CACHE:-}" in off) [ "$mode" = cache ] && mode=pass ;; esac
+
+if [ "$mode" = invalidate ]; then
+  clear_cache
+  exec "$real" "$@"
+fi
+[ "$mode" = cache ] || exec "$real" "$@"
+
+find "$dir" -type f -name '*.out' -mmin +"$ttl" -delete 2>/dev/null
+key="$(
+  printf '%s\0' "${OP_ACCOUNT:-}" "$@" | /usr/bin/shasum -a 256 | cut -c1-64
+)"
+file="$dir/$key.out"
+if [ "${OP_CACHE:-}" != refresh ] && [ -f "$file" ]; then
+  cat "$file"
+  exit 0
+fi
+
+tmp="$(mktemp "$dir/.tmp.XXXXXX")" || exit 1
+"$real" "$@" >"$tmp"
+rc=$?
+cat "$tmp"
+if [ "$rc" -eq 0 ]; then mv -f "$tmp" "$file"; else rm -f "$tmp"; fi
+exit "$rc"

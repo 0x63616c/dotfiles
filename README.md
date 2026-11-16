@@ -123,7 +123,8 @@ Claude Code has two profiles, each with its own login:
   `~/coding/vov` and `~/coding/vov-worktrees`. The `c` and `cr` aliases go
   through that function.
 
-`settings.json`, `keybindings.json`, `skills` and `plugins` in the vov profile
+`settings.json`, `keybindings.json`, `CLAUDE.md` (global agent notes),
+`skills` and `plugins` in the vov profile
 are symlinks to the default profile (`home/dot_claude-vov/symlink_*`), so both
 profiles behave the same. Logins, `.claude.json` (user-scope MCP servers and
 per-project state), sessions, history and memory are per profile.
@@ -140,4 +141,21 @@ restart as soon as they end. Each run logs one line per profile to
 On a new Mac, log in once per profile: run `claude` anywhere for personal and
 `claude` in `~/coding/vov` for work. `claude auth status` shows which account a
 profile is on (prefix `CLAUDE_CONFIG_DIR=~/.claude-vov` for vov).
+
+### 1Password reads in Claude
+
+Every `op` call from an agent's Bash tool is a new process with no terminal, so
+1Password asks for approval almost every time. `home/dot_local/bin/executable_op`
+is a shim on PATH ahead of Homebrew's `op`. Outside Claude Code (`CLAUDECODE`
+unset) it execs the real `op` untouched. Inside, it caches the stdout of
+successful `op read`, `op item get|list` and `op vault get|list` for 30 minutes
+in the per-user temp dir (`getconf DARWIN_USER_TEMP_DIR`/op-cache, 0700,
+plaintext, cleared on reboot). This is a deliberate trade: for 30 minutes any
+process running as Calum can read a cached secret without a prompt.
+
+TOTP (`--otp`, `otp`/`totp` fields), `--out-file`, stdin input and commands
+starting with a global flag are never cached. Any command not known to be
+read-only (create, edit, delete, move, ...) wipes the cache first. Agents bypass
+it with `OP_CACHE=refresh op ...` (fresh fetch, re-cache), `OP_CACHE=off`
+(no cache at all) or `op cache clear`; the global `CLAUDE.md` tells them when.
 
