@@ -112,3 +112,22 @@ and the Rex PATH guard at the very end. Guard every integration with
 hostname conditionals. The `reload` alias re-sources `~/.zshrc`.
 Run `tests/render-test.sh` after changing shell files.
 
+### Claude accounts
+
+Claude Code has two profiles, each with its own login:
+
+- `~/.claude` (the default) is personal. Everything uses it unless told
+  otherwise, including the claude-warmup agent and IDE extensions.
+- `~/.claude-work` is work. The `claude()` function in `home/dot_zshrc` sets
+  `CLAUDE_CONFIG_DIR` to it inside `~/coding/vov` and `~/coding/vov-worktrees`.
+  The `c` and `cr` aliases go through that function.
+
+`settings.json`, `keybindings.json`, `skills` and `plugins` in the work profile
+are symlinks to the default profile (`home/dot_claude-work/symlink_*`), so both
+profiles behave the same. Logins, `.claude.json` (user-scope MCP servers and
+per-project state), sessions, history and memory are per profile.
+
+On a new Mac, log in once per profile: run `claude` anywhere for personal and
+`claude` in `~/coding/vov` for work. `claude auth status` shows which account a
+profile is on (prefix `CLAUDE_CONFIG_DIR=~/.claude-work` for work).
+

@@ -62,4 +62,20 @@ done
 for file in "$dest/.zshrc" "$dest/.zprofile"; do zsh -n "$file"; done
 [ ! -e "$dest/.config/zsh" ] || { echo "FAIL: shell config must live in .zshrc only" >&2; exit 1; }
 HOME="$dest" REX_BIN_DIR="/tmp/Rex Bin" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; test "$(alias code)" = "code=cursor"; eval reload; test "${PATH%%:*}" = "$REX_BIN_DIR"'
+
+# Claude accounts: the work profile shares config with the default one by symlink, and claude (and c) picks the work
+# profile inside ~/coding/vov and its worktrees only.
+for name in settings.json keybindings.json skills plugins; do
+  [ "$(readlink "$dest/.claude-work/$name")" = "../.claude/$name" ] || { echo "FAIL: .claude-work/$name is not a symlink to the default profile" >&2; exit 1; }
+done
+[ -d "$dest/.claude/plugins" ] && [ -d "$dest/.claude/skills" ] || { echo "FAIL: shared Claude directories not created" >&2; exit 1; }
+mkdir -p "$dest/stub" "$dest/coding/vov/sub" "$dest/coding/vov-worktrees/feat" "$dest/coding/vovish"
+printf '#!/bin/sh\necho "${CLAUDE_CONFIG_DIR:-default}"\n' >"$dest/stub/claude"
+chmod +x "$dest/stub/claude"
+HOME="$dest" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; path=("$HOME/stub" $path); work="$HOME/.claude-work"
+  cd "$HOME/coding/vov" && test "$(claude)" = "$work" && test "$(eval c)" = "$work" || exit 1
+  cd "$HOME/coding/vov/sub" && test "$(claude)" = "$work" || exit 1
+  cd "$HOME/coding/vov-worktrees/feat" && test "$(claude)" = "$work" || exit 1
+  cd "$HOME/coding/vovish" && test "$(claude)" = default && test "$(eval c)" = default || exit 1
+  cd "$HOME" && test "$(claude)" = default' || { echo "FAIL: claude profile routing" >&2; exit 1; }
 echo "render test OK ($domains domains)"
