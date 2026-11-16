@@ -1,7 +1,9 @@
 #!/bin/sh
-# Send Claude Haiku a one-word prompt so a new 5-hour usage window starts as soon as the last one ends.
+# Send Claude Haiku a one-word prompt on each profile so a new 5-hour usage window starts as soon as the last one ends.
+# Profiles: personal (~/.claude, the default) and vov (~/.claude-vov, work login); see README: Claude accounts.
+# A profile whose directory is missing is skipped. One failing profile does not stop the other; exit is non-zero if any failed.
 # Run hourly by the dev.0x63616c.claude-warmup LaunchAgent. A ping inside an open window only uses a sliver of quota.
-# Log: ~/Library/Logs/claude-warmup.log (one line per run, last 500 kept).
+# Log: ~/Library/Logs/claude-warmup.log (one line per profile per run, last 500 kept).
 set -u
 claude="${CLAUDE_WARMUP_BIN:-/opt/homebrew/bin/claude}"
 log="${CLAUDE_WARMUP_LOG:-$HOME/Library/Logs/claude-warmup.log}"
@@ -22,13 +24,31 @@ fi
 # Run from an empty directory so no project CLAUDE.md or settings load. caffeinate keeps the Mac awake for the call;
 # perl's alarm kills a hung call after 120s so the next hourly run is not blocked.
 cd "$state" || exit 1
-if out="$(/usr/bin/caffeinate -i /usr/bin/perl -e 'alarm 120; exec @ARGV or die "exec: $!\n"' \
-  "$claude" -p hi --model haiku --no-session-persistence --strict-mcp-config </dev/null 2>&1)"; then
-  note "ok"
-else
-  rc=$?
-  msg="$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)"
-  note "FAIL (exit $rc): $msg"
-  echo "claude-warmup: claude exited $rc: $msg" >&2
-  exit "$rc"
-fi
+
+# warm NAME CONFIG_DIR: CONFIG_DIR empty means the default profile (CLAUDE_CONFIG_DIR unset).
+warm() {
+  name="$1"
+  dir="$2"
+  if [ -n "$dir" ] && [ ! -d "$dir" ]; then
+    note "[$name] skip: $dir does not exist"
+    return 0
+  fi
+  if out="$(
+    if [ -n "$dir" ]; then export CLAUDE_CONFIG_DIR="$dir"; else unset CLAUDE_CONFIG_DIR; fi
+    /usr/bin/caffeinate -i /usr/bin/perl -e 'alarm 120; exec @ARGV or die "exec: $!\n"' \
+      "$claude" -p hi --model haiku --no-session-persistence --strict-mcp-config </dev/null 2>&1
+  )"; then
+    note "[$name] ok"
+  else
+    rc=$?
+    msg="$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)"
+    note "[$name] FAIL (exit $rc): $msg"
+    echo "claude-warmup: [$name] claude exited $rc: $msg" >&2
+    return "$rc"
+  fi
+}
+
+status=0
+warm personal "" || status=$?
+warm vov "$HOME/.claude-vov" || status=$?
+exit "$status"

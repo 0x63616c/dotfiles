@@ -117,7 +117,7 @@ Run `tests/render-test.sh` after changing shell files.
 Claude Code has two profiles, each with its own login:
 
 - `~/.claude` (the default) is personal. Everything uses it unless told
-  otherwise, including the claude-warmup agent and IDE extensions.
+  otherwise, including IDE extensions.
 - `~/.claude-vov` is the vov profile, on the work account. The `claude()`
   function in `home/dot_zshrc` sets `CLAUDE_CONFIG_DIR` to it inside
   `~/coding/vov` and `~/coding/vov-worktrees`. The `c` and `cr` aliases go
@@ -131,6 +131,11 @@ per-project state), sessions, history and memory are per profile.
 The status line is shared too. It starts with the profile, read from
 `CLAUDE_CONFIG_DIR`: `[vov]` for `~/.claude-vov`, `[personal]` for the default.
 A new profile directory `~/.claude-NAME` shows as `[NAME]`.
+
+The claude-warmup agent pings both profiles every hour (personal, then vov;
+vov is skipped if `~/.claude-vov` is missing), so both 5-hour usage windows
+restart as soon as they end. Each run logs one line per profile to
+`~/Library/Logs/claude-warmup.log`.
 
 On a new Mac, log in once per profile: run `claude` anywhere for personal and
 `claude` in `~/coding/vov` for work. `claude auth status` shows which account a
