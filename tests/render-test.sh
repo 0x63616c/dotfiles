@@ -66,7 +66,8 @@ for t in "$repo"/home/.chezmoiscripts/*.sh; do
 done
 for file in "$dest/.zshrc" "$dest/.zprofile"; do zsh -n "$file"; done
 [ ! -e "$dest/.config/zsh" ] || { echo "FAIL: shell config must live in .zshrc only" >&2; exit 1; }
-HOME="$dest" REX_BIN_DIR="/tmp/Rex Bin" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; test "$(alias code)" = "code=cursor"; eval reload; test "${PATH%%:*}" = "$REX_BIN_DIR"'
+HOME="$dest" REX_BIN_DIR="/tmp/Rex Bin" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; eval reload; test "${PATH%%:*}" = "$REX_BIN_DIR"'
+[ "$(readlink "$dest/.local/bin/code")" = /opt/homebrew/bin/cursor ] || { echo "FAIL: ~/.local/bin/code must link to cursor" >&2; exit 1; }
 
 # Claude accounts: the vov profile shares config with the default one by symlink, and claude (and c) picks the vov
 # profile inside ~/coding/vov and its worktrees only.

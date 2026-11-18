@@ -91,7 +91,7 @@ This repo is operated by an AI agent. Read [AGENTS.md](AGENTS.md) for the rules 
 
 ## Rex and shell aliases
 
-Shell aliases live in [`home/dot_zshrc`](home/dot_zshrc); `code` opens Cursor.
+Shell aliases live in [`home/dot_zshrc`](home/dot_zshrc). `code` opens Cursor everywhere (not only in zsh): `~/.local/bin/code` is a symlink to `cursor`.
 After applying changes, open a new shell or run `source ~/.zshrc`.
 
 Rex shortcuts live in [`home/dot_config/rex/keys.lua`](home/dot_config/rex/keys.lua),
