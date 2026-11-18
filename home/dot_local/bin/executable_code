@@ -1,0 +1,3 @@
+#!/bin/sh
+# `code` opens Cursor's classic editor window (not the Agent Window), from any shell or tool.
+exec /opt/homebrew/bin/cursor --classic "$@"
