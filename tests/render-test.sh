@@ -114,8 +114,13 @@ for p in personal vov; do
   out="$(HOME="$dest" CLAUDE_CONFIG_DIR="$dest/.claude-$p" sh "$repo/claude-plugins/shared/hooks/profile.sh")"
   case "$out" in "Claude profile: $p "*) ;; *) echo "FAIL: profile hook for $p: $out" >&2; exit 1 ;; esac
 done
-out="$(HOME="$dest" env -u CLAUDE_CONFIG_DIR sh "$repo/claude-plugins/shared/hooks/profile.sh")"
-case "$out" in "Claude profile: personal "*) ;; *) echo "FAIL: profile hook via ~/.claude link: $out" >&2; exit 1 ;; esac
+# No profile (unset, or ~/.claude even though it links to personal): flagged, never named.
+for cfg in "" "$dest/.claude"; do
+  line="$(printf '%s' "$sample" | HOME="$dest" CLAUDE_CONFIG_DIR="$cfg" sh "$dest/.local/bin/claude-statusline" | head -1)"
+  case "$line" in *"[no profile]"*) ;; *) echo "FAIL: status line without a profile ($cfg): $line" >&2; exit 1 ;; esac
+  out="$(HOME="$dest" CLAUDE_CONFIG_DIR="$cfg" sh "$repo/claude-plugins/shared/hooks/profile.sh")"
+  case "$out" in "Claude profile: none "*) ;; *) echo "FAIL: profile hook without a profile ($cfg): $out" >&2; exit 1 ;; esac
+done
 # Run the hook exactly as Claude does: hooks.json's command through /bin/sh, with the plugin root set.
 hook="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["hooks"]["SessionStart"][0]["hooks"][0]["command"])' "$repo/claude-plugins/shared/hooks/hooks.json")"
 out="$(HOME="$dest" CLAUDE_CONFIG_DIR="$dest/.claude-vov" CLAUDE_PLUGIN_ROOT="$repo/claude-plugins/shared" /bin/sh -c "$hook")"

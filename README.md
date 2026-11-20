@@ -150,7 +150,11 @@ layer a change belongs to and where it goes. Read that skill before changing
 Claude config.
 
 The status line (`home/dot_local/bin/executable_claude-statusline`) starts with
-the profile: `[personal]` dim, `[vov]` (any other `~/.claude-NAME`) highlighted.
+the profile, named only when `CLAUDE_CONFIG_DIR` is exactly `~/.claude-NAME`:
+`[personal]` dim, `[vov]` (any other NAME) highlighted, and a red
+`[no profile]` otherwise. Unset or `~/.claude` counts as no profile: it reads
+personal's files through the link, but the default login and `~/.claude.json`.
+The session-start line says the same to the agent.
 
 The claude-warmup agent pings both profiles every hour (personal, then vov;
 a profile whose directory is missing is skipped), so both 5-hour usage windows

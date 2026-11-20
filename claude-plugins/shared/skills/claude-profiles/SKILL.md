@@ -9,10 +9,10 @@ Two profiles, one login each:
 
 | Profile | Config dir | Login | Runs when |
 |---|---|---|---|
-| personal | `~/.claude-personal` | personal account | everywhere else; also anything that doesn't set `CLAUDE_CONFIG_DIR` (`~/.claude` is a link to it) |
+| personal | `~/.claude-personal` | personal account | everywhere else (`.zshrc` exports it as the default) |
 | vov | `~/.claude-vov` | work account | `claude` started in `~/coding/vov` or `~/coding/vov-worktrees` (the zsh `claude()` function) |
 
-The session-start line names this session's profile. Either profile's config can be changed from either session: everything lives in the dotfiles repo, `~/.local/share/chezmoi` (a link to `~/coding/dotfiles`, public on GitHub). Edit the repo, then follow its `AGENTS.md` loop.
+The session-start line names this session's profile, or says there is none: `CLAUDE_CONFIG_DIR` unset or `~/.claude` reads personal's files through the `~/.claude` link but uses the default login and `~/.claude.json`, so config changed there doesn't match a real profile. Either profile's config can be changed from either session: everything lives in the dotfiles repo, `~/.local/share/chezmoi` (a link to `~/coding/dotfiles`, public on GitHub). Edit the repo, then follow its `AGENTS.md` loop.
 
 ## 1. Pick the layer
 
