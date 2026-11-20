@@ -1,0 +1,56 @@
+#!/bin/sh
+# Claude Code status line for both profiles (settings.json statusLine, set by home/.chezmoitemplates/claude-settings.py).
+# Reads the session JSON on stdin; prints two lines: profile, folder, branch, model, context, cache; then usage limits.
+input=$(cat)
+j() { printf %s "$input" | jq -r "$1 // empty" 2>/dev/null; }
+col() { if [ "$1" -ge 80 ]; then printf 31; elif [ "$1" -ge 50 ]; then printf 33; else printf 32; fi; }
+sep() { printf ' \033[2m│\033[0m '; }
+# row LABEL [COUNTDOWN]: the first starts the second status line, the rest join it with a separator.
+row() { if [ -n "$rw" ]; then sep; else printf '\n'; rw=1; fi; printf '%s ' "$1"; [ -n "$2" ] && printf '\033[2m(%s)\033[0m ' "$2"; return 0; }
+# dur SECS: two most significant units: "2d 4h", "3h 12m", "45m", "30s" (a zero second unit is dropped).
+dur() { if [ "$1" -ge 86400 ]; then printf '%sd' $(($1 / 86400)); [ $(($1 % 86400 / 3600)) -gt 0 ] && printf ' %sh' $(($1 % 86400 / 3600))
+  elif [ "$1" -ge 3600 ]; then printf '%sh' $(($1 / 3600)); [ $(($1 % 3600 / 60)) -gt 0 ] && printf ' %sm' $(($1 % 3600 / 60))
+  elif [ "$1" -ge 60 ]; then printf '%sm' $(($1 / 60)); else printf '%ss' "$1"; fi; return 0; }
+# lim KEY LABEL WINDOW_SECS: used % coloured by pace (green under, yellow on pace, red over), used %, time to reset.
+lim() { p=$(j ".rate_limits.$1.used_percentage"); [ -n "$p" ] || return 0; p=$(printf %.0f "$p"); r=$(j ".rate_limits.$1.resets_at"); r=${r%%.*}
+  if [ -z "$r" ]; then row "$2"; printf '\033[%sm%s%%\033[0m' "$(col "$p")" "$p"; return 0; fi
+  left=$((r - $(date +%s))); [ "$left" -lt 0 ] && left=0
+  e=$((100 - left * 100 / $3)); [ "$e" -lt 0 ] && e=0; [ "$e" -gt 100 ] && e=100; d=$((p - e))
+  if [ "$d" -gt 5 ]; then c=31; elif [ "$d" -lt -5 ]; then c=32; else c=33; fi
+  rl=$(dur "$left")
+  # "5h (4h 25m, 18%) 12%": countdown and time elapsed % (dim), used % (pace colour).
+  row "$2" "$rl, $e%"; printf '\033[%sm%s%%\033[0m' "$c" "$p"; return 0; }
+# tok N: token count as "96k" or "1M" / "1.5M".
+tok() { if [ "$1" -ge 1000000 ]; then if [ $(($1 % 1000000)) -ge 100000 ]; then printf '%s.%sM' $(($1 / 1000000)) $(($1 % 1000000 / 100000)); else printf '%sM' $(($1 / 1000000)); fi; else printf '%sk' $(($1 / 1000)); fi; }
+dir=$(j '.workspace.current_dir // .cwd'); [ -n "$dir" ] || dir=$PWD
+br=$(git --no-optional-locks -C "$dir" symbolic-ref --short -q HEAD 2>/dev/null)
+# Profile: the config dir's name after ".claude-", following links (~/.claude links to ~/.claude-personal).
+# [personal] dim, any other profile ([vov]) highlighted.
+cfg=${CLAUDE_CONFIG_DIR:-$HOME/.claude}; cfg=${cfg%/}; pf=$(cd "$cfg" 2>/dev/null && pwd -P) || pf=$cfg; pf=${pf##*/}; pf=${pf#.claude}; pf=${pf#-}; [ -n "$pf" ] || pf=personal
+# ", simple" inside the brackets while the simple-view mod's /simple is on (its most recently written store file).
+sv=''
+# shellcheck disable=SC2012 # ls -t: newest first
+sf=$(ls -t "$cfg"/plugins/store/simple-view_*.json 2>/dev/null | head -1); [ -n "$sf" ] && grep -q '"isOn": *true' "$sf" && sv=', simple'
+if [ "$pf" != personal ]; then printf '\033[1;38;5;214m[%s%s]\033[0m ' "$pf" "$sv"; else printf '\033[2m[%s%s]\033[0m ' "$pf" "$sv"; fi
+printf '\033[38;5;45m%s\033[0m' "$(basename "$dir")"
+if [ -n "$br" ]; then dt=''; [ -n "$(git --no-optional-locks -C "$dir" status --porcelain 2>/dev/null | head -1)" ] && dt='\033[38;5;178m*'; printf ' \033[38;5;69mgit:(\033[38;5;141m%s%b\033[38;5;69m)\033[0m' "$br" "$dt"; fi
+wt=$(j '.workspace.git_worktree // .worktree.name'); [ -n "$wt" ] && printf ' \033[38;5;141m⎇ %s\033[0m' "$wt"
+m=$(j .model.display_name); [ -n "$m" ] && { sep; printf '\033[1m%s\033[0m' "$m"; }
+ef=$(j .effort.level); case "$ef" in low) ef=low ;; medium) ef=med ;; max) ef='\033[38;5;220mmax\033[0m' ;; esac; fs=''; [ "$(j .fast_mode)" = true ] && fs='\033[38;5;178mfast\033[0m'
+# "(med)", "(med, fast)", or "(fast)" when no effort level is reported.
+if [ -n "$ef" ] && [ -n "$fs" ]; then printf ' (%b, %b)' "$ef" "$fs"; elif [ -n "$ef$fs" ]; then printf ' (%b)' "$ef$fs"; fi
+# Context after the model: "[76k/1M 8%]", the tokens dim, the percentage yellow from 200k tokens and red from 400k (by percentage when no count is reported).
+cp=$(j .context_window.used_percentage)
+if [ -n "$cp" ]; then cp=$(printf %.0f "$cp"); tk=$(j .context_window.total_input_tokens); sz=$(j .context_window.context_window_size); tk=${tk%%.*}; if [ -n "$tk" ]; then if [ "$tk" -ge 400000 ]; then xc=31; elif [ "$tk" -ge 200000 ]; then xc=33; else xc=32; fi; else xc=$(col "$cp"); fi; printf ' \033[2m['; [ -n "$tk" ] && [ -n "$sz" ] && printf '%s/%s ' "$(tok "$tk")" "$(tok "$sz")"; printf '\033[0;%sm%s%%\033[0;2m]\033[0m' "$xc" "$cp"; fi
+os=$(j .output_style.name); [ -n "$os" ] && [ "$os" != default ] && { sep; printf '%s' "$os"; }
+# Cache: ⛁ then time until the prompt cache goes cold (red when nearly cold) and when, or what a cold cache will re-read.
+if [ "$(j .prompt_cache.warm)" = true ] && ex=$(j .prompt_cache.expires_at) && [ -n "$ex" ]; then
+  cl=$((${ex%%.*} - $(date +%s))); [ "$cl" -lt 0 ] && cl=0; case "$(j .prompt_cache.ttl)" in 5m) tt=300 ;; *) tt=3600 ;; esac
+  cr=$((cl * 100 / tt)); [ "$cr" -gt 100 ] && cr=100; if [ "$cr" -ge 40 ]; then cc=32; elif [ "$cr" -ge 15 ]; then cc=33; else cc=31; fi
+  at=$({ /bin/date -r "${ex%%.*}" '+%-I:%M%p' 2>/dev/null || date -d "@${ex%%.*}" '+%-I:%M%p'; } | tr '[:upper:]' '[:lower:]'); sep; printf '⛁ \033[%sm%s\033[0m \033[2m%s\033[0m' "$cc" "$(dur "$cl")" "$at"
+elif [ "$(j .prompt_cache.caching_observed)" = true ]; then
+  rc=$(j .prompt_cache.recache_tokens_if_cold); sep; printf '⛁ \033[2mcold'; [ -n "$rc" ] && printf ' %s' "$(tok "$rc")"; printf '\033[0m'
+fi
+lim five_hour 5h 18000
+lim seven_day 7d 604800
+exit 0

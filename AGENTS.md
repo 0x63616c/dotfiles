@@ -21,6 +21,7 @@ Read [README: Shell](README.md#shell) before changing shell files. All zsh confi
 ## Rules
 - **No secrets in the repo.** Reference 1Password with `op://vault/item/field` (read at apply time via `onepasswordRead` / `op read`). API keys for MCP live in the macOS Keychain. Never paste tokens, keys, or full app plists.
 - **Apps that rewrite their own config** (OpenCode `cli.json`, Claude `settings.json`, KiCad, etc.): use `modify_` scripts that patch only the keys we own; do not commit whole files.
+- **Claude Code config** (personal or vov profile: settings, plugins, mods, skills, MCP servers, status line): read `claude-plugins/shared/skills/claude-profiles/SKILL.md` first.
 - **Preferences go through `prefsync`**, never ad-hoc `defaults write` scripts and never hand-copied plists. To add an app or system area: `prefsync add <domain>` (see below).
 - **Brewfile and preference snapshots** are applied by `run_onchange_` scripts under `home/.chezmoiscripts/` so they re-run only when their content changes. Add apps to the Brewfile instead of installing by hand; manually installed apps get "brewified" later.
 - Deliberately excluded: Alfred (uninstalled), MacTap, 1Password Installer, Tart, runner-pool and their taps. Mole is installed and tracked (Calum changed his mind Oct 31, 2026).

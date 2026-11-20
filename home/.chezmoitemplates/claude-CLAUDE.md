@@ -1,4 +1,4 @@
-# Global agent notes (both Claude profiles; source: 0x63616c/dotfiles home/dot_claude/CLAUDE.md)
+# Global agent notes (both Claude profiles; source: 0x63616c/dotfiles home/.chezmoitemplates/claude-CLAUDE.md)
 
 ## 1Password CLI cache
 

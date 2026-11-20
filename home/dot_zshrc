@@ -22,9 +22,13 @@ setopt AUTO_CD INTERACTIVE_COMMENTS
 # vov's tool from the ~/coding/vov checkout: `vov` rebuilds when needed, else runs the cached binary.
 [[ ! -d "$HOME/coding/vov/bin" ]] || path+=("$HOME/coding/vov/bin")
 
-# Claude accounts: ~/coding/vov (and its worktrees) runs on the vov profile, ~/.claude-vov, with the work login;
-# everywhere else runs on the personal default, ~/.claude (see README: Claude accounts). c and cr come through here.
-# In vov, Claude also gets vov's MCP keys from sops, for that process only (see vov/.mcp.json).
+# Claude profiles (see README: Claude accounts): ~/coding/vov (and its worktrees) runs on the vov profile,
+# ~/.claude-vov, with the work login; everywhere else on personal, ~/.claude-personal. The c aliases come through here.
+# The export is only a default for claude started some other way (Cursor, scripts); a value already set is kept, so
+# a shell inside a vov session stays on vov. In vov, Claude also gets vov's MCP keys from sops, for that process only
+# (see vov/.mcp.json).
+: "${CLAUDE_CONFIG_DIR:=$HOME/.claude-personal}"
+export CLAUDE_CONFIG_DIR
 claude() {
   if [[ $PWD == $HOME/coding/vov(|-worktrees)(|/*) ]]; then
     local vov="$HOME/coding/vov/bin/vov"
@@ -34,7 +38,7 @@ claude() {
     PENPOT_MCP_ACCESS_CLIENT_SECRET="$("$vov" admin secrets get access PENPOT_MCP_ACCESS_CLIENT_SECRET 2>/dev/null)" \
       command claude "$@"
   else
-    command claude "$@"
+    CLAUDE_CONFIG_DIR="$HOME/.claude-personal" command claude "$@"
   fi
 }
 

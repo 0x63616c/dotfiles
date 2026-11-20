@@ -1,0 +1,8 @@
+{
+  "description": "Tell Claude which profile this session runs on",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/profile.sh\"", "timeout": 5 }] }
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+#!/bin/sh
+# One-time move to symmetric Claude profiles (see README: Claude accounts). Idempotent; a no-op on a fresh Mac.
+# 1. personal: ~/.claude -> ~/.claude-personal, with ~/.claude left as a link for tools that don't set CLAUDE_CONFIG_DIR.
+#    ~/.claude.json (login state, user-scope MCP servers) is copied in: with CLAUDE_CONFIG_DIR set, Claude keeps it there.
+# 2. vov: its links into the personal profile (settings.json, plugins, skills, CLAUDE.md) become its own copies.
+# 3. claude.ai-synced skills/plugins: each profile keeps only its own account's bucket (the shared folder held both).
+# 4. simple-view's skills-folder copies go (it's a claude-plugins/ plugin now).
+# Runs before chezmoi writes files, so the profiles' managed files land in the new layout.
+set -eu
+old="$HOME/.claude"
+new="$HOME/.claude-personal"
+vov="$HOME/.claude-vov"
+die() { echo "claude-profiles: $*" >&2; exit 1; }
+
+if [ -d "$old" ] && [ ! -L "$old" ]; then
+  [ ! -e "$new" ] || die "both $old and $new exist; merge them by hand, then re-run chezmoi apply"
+  mv "$old" "$new" && ln -s .claude-personal "$old"
+  echo "claude-profiles: moved $old to $new (link left behind)"
+fi
+mkdir -p "$new"
+if [ -f "$HOME/.claude.json" ] && [ ! -e "$new/.claude.json" ]; then
+  cp -p "$HOME/.claude.json" "$new/.claude.json"
+  echo "claude-profiles: copied ~/.claude.json into $new"
+fi
+
+# repath FILE FROM TO: rewrite absolute paths in Claude's plugin records (install paths, marketplace clones).
+repath() {
+  [ -f "$1" ] || return 0
+  grep -q "$2/" "$1" || return 0
+  sed -i '' "s#$2/#$3/#g" "$1"
+}
+for f in installed_plugins.json known_marketplaces.json; do repath "$new/plugins/$f" "$old" "$new"; done
+
+if [ -d "$vov" ]; then
+  for name in settings.json plugins skills; do
+    if [ -L "$vov/$name" ]; then
+      rm "$vov/$name"
+      cp -Rp "$new/$name" "$vov/$name"
+      echo "claude-profiles: $vov/$name is now its own copy"
+    fi
+  done
+  [ ! -L "$vov/CLAUDE.md" ] || rm "$vov/CLAUDE.md"  # chezmoi writes the shared notes as a file
+  for f in installed_plugins.json known_marketplaces.json; do
+    repath "$vov/plugins/$f" "$new" "$vov"
+    repath "$vov/plugins/$f" "$old" "$vov"
+  done
+
+  # bucket PROFILE_DIR: "<organizationUuid>_<accountUuid>", the synced-content folder name for that profile's login.
+  bucket() { [ -f "$1/.claude.json" ] && /usr/bin/jq -r '.oauthAccount // empty | "\(.organizationUuid)_\(.accountUuid)"' "$1/.claude.json"; }
+  mine_p="$(bucket "$new" || true)"
+  mine_v="$(bucket "$vov" || true)"
+  # drop DIR OTHER KEY: remove the other login's bucket KEY from DIR once OTHER holds its own copy.
+  drop() {
+    for kind in skills plugins; do
+      for b in "$kind/synced/$3" "$kind/synced/.bucket-$3"; do
+        if [ -e "$1/$b" ] && [ -e "$2/$b" ]; then rm -rf "${1:?}/$b"; echo "claude-profiles: removed $b (other login) from $1"; fi
+      done
+    done
+  }
+  if [ -n "$mine_p" ] && [ -n "$mine_v" ] && [ "$mine_p" != "$mine_v" ]; then
+    drop "$new" "$vov" "$mine_v"
+    drop "$vov" "$new" "$mine_p"
+  fi
+fi
+
+# simple-view moved from the skills folder into claude-plugins/ (enabled in both profiles): drop the skills-folder
+# copies so it doesn't load twice.
+if [ -f "{{ .chezmoi.workingTree }}/claude-plugins/simple-view/hooks/register.tsx" ]; then
+  for d in "$new" "$vov"; do
+    if [ -d "$d/skills/simple-view" ]; then rm -rf "${d:?}/skills/simple-view"; echo "claude-profiles: removed $d/skills/simple-view (now claude-plugins/simple-view)"; fi
+  done
+fi

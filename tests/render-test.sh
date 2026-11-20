@@ -69,23 +69,57 @@ for file in "$dest/.zshrc" "$dest/.zprofile"; do zsh -n "$file"; done
 HOME="$dest" REX_BIN_DIR="/tmp/Rex Bin" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; eval reload; test "${PATH%%:*}" = "$REX_BIN_DIR"'
 grep -q -- "cursor --classic" "$dest/.local/bin/code" && [ -x "$dest/.local/bin/code" ] || { echo "FAIL: ~/.local/bin/code must run cursor --classic" >&2; exit 1; }
 
-# Claude accounts: the vov profile shares config with the default one by symlink, and claude (and c) picks the vov
-# profile inside ~/coding/vov and its worktrees only.
-for name in settings.json keybindings.json skills plugins; do
-  [ "$(readlink "$dest/.claude-vov/$name")" = "../.claude/$name" ] || { echo "FAIL: .claude-vov/$name is not a symlink to the default profile" >&2; exit 1; }
+# Claude profiles: ~/.claude-personal and ~/.claude-vov side by side, ~/.claude a link to personal; each profile has
+# its own settings.json (a modify_ script owning a few keys), plugins and skills; claude (and c) picks vov inside
+# ~/coding/vov and its worktrees only, and the zshrc export defaults everything else to personal.
+[ "$(readlink "$dest/.claude")" = .claude-personal ] || { echo "FAIL: ~/.claude is not a link to .claude-personal" >&2; exit 1; }
+[ "$(readlink "$dest/.claude-vov/keybindings.json")" = ../.claude-personal/keybindings.json ] || { echo "FAIL: vov keybindings not linked to personal" >&2; exit 1; }
+for p in personal vov; do
+  for d in plugins skills; do [ -d "$dest/.claude-$p/$d" ] && [ ! -L "$dest/.claude-$p/$d" ] || { echo "FAIL: .claude-$p/$d is not its own directory" >&2; exit 1; }; done
+  [ -f "$dest/.claude-$p/CLAUDE.md" ] && [ ! -L "$dest/.claude-$p/CLAUDE.md" ] || { echo "FAIL: .claude-$p/CLAUDE.md missing" >&2; exit 1; }
 done
-[ -d "$dest/.claude/plugins" ] && [ -d "$dest/.claude/skills" ] || { echo "FAIL: shared Claude directories not created" >&2; exit 1; }
-# Transcript retention: the modify_ script creates settings.json on a fresh Mac and patches only cleanupPeriodDays.
-python3 - "$dest/.claude/settings.json" "$repo/home/dot_claude/modify_settings.json" <<'PY' || { echo "FAIL: Claude settings.json retention" >&2; exit 1; }
+cmp -s "$dest/.claude-personal/CLAUDE.md" "$dest/.claude-vov/CLAUDE.md" || { echo "FAIL: profiles' CLAUDE.md differ" >&2; exit 1; }
+for p in personal vov; do chezmoi execute-template -S "$repo" < "$repo/home/dot_claude-$p/modify_settings.json.tmpl" > "$dest/modify-$p.py"; done
+python3 - "$dest" "$repo" <<'PY' || { echo "FAIL: Claude settings.json layers" >&2; exit 1; }
 import json, subprocess, sys
-assert json.load(open(sys.argv[1])) == {"cleanupPeriodDays": 3650}
-run = lambda s: subprocess.run([sys.executable, sys.argv[2]], input=s, capture_output=True, text=True)
-out = run('{\n  "model": "opus",\n  "cleanupPeriodDays": 30\n}\n')
-assert out.returncode == 0 and json.loads(out.stdout) == {"model": "opus", "cleanupPeriodDays": 3650}, out
-same = '{"cleanupPeriodDays":3650,"x":1}'
-assert run(same).stdout == same
-assert run("not json").returncode != 0
+dest, repo = sys.argv[1], sys.argv[2]
+run = lambda p, s: subprocess.run([sys.executable, f"{dest}/modify-{p}.py"], input=s, capture_output=True, text=True)
+market = json.load(open(f"{repo}/claude-plugins/.claude-plugin/marketplace.json"))
+listed = {p["name"] for p in market["plugins"]}
+for p, other in [("personal", "vov"), ("vov", "personal")]:
+    fresh = json.load(open(f"{dest}/.claude-{p}/settings.json"))  # fresh Mac: built from nothing
+    assert fresh["cleanupPeriodDays"] == 3650
+    assert fresh["statusLine"]["command"].endswith("/.local/bin/claude-statusline"), fresh["statusLine"]
+    assert fresh["extraKnownMarketplaces"]["dotfiles"]["source"]["path"].endswith("/claude-plugins")
+    on = fresh["enabledPlugins"]
+    assert on[f"{p}@dotfiles"] and on["shared@dotfiles"] and f"{other}@dotfiles" not in on, on
+    assert {k.split("@")[0] for k in on if k.endswith("@dotfiles")} <= listed, "enabled plugin not in marketplace.json"
+    # Existing file: other keys, other marketplaces and other plugins kept; the other profile's layer switched off.
+    old = {"model": "opus", "cleanupPeriodDays": 30, "enabledPlugins": {"x@y": False, f"{other}@dotfiles": True},
+           "extraKnownMarketplaces": {"m": {"source": {"source": "github", "repo": "a/b"}}}}
+    out = run(p, json.dumps(old, indent=2))
+    assert out.returncode == 0, out
+    got = json.loads(out.stdout)
+    assert got["model"] == "opus" and got["cleanupPeriodDays"] == 3650 and "m" in got["extraKnownMarketplaces"]
+    assert got["enabledPlugins"]["x@y"] is False and f"{other}@dotfiles" not in got["enabledPlugins"], got
+    assert run(p, out.stdout).stdout == out.stdout  # already patched: byte-for-byte unchanged
+    assert run(p, "not json").returncode != 0
 PY
+# Status line and the session-start profile line name the profile from the config dir, following links.
+mkdir -p "$dest/.claude-vov"
+sample='{"workspace":{"current_dir":"/"},"model":{"display_name":"M"}}'
+for p in personal vov; do
+  line="$(printf '%s' "$sample" | HOME="$dest" CLAUDE_CONFIG_DIR="$dest/.claude-$p" sh "$dest/.local/bin/claude-statusline" | head -1)"
+  case "$line" in *"[$p]"*) ;; *) echo "FAIL: status line for $p: $line" >&2; exit 1 ;; esac
+  out="$(HOME="$dest" CLAUDE_CONFIG_DIR="$dest/.claude-$p" sh "$repo/claude-plugins/shared/hooks/profile.sh")"
+  case "$out" in "Claude profile: $p "*) ;; *) echo "FAIL: profile hook for $p: $out" >&2; exit 1 ;; esac
+done
+out="$(HOME="$dest" env -u CLAUDE_CONFIG_DIR sh "$repo/claude-plugins/shared/hooks/profile.sh")"
+case "$out" in "Claude profile: personal "*) ;; *) echo "FAIL: profile hook via ~/.claude link: $out" >&2; exit 1 ;; esac
+if command -v shellcheck >/dev/null 2>&1; then shellcheck -s sh "$dest/.local/bin/claude-statusline" "$repo/claude-plugins/shared/hooks/profile.sh"; fi
+for f in "$repo"/claude-plugins/.claude-plugin/marketplace.json "$repo"/claude-plugins/*/.claude-plugin/plugin.json "$repo"/claude-plugins/*/hooks/hooks.json; do
+  python3 -m json.tool "$f" >/dev/null || { echo "FAIL: $f is not valid JSON" >&2; exit 1; }
+done
 mkdir -p "$dest/stub" "$dest/coding/vov/sub" "$dest/coding/vov-worktrees/feat" "$dest/coding/vovish"
 printf '#!/bin/sh\necho "${CLAUDE_CONFIG_DIR:-default}"\n' >"$dest/stub/claude"
 chmod +x "$dest/stub/claude"
@@ -93,6 +127,10 @@ HOME="$dest" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; path=("$HOME/s
   cd "$HOME/coding/vov" && test "$(claude)" = "$vov" && test "$(eval c)" = "$vov" || exit 1
   cd "$HOME/coding/vov/sub" && test "$(claude)" = "$vov" || exit 1
   cd "$HOME/coding/vov-worktrees/feat" && test "$(claude)" = "$vov" || exit 1
-  cd "$HOME/coding/vovish" && test "$(claude)" = default && test "$(eval c)" = default || exit 1
-  cd "$HOME" && test "$(claude)" = default' || { echo "FAIL: claude profile routing" >&2; exit 1; }
+  cd "$HOME/coding/vovish" && test "$(claude)" = "$HOME/.claude-personal" && test "$(eval c)" = "$HOME/.claude-personal" || exit 1
+  cd "$HOME" && test "$(claude)" = "$HOME/.claude-personal"' || { echo "FAIL: claude profile routing" >&2; exit 1; }
+env -u CLAUDE_CONFIG_DIR HOME="$dest" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; test "$CLAUDE_CONFIG_DIR" = "$HOME/.claude-personal"' \
+  || { echo "FAIL: zshrc does not default CLAUDE_CONFIG_DIR to personal" >&2; exit 1; }
+CLAUDE_CONFIG_DIR=/x HOME="$dest" TERM=xterm-256color zsh -fic 'source "$HOME/.zshrc"; test "$CLAUDE_CONFIG_DIR" = /x' \
+  || { echo "FAIL: zshrc overrides an already-set CLAUDE_CONFIG_DIR" >&2; exit 1; }
 echo "render test OK ($domains domains)"

@@ -1,0 +1,11 @@
+{
+  "name": "dotfiles",
+  "owner": { "name": "0x63616c" },
+  "metadata": { "description": "Calum's Claude Code layers: shared by both profiles, personal only, vov only, plus standalone mods" },
+  "plugins": [
+    { "name": "shared", "source": "./shared", "description": "Both profiles: profile line at session start, the claude-profiles skill" },
+    { "name": "personal", "source": "./personal", "description": "Personal profile only" },
+    { "name": "vov", "source": "./vov", "description": "vov profile only" },
+    { "name": "simple-view", "source": "./simple-view", "description": "/simple toggles a chat-only transcript: your messages and Claude's replies, no tool calls" }
+  ]
+}

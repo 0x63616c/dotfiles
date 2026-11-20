@@ -114,38 +114,55 @@ Run `tests/render-test.sh` after changing shell files.
 
 ### Claude accounts
 
-Claude Code has two profiles, each with its own login:
+Claude Code has two profiles, each with its own login, side by side:
 
-- `~/.claude` (the default) is personal. Everything uses it unless told
-  otherwise, including IDE extensions.
-- `~/.claude-vov` is the vov profile, on the work account. The `claude()`
-  function in `home/dot_zshrc` sets `CLAUDE_CONFIG_DIR` to it inside
-  `~/coding/vov` and `~/coding/vov-worktrees`. The `c` and `cr` aliases go
-  through that function.
+- `~/.claude-personal` is personal.
+- `~/.claude-vov` is the vov profile, on the work account.
 
-`settings.json`, `keybindings.json`, `CLAUDE.md` (global agent notes),
-`skills` and `plugins` in the vov profile
-are symlinks to the default profile (`home/dot_claude-vov/symlink_*`), so both
-profiles behave the same. Logins, `.claude.json` (user-scope MCP servers and
-per-project state), sessions, history and memory are per profile.
+The `claude()` function in `home/dot_zshrc` sets `CLAUDE_CONFIG_DIR` to vov
+inside `~/coding/vov` and `~/coding/vov-worktrees`, and to personal everywhere
+else; the `c` aliases go through it. `.zshrc` also exports personal as the
+default (only when nothing set it already, so a shell inside a vov session stays
+on vov), which Cursor and scripts pick up. `~/.claude` is a link to
+`~/.claude-personal` for anything that sets nothing at all.
 
-Session transcripts (`projects/` in each profile) are kept for 10 years instead
-of Claude Code's default 30 days: `home/dot_claude/modify_settings.json` sets
-only `cleanupPeriodDays` in `settings.json` and leaves the rest as Claude writes
-it. The vov profile shares that file, so it gets the same retention.
+Config comes in three layers: shared, personal and vov.
 
-The status line is shared too. It starts with the profile, read from
-`CLAUDE_CONFIG_DIR`: `[vov]` for `~/.claude-vov`, `[personal]` for the default.
-A new profile directory `~/.claude-NAME` shows as `[NAME]`.
+- **Plugins** (skills, hooks, commands, agents, MCP servers, mods) live in
+  `claude-plugins/`, a plugin marketplace (`dotfiles`) Claude reads in place:
+  edits are live at the next session start or after `/reload-plugins`, with no
+  reinstall. `shared` is on in both profiles, `personal` and `vov` in theirs;
+  a self-contained mod such as `simple-view` is its own plugin.
+- **Settings:** each profile has its own `settings.json`, which Claude owns.
+  `home/.chezmoitemplates/claude-settings.py` (rendered into each profile's
+  `modify_settings.json.tmpl`) owns only a few keys: which plugins are on per
+  layer, the marketplace, the status line command, and transcript retention
+  (`cleanupPeriodDays`: 10 years instead of 30 days).
+- **Global agent notes:** `home/.chezmoitemplates/claude-CLAUDE.md`, written
+  into both profiles. vov's `keybindings.json` links to personal's.
+
+Logins, `.claude.json` (user-scope MCP servers and per-project state),
+sessions, history and memory are per profile.
+
+Each session starts with a line naming its profile (the `shared` plugin's
+SessionStart hook), and the `shared:claude-profiles` skill tells agents which
+layer a change belongs to and where it goes. Read that skill before changing
+Claude config.
+
+The status line (`home/dot_local/bin/executable_claude-statusline`) starts with
+the profile: `[personal]` dim, `[vov]` (any other `~/.claude-NAME`) highlighted.
 
 The claude-warmup agent pings both profiles every hour (personal, then vov;
-vov is skipped if `~/.claude-vov` is missing), so both 5-hour usage windows
+a profile whose directory is missing is skipped), so both 5-hour usage windows
 restart as soon as they end. Each run logs one line per profile to
 `~/Library/Logs/claude-warmup.log`.
 
 On a new Mac, log in once per profile: run `claude` anywhere for personal and
 `claude` in `~/coding/vov` for work. `claude auth status` shows which account a
-profile is on (prefix `CLAUDE_CONFIG_DIR=~/.claude-vov` for vov).
+profile is on (prefix `CLAUDE_CONFIG_DIR=~/.claude-vov` for vov). The first
+session in each profile installs the `dotfiles` plugins by itself.
+`run_once_before_20-claude-profiles.sh.tmpl` moved the old layout (`~/.claude`
+as personal, vov linked into it) to this one; it does nothing on a fresh Mac.
 
 ### 1Password reads in Claude
 
