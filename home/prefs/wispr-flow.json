@@ -109,13 +109,13 @@
     "18+58": "polish",
     "19+58": "polish_prompt_1",
     "31+58": "view_diff",
-    "35+63": "popo",
     "46+58": "open_meeting_recorder",
     "49+63": "ptt",
     "53": "dismiss",
     "55+59+8": "copy_last_text",
     "55+59+9": "paste_last_text",
-    "59+63": "lens"
+    "59+63": "lens",
+    "63": "popo"
   },
   "shouldAutoLearnWords": true,
   "shouldMuteAudio": true,
