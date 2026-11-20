@@ -1,0 +1,5 @@
+[global]
+# Don't print the "export +AR +AS ..." list of every variable a .envrc changed.
+hide_env_diff = true
+# Dim direnv's status lines so they recede behind the prompt.
+log_format = "\u001b[2mdirenv: %s\u001b[0m"
