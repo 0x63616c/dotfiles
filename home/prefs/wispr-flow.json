@@ -108,8 +108,8 @@
   "shortcuts": {
     "46+58": "open_meeting_recorder",
     "53": "dismiss",
+    "55": "paste_last_text",
     "55+59+8": "copy_last_text",
-    "55+59+9": "paste_last_text",
     "59+63": "lens",
     "61": "ptt",
     "62": "popo",
