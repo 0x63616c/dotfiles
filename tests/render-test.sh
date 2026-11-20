@@ -116,6 +116,10 @@ for p in personal vov; do
 done
 out="$(HOME="$dest" env -u CLAUDE_CONFIG_DIR sh "$repo/claude-plugins/shared/hooks/profile.sh")"
 case "$out" in "Claude profile: personal "*) ;; *) echo "FAIL: profile hook via ~/.claude link: $out" >&2; exit 1 ;; esac
+# Run the hook exactly as Claude does: hooks.json's command through /bin/sh, with the plugin root set.
+hook="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["hooks"]["SessionStart"][0]["hooks"][0]["command"])' "$repo/claude-plugins/shared/hooks/hooks.json")"
+out="$(HOME="$dest" CLAUDE_CONFIG_DIR="$dest/.claude-vov" CLAUDE_PLUGIN_ROOT="$repo/claude-plugins/shared" /bin/sh -c "$hook")"
+case "$out" in "Claude profile: vov "*) ;; *) echo "FAIL: SessionStart hook command as Claude runs it: $out" >&2; exit 1 ;; esac
 if command -v shellcheck >/dev/null 2>&1; then shellcheck -s sh "$dest/.local/bin/claude-statusline" "$repo/claude-plugins/shared/hooks/profile.sh"; fi
 for f in "$repo"/claude-plugins/.claude-plugin/marketplace.json "$repo"/claude-plugins/*/.claude-plugin/plugin.json "$repo"/claude-plugins/*/hooks/hooks.json; do
   python3 -m json.tool "$f" >/dev/null || { echo "FAIL: $f is not valid JSON" >&2; exit 1; }
