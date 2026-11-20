@@ -9,3 +9,7 @@ through the shim wipes the cache automatically.
 If a result looks stale or wrong (Calum just changed something in the 1Password app, an item you expect is missing
 from a list, a value does not work), bypass the cache instead of retrying: `OP_CACHE=refresh op ...` (fetches fresh
 and updates the cache), or `op cache clear` to drop everything. Never print cached secrets you do not need.
+
+## Spelling
+
+Write US English everywhere: chat, code, comments, commit messages, docs (`color`, `behavior`, `organize`, `center`).
