@@ -129,6 +129,11 @@ are symlinks to the default profile (`home/dot_claude-vov/symlink_*`), so both
 profiles behave the same. Logins, `.claude.json` (user-scope MCP servers and
 per-project state), sessions, history and memory are per profile.
 
+Session transcripts (`projects/` in each profile) are kept for 10 years instead
+of Claude Code's default 30 days: `home/dot_claude/modify_settings.json` sets
+only `cleanupPeriodDays` in `settings.json` and leaves the rest as Claude writes
+it. The vov profile shares that file, so it gets the same retention.
+
 The status line is shared too. It starts with the profile, read from
 `CLAUDE_CONFIG_DIR`: `[vov]` for `~/.claude-vov`, `[personal]` for the default.
 A new profile directory `~/.claude-NAME` shows as `[NAME]`.

@@ -75,6 +75,17 @@ for name in settings.json keybindings.json skills plugins; do
   [ "$(readlink "$dest/.claude-vov/$name")" = "../.claude/$name" ] || { echo "FAIL: .claude-vov/$name is not a symlink to the default profile" >&2; exit 1; }
 done
 [ -d "$dest/.claude/plugins" ] && [ -d "$dest/.claude/skills" ] || { echo "FAIL: shared Claude directories not created" >&2; exit 1; }
+# Transcript retention: the modify_ script creates settings.json on a fresh Mac and patches only cleanupPeriodDays.
+python3 - "$dest/.claude/settings.json" "$repo/home/dot_claude/modify_settings.json" <<'PY' || { echo "FAIL: Claude settings.json retention" >&2; exit 1; }
+import json, subprocess, sys
+assert json.load(open(sys.argv[1])) == {"cleanupPeriodDays": 3650}
+run = lambda s: subprocess.run([sys.executable, sys.argv[2]], input=s, capture_output=True, text=True)
+out = run('{\n  "model": "opus",\n  "cleanupPeriodDays": 30\n}\n')
+assert out.returncode == 0 and json.loads(out.stdout) == {"model": "opus", "cleanupPeriodDays": 3650}, out
+same = '{"cleanupPeriodDays":3650,"x":1}'
+assert run(same).stdout == same
+assert run("not json").returncode != 0
+PY
 mkdir -p "$dest/stub" "$dest/coding/vov/sub" "$dest/coding/vov-worktrees/feat" "$dest/coding/vovish"
 printf '#!/bin/sh\necho "${CLAUDE_CONFIG_DIR:-default}"\n' >"$dest/stub/claude"
 chmod +x "$dest/stub/claude"

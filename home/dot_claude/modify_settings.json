@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+# chezmoi modify_ script for ~/.claude/settings.json (also the vov profile's, by symlink).
+# Claude Code rewrites this file itself, so we patch only the keys we own and pass everything else through.
+# cleanupPeriodDays: keep session transcripts 10 years instead of the default 30 days.
+import json
+import sys
+
+OWNED = {"cleanupPeriodDays": 3650}
+
+src = sys.stdin.read()
+try:
+    data = json.loads(src) if src.strip() else {}
+except json.JSONDecodeError as e:
+    sys.exit(f"modify_settings.json: ~/.claude/settings.json is not valid JSON ({e}); fix it before chezmoi apply")
+if not isinstance(data, dict):
+    sys.exit("modify_settings.json: ~/.claude/settings.json is not a JSON object")
+
+if all(data.get(k) == v for k, v in OWNED.items()):
+    sys.stdout.write(src)  # already correct: leave the file byte-for-byte as Claude wrote it
+else:
+    data.update(OWNED)
+    sys.stdout.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
