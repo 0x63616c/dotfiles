@@ -106,14 +106,16 @@
   "selectedSoundFolder": null,
   "shareUsageData": false,
   "shortcuts": {
+    "18+58": "polish",
+    "19+58": "polish_prompt_1",
+    "31+58": "view_diff",
     "46+58": "open_meeting_recorder",
+    "49+63": "popo",
     "53": "dismiss",
-    "55": "paste_last_text",
     "55+59+8": "copy_last_text",
+    "55+59+9": "paste_last_text",
     "59+63": "lens",
-    "61": "ptt",
-    "62": "popo",
-    "63": "popo"
+    "63": "ptt"
   },
   "shouldAutoLearnWords": true,
   "shouldMuteAudio": true,
